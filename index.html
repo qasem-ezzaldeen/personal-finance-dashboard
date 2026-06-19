@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Financial Analytics</title>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23eab308%22><path d=%22M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V19h-2.18v-.91c-1.32-.08-2.61-.79-3.05-1.92l1.65-.69c.23.67.93 1.14 1.76 1.16.89.02 1.62-.43 1.62-1.07 0-.74-.63-1.07-1.74-1.37-1.48-.4-3.15-.99-3.15-2.92 0-1.6 1.15-2.67 2.65-2.88V7.5h2.18v.91c1.17.09 2.18.68 2.62 1.65l-1.63.68c-.28-.53-.74-.86-1.35-.9-.67-.04-1.46.26-1.46.99 0 .62.53.91 1.57 1.22 1.77.53 3.33 1.14 3.33 3.09.01 1.7-1.12 2.76-2.63 2.95z%22/></svg>">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+  <!-- Background Glow FX -->
+  <div class="glow-bg-1"></div>
+  <div class="glow-bg-2"></div>
+
+  <!-- Setup Wizard Modal Overlay (Shown for new users) -->
+  <div id="setup-wizard-overlay" class="modal-overlay active" style="display: none;">
+    <div class="modal-card setup-card">
+      <div class="setup-header">
+        <div class="logo-mark">⚡</div>
+        <h2>Welcome to AuraFinance</h2>
+        <p>Let's configure your initial financial baseline parameters. You can adjust these values at any time.</p>
+      </div>
+      <form id="setup-form" class="modal-form">
+        <div class="form-group">
+          <label for="setup-cash-savings">Baseline Cash Savings (USD)</label>
+          <div class="input-wrapper">
+            <span class="input-prefix">$</span>
+            <input type="number" id="setup-cash-savings" placeholder="e.g. 5000" min="0" step="any" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="setup-gold-grams">21k Physical Gold Owned (Grams)</label>
+          <div class="input-wrapper">
+            <input type="number" id="setup-gold-grams" placeholder="e.g. 50" min="0" step="any" required>
+            <span class="input-suffix">grams</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="setup-gold-premium">Local Gold Price Premium (%)</label>
+          <div class="input-wrapper">
+            <input type="number" id="setup-gold-premium" value="2.5" min="0" max="100" step="0.1" required>
+            <span class="input-suffix">%</span>
+          </div>
+          <p class="input-help">Local markup added to the global spot rate to match local jewelry stores in Egypt
+            (typically ~1.5% to 3.0%).</p>
+        </div>
+        <button type="submit" id="setup-submit-btn" class="btn btn-primary">Initialize Dashboard</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App Layout Container -->
+  <div class="app-container">
+
+    <!-- Top Global Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <span class="logo-icon">▲</span>
+        <div class="brand-text">
+          <h1>Aura<span>Finance</span></h1>
+          <p class="brand-tagline">Real-Time Wealth & Analytics</p>
+        </div>
+      </div>
+
+      <!-- API Live Rates Bar -->
+      <div class="api-rates-bar" id="rates-display-container">
+        <div class="rate-pill">
+          <span class="rate-dot live" id="api-status-dot"></span>
+          <span class="rate-label">USD/EGP:</span>
+          <span class="rate-value" id="rate-usd-egp">--.-- EGP</span>
+        </div>
+        <div class="rate-pill">
+          <span class="rate-label">Gold 24k/g:</span>
+          <span class="rate-value" id="rate-gold-24k">--.-- EGP</span>
+        </div>
+        <div class="rate-pill">
+          <span class="rate-label">Gold 21k/g:</span>
+          <span class="rate-value" id="rate-gold-21k">--.-- EGP</span>
+        </div>
+        <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
+          <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-1.19" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+        </button>
+        <button id="cloud-sync-btn" class="refresh-btn cloud-sync-btn offline" title="Firebase Cloud Sync Settings" type="button">
+          <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
+            <path d="M21.2 15c.6-1.1 1-2.5 1-4a8.2 8.2 0 0 0-6.8-8.1A6.5 6.5 0 0 0 3 7c0 .3 0 .7.1 1a5.2 5.2 0 0 0-.1 10.2M12 13v9M9 19l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Theme Switcher & Timestamp -->
+      <div class="header-controls">
+        <button id="theme-toggle-btn" class="theme-toggle-btn" title="Toggle Light/Dark Mode" type="button">
+          <span class="theme-icon">☀️</span>
+        </button>
+        <div class="sync-status">
+          <span class="time-label">Last Updated:</span>
+          <span class="time-value" id="last-updated-time">Never</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Monthly Reset Warning Banner (Shown on the 24th if reset is triggered) -->
+    <div id="monthly-reset-banner" class="reset-alert-banner" style="display: none;">
+      <div class="banner-content">
+        <span class="banner-icon">⏳</span>
+        <div class="banner-text">
+          <h3>Automated Monthly Reset Triggered</h3>
+          <p>Upcoming Income has rolled over to zero for the 24th. Please update your primary Cash Savings.</p>
+        </div>
+      </div>
+      <button id="banner-action-btn" class="btn btn-sm btn-outline">Update Savings</button>
+    </div>
+
+    <!-- Dashboard Content Grid -->
+    <main class="dashboard-grid">
+
+      <!-- Left Column: Transactions and Management -->
+      <div class="dashboard-col left-col">
+
+        <!-- SECTION 1: Transaction Input Panel -->
+        <section class="card glass-card" id="transaction-panel">
+          <div class="card-header">
+            <div class="header-title-group">
+              <span class="card-icon income">💵</span>
+              <h2>Log Upcoming Income</h2>
+            </div>
+            <span class="badge badge-income">USD</span>
+          </div>
+
+          <div class="card-body">
+            <form id="transaction-form" class="transaction-form">
+              <!-- Input Method Tabs -->
+              <div class="input-method-tabs">
+                <button type="button" id="tab-flat" class="tab-btn active">Flat Amount</button>
+                <button type="button" id="tab-hourly" class="tab-btn">Hourly Project</button>
+              </div>
+
+              <!-- Flat Amount Input Block -->
+              <div id="input-block-flat" class="input-block">
+                <div class="form-group">
+                  <label for="transaction-amount">New Income Amount (USD)</label>
+                  <div class="input-wrapper focus-glow">
+                    <span class="input-prefix">$</span>
+                    <input type="number" id="transaction-amount" placeholder="0.00" min="0.01" step="any" required
+                      autocomplete="off">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Hourly Input Block -->
+              <div id="input-block-hourly" class="input-block" style="display: none;">
+                <div class="form-group">
+                  <label>Duration Worked</label>
+                  <div class="duration-inputs">
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <div class="input-wrapper focus-glow">
+                        <input type="number" id="hourly-hours" placeholder="Hours" min="0" step="1" autocomplete="off">
+                        <span class="input-suffix">hrs</span>
+                      </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                      <div class="input-wrapper focus-glow">
+                        <input type="number" id="hourly-minutes" placeholder="Mins" min="0" max="59" step="1" autocomplete="off">
+                        <span class="input-suffix">min</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="hourly-rate">Hourly Rate (USD)</label>
+                  <div class="input-wrapper focus-glow">
+                    <span class="input-prefix">$</span>
+                    <input type="number" id="hourly-rate" placeholder="0.00" min="0.01" step="0.01" autocomplete="off">
+                    <span class="input-suffix">/ hr</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Real-time Conversion Preview Card -->
+              <div class="conversion-preview" id="transaction-preview-box">
+                <div class="preview-row">
+                  <span class="preview-label">EGP Conversion:</span>
+                  <span class="preview-value egp-highlight" id="preview-egp-amount">0.00 EGP</span>
+                </div>
+                <div class="preview-divider"></div>
+                <div class="preview-columns">
+                  <div class="preview-col">
+                    <span class="preview-sub-label">Upcoming Income Before</span>
+                    <span class="preview-sub-val" id="preview-income-before">$0.00</span>
+                  </div>
+                  <div class="preview-arrow">➜</div>
+                  <div class="preview-col text-right">
+                    <span class="preview-sub-label">Upcoming Income After</span>
+                    <span class="preview-sub-val success-color" id="preview-income-after">$0.00</span>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" id="add-transaction-btn" class="btn btn-success">
+                Add Transaction
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- Transaction History Log -->
+        <section class="card glass-card scroll-card" id="history-panel">
+          <div class="card-header">
+            <div class="header-title-group">
+              <span class="card-icon history">🕒</span>
+              <h2>Income History (This Month)</h2>
+            </div>
+            <span class="history-count" id="history-count-badge">0 logs</span>
+          </div>
+          <div class="card-body px-0 py-2">
+            <div class="history-list-wrapper" id="history-list">
+              <!-- Dynamically populated transaction entries -->
+              <div class="empty-state">No transaction logs for this month.</div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column: Distribution and Goals -->
+      <div class="dashboard-col right-col">
+
+        <!-- SECTION 2: Total Wealth Distribution Module -->
+        <section class="card glass-card" id="wealth-distribution-panel">
+          <div class="card-header justify-between">
+            <div class="header-title-group">
+              <span class="card-icon distribution">📊</span>
+              <h2>Total Wealth Distribution</h2>
+            </div>
+            <div class="api-status-badge positive" id="api-status-indicator">Live API Active</div>
+          </div>
+
+          <div class="card-body">
+            <div class="wealth-dashboard-container">
+              <div class="table-container">
+                <table class="wealth-table" id="wealth-distribution-table">
+                <thead>
+                  <tr>
+                    <th>Asset Category</th>
+                    <th>Asset Holdings</th>
+                    <th class="text-right">Valuation (USD)</th>
+                    <th class="text-right">Valuation (EGP)</th>
+                    <th class="text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Savings Row -->
+                  <tr>
+                    <td class="asset-name">
+                      <div class="asset-marker savings"></div>
+                      Cash Savings
+                    </td>
+                    <td class="asset-holdings" id="table-savings-holdings">--</td>
+                    <td class="text-right font-medium text-white" id="table-savings-usd">$0.00</td>
+                    <td class="text-right font-medium text-slate-300" id="table-savings-egp">0.00 EGP</td>
+                    <td class="text-center">
+                      <button id="edit-savings-btn" class="btn-icon" title="Edit Cash Savings">✏️</button>
+                    </td>
+                  </tr>
+
+                  <!-- Gold Row -->
+                  <tr>
+                    <td class="asset-name">
+                      <div class="asset-marker gold"></div>
+                      Gold Savings (21k)
+                    </td>
+                    <td class="asset-holdings" id="table-gold-holdings">--</td>
+                    <td class="text-right font-medium text-white" id="table-gold-usd">$0.00</td>
+                    <td class="text-right font-medium text-slate-300" id="table-gold-egp">0.00 EGP</td>
+                    <td class="text-center">
+                      <button id="edit-gold-btn" class="btn-icon" title="Edit Gold Holdings">✏️</button>
+                    </td>
+                  </tr>
+
+                  <!-- Upcoming Income Row -->
+                  <tr>
+                    <td class="asset-name">
+                      <div class="asset-marker upcoming"></div>
+                      Upcoming Income
+                    </td>
+                    <td class="asset-holdings" id="table-income-holdings">--</td>
+                    <td class="text-right font-medium text-white" id="table-income-usd">$0.00</td>
+                    <td class="text-right font-medium text-slate-300" id="table-income-egp">0.00 EGP</td>
+                    <td class="text-center">-</td>
+                  </tr>
+
+                  <!-- Net Worth Summary Row -->
+                  <tr class="net-worth-row">
+                    <td class="asset-name font-bold">Total Net Worth</td>
+                    <td class="asset-holdings">-</td>
+                    <td class="text-right font-extrabold value-highlight-usd" id="table-total-usd">$0.00</td>
+                    <td class="text-right font-extrabold value-highlight-egp" id="table-total-egp">0.00 EGP</td>
+                    <td class="text-center">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="chart-container">
+              <canvas id="wealth-donut-chart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+        <!-- SECTION 3: Financial Goals Progress Panel -->
+        <section class="card glass-card" id="goals-progress-panel">
+          <div class="card-header">
+            <div class="header-title-group">
+              <span class="card-icon goals">🎯</span>
+              <h2>Financial Goals & Targets</h2>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- Goal 1: Zakat Threshold (EGP) -->
+            <div class="goal-item" id="goal-zakat-box">
+              <div class="goal-header">
+                <div class="goal-info">
+                  <h3>Zakat Threshold (85g 24k Gold)</h3>
+                  <span class="goal-target-desc" id="zakat-threshold-description">Threshold: -- EGP</span>
+                </div>
+                <div class="goal-progress-text">
+                  <span class="goal-percent" id="zakat-percent">0%</span>
+                </div>
+              </div>
+
+              <!-- Custom Elegant Progress Bar -->
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill gold-gradient" id="zakat-progress-fill" style="width: 0%;"></div>
+              </div>
+
+              <div class="goal-footer">
+                <span class="goal-current-val" id="zakat-current-val">Net Worth: 0.00 EGP</span>
+                <span class="goal-remaining" id="zakat-remaining-val">Remaining: -- EGP</span>
+              </div>
+            </div>
+
+            <!-- Goal 2: Migration Goal (USD) -->
+            <div class="goal-item mt-4" id="goal-migration-box">
+              <div class="goal-header">
+                <div class="goal-info">
+                  <h3>
+                    <svg class="goal-flag-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 25" width="24" height="12" style="vertical-align: middle; margin-right: 6px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.15); display: inline-block;">
+                      <rect width="50" height="25" fill="#00003c"/>
+                      <g>
+                        <path d="M0 0l25 12.5M0 12.5l25-12.5" stroke="#fff" stroke-width="2.5"/>
+                        <path d="M0 0l25 12.5M0 12.5l25-12.5" stroke="#cc142b" stroke-width="1.5"/>
+                        <path d="M12.5 0v12.5M0 6.25h25" stroke="#fff" stroke-width="4.1"/>
+                        <path d="M12.5 0v12.5M0 6.25h25" stroke="#cc142b" stroke-width="2.5"/>
+                      </g>
+                      <polygon points="12.5,15.5 13.2,17.5 15.3,17.5 13.6,18.8 14.3,20.8 12.5,19.5 10.7,20.8 11.4,18.8 9.7,17.5 11.8,17.5" fill="#fff"/>
+                      <polygon points="37.5,2.5 37.9,3.7 39.1,3.7 38.1,4.5 38.5,5.7 37.5,4.9 36.5,5.7 36.9,4.5 35.9,3.7 37.1,3.7" fill="#fff"/>
+                      <polygon points="31.25,9.2 31.5,10.0 32.3,10.0 31.6,10.5 31.9,11.3 31.25,10.8 30.6,11.3 30.9,10.5 30.2,10.0 31.0,10.0" fill="#fff"/>
+                      <polygon points="43.75,9.2 44.0,10.0 44.8,10.0 44.1,10.5 44.4,11.3 43.75,10.8 43.1,11.3 43.4,10.5 42.7,10.0 43.5,10.0" fill="#fff"/>
+                      <polygon points="37.5,19.2 37.9,20.4 39.1,20.4 38.1,21.2 38.5,22.4 37.5,21.6 36.5,22.4 36.9,21.2 35.9,20.4 37.1,20.4" fill="#fff"/>
+                      <circle cx="39.6" cy="13.5" r="0.6" fill="#fff"/>
+                    </svg>Migration Goal
+                  </h3>
+                  <span class="goal-target-desc">Target: $20,000.00 USD</span>
+                </div>
+                <div class="goal-progress-text">
+                  <span class="goal-percent" id="migration-percent">0%</span>
+                </div>
+              </div>
+
+              <!-- Custom Elegant Progress Bar -->
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill aus-flag-gradient" id="migration-progress-fill" style="width: 0%;"></div>
+              </div>
+
+              <div class="goal-footer">
+                <span class="goal-current-val" id="migration-current-val">Net Worth: $0.00 USD</span>
+                <span class="goal-remaining" id="migration-remaining-val">Remaining: -- USD</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+    </main>
+  </div>
+
+  <!-- MODALS SYSTEM -->
+
+  <!-- Edit Cash Savings Modal -->
+  <div id="edit-savings-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Adjust Baseline Cash Savings</h3>
+        <button class="close-modal-btn" id="close-savings-modal">✕</button>
+      </div>
+      <form id="edit-savings-form" class="modal-form">
+        <div class="form-group">
+          <label for="edit-cash-savings-input">Baseline Cash Savings (USD)</label>
+          <div class="input-wrapper focus-glow">
+            <span class="input-prefix">$</span>
+            <input type="number" id="edit-cash-savings-input" min="0" step="any" required>
+          </div>
+          <p class="input-help">This represents your main cash holdings in USD (excluding upcoming income).</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-savings-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Gold Savings Modal -->
+  <div id="edit-gold-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Adjust Baseline Gold Holdings</h3>
+        <button class="close-modal-btn" id="close-gold-modal">✕</button>
+      </div>
+      <form id="edit-gold-form" class="modal-form">
+        <div class="form-group">
+          <label for="edit-gold-grams-input">Physical Gold Savings (Grams of 21k)</label>
+          <div class="input-wrapper focus-glow">
+            <input type="number" id="edit-gold-grams-input" min="0" step="any" required>
+            <span class="input-suffix">grams</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="edit-gold-premium-input">Local Gold Price Premium (%)</label>
+          <div class="input-wrapper focus-glow">
+            <input type="number" id="edit-gold-premium-input" min="0" max="100" step="0.1" required>
+            <span class="input-suffix">%</span>
+          </div>
+          <p class="input-help">Local EGP markup added to the global spot rate to align with Egyptian market premiums.
+          </p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-gold-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SECTION 4: Automated Monthly Reset Modal -->
+  <div id="monthly-reset-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card reset-card">
+      <div class="reset-icon-badge">⏳</div>
+      <div class="modal-header text-center">
+        <h3>Monthly Income Rollover</h3>
+        <p class="sub-header-text">It is the 24th of the month. Your running Upcoming Income total has been reset to
+          zero.</p>
+      </div>
+      <div class="reset-breakdown">
+        <div class="breakdown-item">
+          <span class="label">Rolled Over Upcoming Income</span>
+          <span class="val success-color" id="reset-rolled-income">$0.00 USD</span>
+        </div>
+        <div class="breakdown-item">
+          <span class="label">Current Cash Savings Baseline</span>
+          <span class="val" id="reset-current-savings">$0.00 USD</span>
+        </div>
+      </div>
+      <form id="monthly-reset-form" class="modal-form">
+        <div class="form-group">
+          <label for="reset-new-savings-input">New Cash Savings Baseline (USD)</label>
+          <div class="input-wrapper focus-glow">
+            <span class="input-prefix">$</span>
+            <input type="number" id="reset-new-savings-input" min="0" step="any" required>
+          </div>
+          <p class="input-help">Please input your updated savings. We recommend adding your monthly net earnings and
+            subtracting expenditures to get your new baseline.</p>
+        </div>
+        <button type="submit" class="btn btn-primary w-full" id="reset-submit-btn">Update Cash Savings & Resume</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Revert Confirmation Modal -->
+  <div id="revert-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Revert Transaction History</h3>
+        <button class="close-modal-btn" id="close-revert-modal">✕</button>
+      </div>
+      <div class="modal-form">
+        <p class="input-help" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45;">Are you sure
+          you want to revert your upcoming income history back to this point? This action is permanent.</p>
+        <div class="reset-breakdown" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">
+          <div class="breakdown-item">
+            <span class="label">Revert Income To</span>
+            <span class="val success-color" id="revert-target-income">$0.00 USD</span>
+          </div>
+          <div class="breakdown-item">
+            <span class="label">Subsequent Logs Discarded</span>
+            <span class="val" id="revert-discard-count" style="color: var(--color-danger);">0 logs</span>
+          </div>
+        </div>
+        <p class="input-help">All transaction logs recorded after this point will be discarded, and your upcoming income
+          running total will be restored to the state immediately after this transaction.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-revert-btn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-revert-btn"
+            style="background: var(--color-gold); color: #000000;">Revert History</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cloud Sync Connection Settings Modal -->
+  <div id="sync-settings-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Cloud Sync Settings (Firebase)</h3>
+        <button class="close-modal-btn" id="close-sync-modal">✕</button>
+      </div>
+      <form id="sync-settings-form" class="modal-form">
+        <p class="input-help" style="margin-bottom: 0.5rem; color: var(--text-secondary);">
+          Enable real-time syncing between your phone and PC by connecting to your own free Firebase Firestore database.
+        </p>
+        
+        <div class="form-group">
+          <label for="sync-code-input">Dashboard Sync Code (Share between devices)</label>
+          <div class="input-wrapper focus-glow">
+            <input type="text" id="sync-code-input" placeholder="e.g. my-family-dashboard" required autocomplete="off">
+          </div>
+          <p class="input-help">Use the exact same code on your phone and PC to link their data.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="firebase-config-input">Firebase Configuration Object (JSON)</label>
+          <div class="input-wrapper focus-glow" style="display: block;">
+            <textarea id="firebase-config-input" rows="7" placeholder='Paste your Firebase config object here, e.g.:
+{
+  "apiKey": "AIzaSy...",
+  "authDomain": "...",
+  "projectId": "...",
+  "storageBucket": "...",
+  "messagingSenderId": "...",
+  "appId": "..."
+}' style="width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.85rem 1rem; border-radius: 8px; font-family: monospace; font-size: 0.8rem; outline: none; transition: var(--transition-fast); resize: vertical;"></textarea>
+          </div>
+          <p class="input-help">Create a project on firebase.google.com, enable Firestore in Test Mode, register a Web App, and paste the config snippet here.</p>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="disconnect-sync-btn" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Disconnect Cloud</button>
+          <button type="submit" class="btn btn-primary" id="save-sync-btn">Save & Connect</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+
+</html>
