@@ -29,6 +29,8 @@
   --color-income-glow: rgba(168, 85, 247, 0.05);
   
   --color-danger: #ef4444; /* Flat red */
+  --track-bg: rgba(255, 255, 255, 0.05);
+  --border-subtle: rgba(255, 255, 255, 0.04);
   
   /* Transitions */
   --transition-fast: 0.12s ease;
@@ -59,6 +61,8 @@
   --color-savings-glow: rgba(34, 197, 94, 0.08);
   --color-gold-glow: rgba(234, 179, 8, 0.08);
   --color-income-glow: rgba(168, 85, 247, 0.08);
+  --track-bg: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.05);
   
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
@@ -466,13 +470,13 @@ body {
 
 .tab-btn.active {
   background: var(--card-bg);
-  color: #ffffff;
+  color: var(--text-primary);
   border: 1px solid var(--card-border);
 }
 
 .tab-btn:hover:not(.active) {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+  background: var(--color-primary-glow);
 }
 
 /* Flex row for hourly duration */
@@ -687,9 +691,9 @@ body {
 }
 
 .btn-outline:hover {
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--text-muted);
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--color-primary-glow);
 }
 
 .btn-sm {
@@ -713,7 +717,7 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted);
   font-weight: 500;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--color-primary-glow);
   padding: 0.15rem 0.5rem;
   border-radius: 9999px;
   border: 1px solid var(--card-border);
@@ -732,7 +736,7 @@ body {
   padding: 0.75rem 0.6rem;
   margin: 0.1rem -0.6rem;
   border-radius: 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-subtle);
   animation: fadeIn 0.3s ease-out;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -842,7 +846,7 @@ body {
 
 .wealth-table td {
   padding: 1.1rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-subtle);
   vertical-align: middle;
 }
 
@@ -877,12 +881,15 @@ body {
 .font-medium { font-weight: 500; }
 .font-bold { font-weight: 700; }
 .font-extrabold { font-weight: 800; }
-.text-white { color: #ffffff !important; }
+.text-primary { color: var(--text-primary) !important; }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-muted-helper { color: var(--text-muted) !important; }
+.text-white { color: var(--text-primary) !important; }
 .text-slate-300 { color: var(--text-secondary) !important; }
 .text-center { text-align: center; }
 
 .btn-icon {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--color-primary-glow);
   border: 1px solid var(--card-border);
   border-radius: 6px;
   width: 26px;
@@ -903,7 +910,7 @@ body {
 
 /* Net Worth Summary Row Styling */
 .net-worth-row {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--color-primary-glow);
   border-top: 2px solid var(--card-border);
 }
 
@@ -914,7 +921,7 @@ body {
 }
 
 .value-highlight-usd {
-  color: #ffffff;
+  color: var(--text-primary);
   font-size: 1.15rem;
 }
 
@@ -963,13 +970,13 @@ body {
 .goal-percent {
   font-size: 1.1rem;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 /* Custom Progress Bar Track & Fill */
 .progress-bar-track {
   height: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--track-bg);
   border-radius: 9999px;
   overflow: visible;
   margin-bottom: 0.75rem;
@@ -1071,7 +1078,7 @@ body {
 .modal-header h3 {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .close-modal-btn {
@@ -1084,7 +1091,7 @@ body {
 }
 
 .close-modal-btn:hover {
-  color: #ffffff;
+  color: var(--text-primary);
   transform: scale(1.1);
 }
 
@@ -1126,7 +1133,7 @@ body {
   font-size: 1.4rem;
   font-weight: 800;
   margin-bottom: 0.5rem;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .setup-header p {
