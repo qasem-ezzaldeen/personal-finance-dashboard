@@ -93,11 +93,7 @@
               stroke-linejoin="round" />
           </svg>
         </button>
-        <button id="cloud-sync-btn" class="refresh-btn cloud-sync-btn offline" title="Firebase Cloud Sync Settings" type="button">
-          <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
-            <path d="M21.2 15c.6-1.1 1-2.5 1-4a8.2 8.2 0 0 0-6.8-8.1A6.5 6.5 0 0 0 3 7c0 .3 0 .7.1 1a5.2 5.2 0 0 0-.1 10.2M12 13v9M9 19l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
+
       </div>
 
       <!-- Theme Switcher & Timestamp -->
@@ -522,49 +518,7 @@
     </div>
   </div>
 
-  <!-- Cloud Sync Connection Settings Modal -->
-  <div id="sync-settings-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3>Cloud Sync Settings (Firebase)</h3>
-        <button class="close-modal-btn" id="close-sync-modal">✕</button>
-      </div>
-      <form id="sync-settings-form" class="modal-form">
-        <p class="input-help" style="margin-bottom: 0.5rem; color: var(--text-secondary);">
-          Enable real-time syncing between your phone and PC by connecting to your own free Firebase Firestore database.
-        </p>
-        
-        <div class="form-group">
-          <label for="sync-code-input">Dashboard Sync Code (Share between devices)</label>
-          <div class="input-wrapper focus-glow">
-            <input type="text" id="sync-code-input" placeholder="e.g. my-family-dashboard" required autocomplete="off">
-          </div>
-          <p class="input-help">Use the exact same code on your phone and PC to link their data.</p>
-        </div>
 
-        <div class="form-group">
-          <label for="firebase-config-input">Firebase Configuration Object (JSON)</label>
-          <div class="input-wrapper focus-glow" style="display: block;">
-            <textarea id="firebase-config-input" rows="7" placeholder='Paste your Firebase config object here, e.g.:
-{
-  "apiKey": "AIzaSy...",
-  "authDomain": "...",
-  "projectId": "...",
-  "storageBucket": "...",
-  "messagingSenderId": "...",
-  "appId": "..."
-}' style="width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.85rem 1rem; border-radius: 8px; font-family: monospace; font-size: 0.8rem; outline: none; transition: var(--transition-fast); resize: vertical;"></textarea>
-          </div>
-          <p class="input-help">Create a project on firebase.google.com, enable Firestore in Test Mode, register a Web App, and paste the config snippet here.</p>
-        </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="disconnect-sync-btn" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Disconnect Cloud</button>
-          <button type="submit" class="btn btn-primary" id="save-sync-btn">Save & Connect</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <script type="module" src="app.js"></script>
 </body>

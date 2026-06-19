@@ -1,5 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
 
 /**
  * AuraFinance // Personal Financial Analytics Controller
@@ -25,11 +24,7 @@ let activeInputMethod = "flat";
 // Global Chart.js instance for the wealth donut chart
 let wealthChart = null;
 
-// --- FIREBASE CLOUD SYNC STATE ---
-let db = null;
-let firestoreUnsubscribe = null;
-let isCloudSyncActive = false;
-let isPreventingSyncLoop = false;
+
 
 // --- STATE DEFINITION & LOCAL STORAGE HELPER ---
 const State = {
@@ -100,11 +95,6 @@ const State = {
     localStorage.setItem("lastResetMonth", this.lastResetMonth);
     localStorage.setItem("resetPending", this.resetPending);
     localStorage.setItem("resetRolledIncome", this.resetRolledIncome);
-    
-    // Trigger cloud synchronization if active and not in update loop
-    if (isCloudSyncActive && !isPreventingSyncLoop) {
-      syncStateToCloud();
-    }
   }
 };
 
@@ -992,218 +982,7 @@ function setupModalListeners() {
     refreshBtn.addEventListener("click", fetchLiveRates);
   }
 
-  // --- Cloud Sync Settings Modal ---
-  const cloudSyncBtn = document.getElementById("cloud-sync-btn");
-  const syncModal = document.getElementById("sync-settings-modal");
-  const closeSyncModal = document.getElementById("close-sync-modal");
-  const syncForm = document.getElementById("sync-settings-form");
-  const syncCodeInput = document.getElementById("sync-code-input");
-  const firebaseConfigInput = document.getElementById("firebase-config-input");
-  const disconnectSyncBtn = document.getElementById("disconnect-sync-btn");
 
-  if (cloudSyncBtn && syncModal) {
-    cloudSyncBtn.addEventListener("click", () => {
-      syncCodeInput.value = localStorage.getItem("firebase_sync_code") || "";
-      
-      const rawConfig = localStorage.getItem("firebase_config") || "";
-      if (rawConfig) {
-        try {
-          firebaseConfigInput.value = JSON.stringify(JSON.parse(rawConfig), null, 2);
-        } catch {
-          firebaseConfigInput.value = rawConfig;
-        }
-      } else {
-        firebaseConfigInput.value = "";
-      }
-      
-      syncModal.style.display = "flex";
-      setTimeout(() => syncModal.classList.add("active"), 10);
-    });
-  }
-
-  const hideSyncModal = () => {
-    if (syncModal) {
-      syncModal.classList.remove("active");
-      setTimeout(() => syncModal.style.display = "none", 300);
-    }
-  };
-
-  if (closeSyncModal) closeSyncModal.addEventListener("click", hideSyncModal);
-
-  if (syncForm) {
-    syncForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      
-      const configStr = firebaseConfigInput.value.trim();
-      const codeStr = syncCodeInput.value.trim();
-      
-      if (!configStr || !codeStr) return;
-      
-      try {
-        // Validate JSON
-        const parsed = JSON.parse(configStr);
-        
-        localStorage.setItem("firebase_config", JSON.stringify(parsed));
-        localStorage.setItem("firebase_sync_code", codeStr);
-        
-        hideSyncModal();
-        
-        // Re-initialize cloud sync
-        initCloudSync();
-        
-      } catch (err) {
-        alert("Invalid Firebase Configuration JSON! Please double-check formatting.");
-      }
-    });
-  }
-
-  if (disconnectSyncBtn) {
-    disconnectSyncBtn.addEventListener("click", () => {
-      if (confirm("Are you sure you want to disconnect from Firebase cloud sync? Your data will remain stored locally.")) {
-        localStorage.removeItem("firebase_config");
-        localStorage.removeItem("firebase_sync_code");
-        
-        if (firestoreUnsubscribe) {
-          firestoreUnsubscribe();
-          firestoreUnsubscribe = null;
-        }
-        
-        isCloudSyncActive = false;
-        db = null;
-        
-        const syncBtn = document.getElementById("cloud-sync-btn");
-        if (syncBtn) {
-          syncBtn.className = "refresh-btn cloud-sync-btn offline";
-          syncBtn.title = "Firebase Cloud Sync Settings (Offline)";
-        }
-        
-        hideSyncModal();
-      }
-    });
-  }
-}
-
-// --- FIREBASE SYNC ENGINE WORKFLOWS ---
-async function syncStateToCloud() {
-  if (!db) return;
-  const syncCode = localStorage.getItem("firebase_sync_code");
-  if (!syncCode) return;
-  
-  try {
-    const docRef = doc(db, "dashboards", syncCode);
-    const payload = {
-      usdSavings: State.usdSavings,
-      goldGrams: State.goldGrams,
-      goldPremium: State.goldPremium,
-      upcomingIncome: State.upcomingIncome,
-      transactions: State.transactions,
-      cachedUsdEgp: State.cachedUsdEgp,
-      cachedGold24kUsd: State.cachedGold24kUsd,
-      lastFetchedTime: State.lastFetchedTime || "",
-      usdEgpTrend: State.usdEgpTrend,
-      gold24kTrend: State.gold24kTrend,
-      gold21kTrend: State.gold21kTrend,
-      lastResetMonth: State.lastResetMonth,
-      resetPending: State.resetPending,
-      resetRolledIncome: State.resetRolledIncome,
-      updatedAt: Date.now()
-    };
-    
-    await setDoc(docRef, payload);
-    console.log("State synced to Firestore successfully!");
-  } catch (err) {
-    console.error("Failed to sync state to Firestore:", err);
-  }
-}
-
-function initCloudSync() {
-  const syncBtn = document.getElementById("cloud-sync-btn");
-  
-  if (firestoreUnsubscribe) {
-    firestoreUnsubscribe();
-    firestoreUnsubscribe = null;
-  }
-  
-  const rawConfig = localStorage.getItem("firebase_config");
-  const syncCode = localStorage.getItem("firebase_sync_code");
-  
-  if (!rawConfig || !syncCode) {
-    isCloudSyncActive = false;
-    db = null;
-    if (syncBtn) {
-      syncBtn.className = "refresh-btn cloud-sync-btn offline";
-      syncBtn.title = "Firebase Cloud Sync Settings (Offline)";
-    }
-    return;
-  }
-  
-  try {
-    if (syncBtn) {
-      syncBtn.className = "refresh-btn cloud-sync-btn connecting";
-      syncBtn.title = "Connecting to Firebase...";
-    }
-    
-    const firebaseConfig = JSON.parse(rawConfig);
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-    
-    isCloudSyncActive = true;
-    
-    const docRef = doc(db, "dashboards", syncCode);
-    
-    firestoreUnsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        console.log("Real-time cloud state update received:", data);
-        
-        isPreventingSyncLoop = true;
-        
-        if (data.usdSavings !== undefined) State.usdSavings = Number(data.usdSavings);
-        if (data.goldGrams !== undefined) State.goldGrams = Number(data.goldGrams);
-        if (data.goldPremium !== undefined) State.goldPremium = Number(data.goldPremium);
-        if (data.upcomingIncome !== undefined) State.upcomingIncome = Number(data.upcomingIncome);
-        if (data.transactions !== undefined) State.transactions = data.transactions;
-        if (data.cachedUsdEgp !== undefined) State.cachedUsdEgp = Number(data.cachedUsdEgp);
-        if (data.cachedGold24kUsd !== undefined) State.cachedGold24kUsd = Number(data.cachedGold24kUsd);
-        if (data.lastFetchedTime !== undefined) State.lastFetchedTime = data.lastFetchedTime;
-        if (data.usdEgpTrend !== undefined) State.usdEgpTrend = data.usdEgpTrend;
-        if (data.gold24kTrend !== undefined) State.gold24kTrend = data.gold24kTrend;
-        if (data.gold21kTrend !== undefined) State.gold21kTrend = data.gold21kTrend;
-        if (data.lastResetMonth !== undefined) State.lastResetMonth = data.lastResetMonth;
-        if (data.resetPending !== undefined) State.resetPending = data.resetPending;
-        if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
-        
-        State.save();
-        
-        isPreventingSyncLoop = false;
-        
-        updateDashboardUI();
-      } else {
-        console.log("Cloud document does not exist. Creating document with current state...");
-        syncStateToCloud();
-      }
-      
-      if (syncBtn) {
-        syncBtn.className = "refresh-btn cloud-sync-btn connected";
-        syncBtn.title = `Cloud Synced to code: ${syncCode}`;
-      }
-    }, (err) => {
-      console.error("Firestore onSnapshot error:", err);
-      if (syncBtn) {
-        syncBtn.className = "refresh-btn cloud-sync-btn offline";
-        syncBtn.title = `Cloud Connection Failed: ${err.message}`;
-      }
-    });
-    
-  } catch (err) {
-    console.error("Failed to initialize Firebase:", err);
-    isCloudSyncActive = false;
-    db = null;
-    if (syncBtn) {
-      syncBtn.className = "refresh-btn cloud-sync-btn offline";
-      syncBtn.title = `Firebase Connection Error: ${err.message}`;
-    }
-  }
 }
 
 // --- THEME MANAGEMENT ENGINE ---
@@ -1238,8 +1017,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // 0. Initialize light/dark theme preference
   initTheme();
 
-  // 0.1 Initialize Firebase cloud sync connection
-  initCloudSync();
+  // 0.1 Clean up legacy Firebase keys from local storage
+  localStorage.removeItem("firebase_config");
+  localStorage.removeItem("firebase_sync_code");
 
   // 1. Initial State Check
   const initialized = State.load();
