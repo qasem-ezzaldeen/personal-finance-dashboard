@@ -1004,8 +1004,44 @@ body {
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.6); /* Glow white a little */
 }
 
-#goal-migration-box {
-  border-color: rgba(59, 130, 246, 0.4); /* Premium blue border */
+.usd-gradient {
+  background: var(--color-savings);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+
+.aud-gradient {
+  background: #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+}
+
+.egp-gradient {
+  background: var(--color-income);
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+}
+
+.goal-border-gold {
+  border-color: rgba(234, 179, 8, 0.25) !important;
+}
+
+.goal-border-usd {
+  border-color: rgba(34, 197, 94, 0.25) !important;
+}
+
+.goal-border-aud {
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.goal-border-egp {
+  border-color: rgba(168, 85, 247, 0.25) !important;
+}
+
+.emoji-suggestion {
+  transition: transform var(--transition-fast), background-color var(--transition-fast);
+}
+
+.emoji-suggestion:hover {
+  background-color: rgba(255, 255, 255, 0.12) !important;
+  transform: scale(1.15);
 }
 
 .goal-footer {

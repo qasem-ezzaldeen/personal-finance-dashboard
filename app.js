@@ -45,12 +45,15 @@ const State = {
   
   // Lists
   transactions: [],
+  goals: [], // Dynamic goals
   
   // Rate caching
   cachedUsdEgp: 49.93, // Default fallback
+  cachedUsdAud: 1.50, // Default fallback for AUD
   cachedGold24kUsd: 135.88, // Default fallback (~$4226/oz)
   lastFetchedTime: null,
   usdEgpTrend: "neutral",
+  usdAudTrend: "neutral", // Trend for AUD
   gold24kTrend: "neutral",
   gold21kTrend: "neutral",
   
@@ -181,22 +184,32 @@ async function fetchLiveRates() {
     console.warn("Failed to scrape gold-price-live.com, falling back to global APIs:", error);
   }
 
-  // 3. Fallback APIs (runs if scraping failed)
-  if (!scrapeSuccess) {
-    try {
-      const fxResponse = await fetch("https://open.er-api.com/v6/latest/USD");
-      if (!fxResponse.ok) throw new Error("Exchange rate API failed");
-      const fxData = await fxResponse.json();
-      if (fxData && fxData.rates && fxData.rates.EGP) {
-        usdEgpRate = parseFloat(fxData.rates.EGP);
-      } else {
-        throw new Error("Invalid exchange rate payload");
+  let usdAudRate = State.cachedUsdAud;
+
+  // Fetch exchange rates (USD to AUD always, and USD to EGP if scraping failed)
+  try {
+    const fxResponse = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (!fxResponse.ok) throw new Error("Exchange rate API failed");
+    const fxData = await fxResponse.json();
+    if (fxData && fxData.rates) {
+      if (fxData.rates.AUD) {
+        usdAudRate = parseFloat(fxData.rates.AUD);
       }
-    } catch (error) {
-      console.warn("Exchange Rate API failure, utilizing cached rate:", error);
+      if (!scrapeSuccess && fxData.rates.EGP) {
+        usdEgpRate = parseFloat(fxData.rates.EGP);
+      }
+    } else {
+      throw new Error("Invalid exchange rate payload");
+    }
+  } catch (error) {
+    console.warn("Exchange Rate API failure, utilizing cached rates:", error);
+    if (!scrapeSuccess) {
       fetchError = true;
     }
+  }
 
+  // 3. Fallback Gold API (runs if scraping failed)
+  if (!scrapeSuccess) {
     try {
       const goldResponse = await fetch("https://api.gold-api.com/price/XAU");
       if (!goldResponse.ok) throw new Error("Gold API failed");
@@ -225,6 +238,13 @@ async function fetchLiveRates() {
     State.usdEgpTrend = "down";
   }
 
+  // Determine USD/AUD trend
+  if (usdAudRate > State.cachedUsdAud) {
+    State.usdAudTrend = "up";
+  } else if (usdAudRate < State.cachedUsdAud) {
+    State.usdAudTrend = "down";
+  }
+
   // Determine Gold 24k trend
   const currentGold24kEgp = gold24kUsd * usdEgpRate * (1 + State.goldPremium / 100);
   if (currentGold24kEgp > prevGold24kEgp) {
@@ -243,6 +263,7 @@ async function fetchLiveRates() {
 
   // Update cached state and timestamp
   State.cachedUsdEgp = usdEgpRate;
+  State.cachedUsdAud = usdAudRate;
   State.cachedGold24kUsd = gold24kUsd;
   State.lastFetchedTime = new Date().toLocaleString();
 
@@ -376,11 +397,19 @@ function updateDashboardUI() {
   };
 
   const usdEgpArrow = getTrendArrowHTML(State.usdEgpTrend);
+  const usdAudArrow = getTrendArrowHTML(State.usdAudTrend);
   const gold24kArrow = getTrendArrowHTML(State.gold24kTrend);
   const gold21kArrow = getTrendArrowHTML(State.gold21kTrend);
 
   // --- 1. Update Rates Bar & Sync Timestamps ---
   document.getElementById("rate-usd-egp").innerHTML = `${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}`;
+  
+  const usdAudRate = State.cachedUsdAud;
+  const rateUsdAudEl = document.getElementById("rate-usd-aud");
+  if (rateUsdAudEl) {
+    rateUsdAudEl.innerHTML = `${usdAudRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} AUD${usdAudArrow}`;
+  }
+
   // Display Egyptian gold rates in EGP in the header
   document.getElementById("rate-gold-24k").innerHTML = `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`;
   document.getElementById("rate-gold-21k").innerHTML = `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold21kArrow}`;
@@ -407,46 +436,142 @@ function updateDashboardUI() {
   document.getElementById("table-total-egp").textContent = `${totalNetWorthEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
 
   // --- 3. Update Financial Goals Tracking Panel ---
-  // Target 1: Zakat Threshold (85 grams of local 24k Gold valued in EGP)
-  const zakatThresholdEgp = gold24kEgpPerGram * 85;
-  
-  const zakatPercent = zakatThresholdEgp > 0 ? (totalNetWorthEgp / zakatThresholdEgp) * 100 : 0;
-  const zakatProgressFill = document.getElementById("zakat-progress-fill");
-  if (zakatProgressFill) {
-    zakatProgressFill.style.width = `${Math.min(100, zakatPercent)}%`;
-  }
-  document.getElementById("zakat-percent").textContent = `${zakatPercent.toFixed(1)}%`;
-  document.getElementById("zakat-threshold-description").textContent = `Threshold: ${zakatThresholdEgp.toLocaleString(undefined, {maximumFractionDigits: 2})} EGP`;
-  document.getElementById("zakat-current-val").textContent = `Net Worth: ${totalNetWorthEgp.toLocaleString(undefined, {maximumFractionDigits: 2})} EGP`;
-  
-  const zakatRemainingLabel = document.getElementById("zakat-remaining-val");
-  if (totalNetWorthEgp >= zakatThresholdEgp) {
-    zakatRemainingLabel.textContent = "Threshold Met (Zakat Due) ✓";
-    zakatRemainingLabel.className = "goal-remaining met";
-  } else {
-    const zakatRemaining = zakatThresholdEgp - totalNetWorthEgp;
-    zakatRemainingLabel.textContent = `Remaining: ${zakatRemaining.toLocaleString(undefined, {maximumFractionDigits: 2})} EGP`;
-    zakatRemainingLabel.className = "goal-remaining";
-  }
+  const goalsContainer = document.getElementById("goals-list-container");
+  if (goalsContainer) {
+    goalsContainer.innerHTML = "";
+    
+    if (!State.goals || State.goals.length === 0) {
+      goalsContainer.innerHTML = `<div class="empty-state">No financial goals set. Click ➕ to add one.</div>`;
+    } else {
+      State.goals.forEach(goal => {
+        let currentVal = 0;
+        let targetVal = goal.target;
+        let remainingVal = 0;
+        let percent = 0;
+        let currentText = "";
+        let targetText = "";
+        let remainingText = "";
+        let gradientClass = "usd-gradient";
+        let borderClass = "goal-border-usd";
+        
+        if (goal.currency === "Gold") {
+          currentVal = gold24kEgpPerGram > 0 ? (totalNetWorthEgp / gold24kEgpPerGram) : 0;
+          remainingVal = targetVal - currentVal;
+          percent = targetVal > 0 ? (currentVal / targetVal) * 100 : 0;
+          
+          gradientClass = "gold-gradient";
+          borderClass = "goal-border-gold";
+          
+          targetText = `Target: ${targetVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g (24k Gold)`;
+          currentText = `Net Worth: ${currentVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
+          
+          if (currentVal >= targetVal) {
+            remainingText = "Threshold Met (Zakat Due) ✓";
+          } else {
+            remainingText = `Remaining: ${remainingVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
+          }
+        } else if (goal.currency === "USD") {
+          currentVal = totalNetWorthUsd;
+          remainingVal = targetVal - currentVal;
+          percent = targetVal > 0 ? (currentVal / targetVal) * 100 : 0;
+          
+          gradientClass = "usd-gradient";
+          borderClass = "goal-border-usd";
+          
+          targetText = `Target: $${targetVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
+          currentText = `Net Worth: $${currentVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
+          
+          if (currentVal >= targetVal) {
+            remainingText = "Goal Reached ✓";
+          } else {
+            remainingText = `Remaining: $${remainingVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
+          }
+        } else if (goal.currency === "AUD") {
+          currentVal = totalNetWorthUsd * usdAudRate;
+          remainingVal = targetVal - currentVal;
+          percent = targetVal > 0 ? (currentVal / targetVal) * 100 : 0;
+          
+          gradientClass = "aud-gradient";
+          borderClass = "goal-border-aud";
+          
+          targetText = `Target: $${targetVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
+          currentText = `Net Worth: $${currentVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
+          
+          if (currentVal >= targetVal) {
+            remainingText = "Goal Reached ✓";
+          } else {
+            remainingText = `Remaining: $${remainingVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
+          }
+        } else if (goal.currency === "EGP") {
+          currentVal = totalNetWorthEgp;
+          remainingVal = targetVal - currentVal;
+          percent = targetVal > 0 ? (currentVal / targetVal) * 100 : 0;
+          
+          gradientClass = "egp-gradient";
+          borderClass = "goal-border-egp";
+          
+          targetText = `Target: ${targetVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
+          currentText = `Net Worth: ${currentVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
+          
+          if (currentVal >= targetVal) {
+            remainingText = "Goal Reached ✓";
+          } else {
+            remainingText = `Remaining: ${remainingVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
+          }
+        }
+        
+        const goalItem = document.createElement("div");
+        goalItem.className = `goal-item ${borderClass}`;
+        goalItem.style.position = "relative";
+        goalItem.style.transition = "transform var(--transition-fast), border-color var(--transition-fast)";
+        
+        // Add hover micro-interaction
+        goalItem.addEventListener("mouseenter", () => {
+          goalItem.style.transform = "translateY(-2px)";
+        });
+        goalItem.addEventListener("mouseleave", () => {
+          goalItem.style.transform = "none";
+        });
 
-  // Target 2: Migration Goal ($20,000 USD)
-  const migrationTargetUsd = 20000;
-  const migrationPercent = (totalNetWorthUsd / migrationTargetUsd) * 100;
-  const migrationProgressFill = document.getElementById("migration-progress-fill");
-  if (migrationProgressFill) {
-    migrationProgressFill.style.width = `${Math.min(100, migrationPercent)}%`;
-  }
-  document.getElementById("migration-percent").textContent = `${migrationPercent.toFixed(1)}%`;
-  document.getElementById("migration-current-val").textContent = `Net Worth: $${totalNetWorthUsd.toLocaleString(undefined, {maximumFractionDigits: 2})} USD`;
-  
-  const migrationRemainingLabel = document.getElementById("migration-remaining-val");
-  if (totalNetWorthUsd >= migrationTargetUsd) {
-    migrationRemainingLabel.textContent = "Goal Reached ✓";
-    migrationRemainingLabel.className = "goal-remaining met";
-  } else {
-    const migrationRemaining = migrationTargetUsd - totalNetWorthUsd;
-    migrationRemainingLabel.textContent = `Remaining: $${migrationRemaining.toLocaleString(undefined, {maximumFractionDigits: 2})} USD`;
-    migrationRemainingLabel.className = "goal-remaining";
+        const isMet = currentVal >= targetVal;
+        
+        goalItem.innerHTML = `
+          <div class="goal-header" style="margin-bottom: 0.75rem;">
+            <div class="goal-info">
+              <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
+                <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
+                ${goal.name}
+              </h3>
+              <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
+              <button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>
+            </div>
+          </div>
+          
+          <div class="progress-bar-track" style="height: 8px; background: var(--track-bg); border-radius: 9999px; overflow: hidden; margin-bottom: 0.75rem;">
+            <div class="progress-bar-fill ${gradientClass}" style="width: ${Math.min(100, percent)}%; height: 100%; border-radius: 9999px;"></div>
+          </div>
+          
+          <div class="goal-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; font-weight: 500;">
+             <span class="goal-current-val" style="color: var(--text-secondary);">${currentText}</span>
+             <span class="goal-remaining ${isMet ? 'met' : ''}" style="${isMet ? 'color: var(--color-savings); font-weight: 700;' : 'color: var(--text-muted);'}">${remainingText}</span>
+          </div>
+        `;
+        
+        // Attach click handler for edit button
+        const editBtn = goalItem.querySelector(".edit-goal-item-btn");
+        if (editBtn) {
+          editBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openGoalModal(goal);
+          });
+        }
+        
+        goalsContainer.appendChild(goalItem);
+      });
+    }
   }
 
   // --- 4. Update Income Logs List ---
@@ -658,6 +783,51 @@ function triggerRevertWorkflow(tx) {
   }
 }
 
+// --- DYNAMIC GOALS MODAL HELPERS ---
+function openGoalModal(goal = null) {
+  const modal = document.getElementById("goal-modal");
+  const title = document.getElementById("goal-modal-title");
+  const idInput = document.getElementById("goal-id-input");
+  const nameInput = document.getElementById("goal-name-input");
+  const emojiInput = document.getElementById("goal-emoji-input");
+  const currencySelect = document.getElementById("goal-currency-select");
+  const targetInput = document.getElementById("goal-target-input");
+  const deleteBtn = document.getElementById("delete-goal-btn");
+
+  if (!modal) return;
+
+  if (goal) {
+    // Edit Mode
+    title.textContent = "Edit Financial Goal";
+    idInput.value = goal.id;
+    nameInput.value = goal.name;
+    emojiInput.value = goal.emoji || "🎯";
+    currencySelect.value = goal.currency;
+    targetInput.value = goal.target;
+    if (deleteBtn) deleteBtn.style.display = "block";
+  } else {
+    // Add Mode
+    title.textContent = "Add Financial Goal";
+    idInput.value = "";
+    nameInput.value = "";
+    emojiInput.value = "🎯";
+    currencySelect.value = "USD";
+    targetInput.value = "";
+    if (deleteBtn) deleteBtn.style.display = "none";
+  }
+
+  modal.style.display = "flex";
+  setTimeout(() => modal.classList.add("active"), 10);
+}
+
+function hideGoalModal() {
+  const modal = document.getElementById("goal-modal");
+  if (modal) {
+    modal.classList.remove("active");
+    setTimeout(() => modal.style.display = "none", 300);
+  }
+}
+
 // --- MODAL CONTROLLERS & EVENT ATTACHMENTS ---
 function setupModalListeners() {
   // --- Setup Wizard Overlay Actions ---
@@ -759,6 +929,9 @@ function setupModalListeners() {
         State.goldPremium = isNaN(premium) ? 2.5 : premium;
         State.upcomingIncome = 0;
         State.transactions = [];
+        State.goals = getDefaultGoals();
+        State.cachedUsdAud = 1.50;
+        State.usdAudTrend = "neutral";
         State.usdEgpTrend = "neutral";
         State.gold24kTrend = "neutral";
         State.gold21kTrend = "neutral";
@@ -1110,6 +1283,82 @@ function setupModalListeners() {
       }
     });
   }
+
+  // --- Dynamic Goals Modal Event Listeners ---
+  const addGoalBtn = document.getElementById("add-goal-btn");
+  const cancelGoalBtn = document.getElementById("cancel-goal-btn");
+  const closeGoalModalBtn = document.getElementById("close-goal-modal");
+  const deleteGoalBtn = document.getElementById("delete-goal-btn");
+  const goalForm = document.getElementById("goal-form");
+  const emojiSuggestionsContainer = document.getElementById("emoji-suggestions-container");
+
+  if (addGoalBtn) {
+    addGoalBtn.addEventListener("click", () => {
+      openGoalModal();
+    });
+  }
+
+  if (cancelGoalBtn) cancelGoalBtn.addEventListener("click", hideGoalModal);
+  if (closeGoalModalBtn) closeGoalModalBtn.addEventListener("click", hideGoalModal);
+
+  if (emojiSuggestionsContainer) {
+    emojiSuggestionsContainer.addEventListener("click", (e) => {
+      if (e.target.classList.contains("emoji-suggestion")) {
+        const emojiInput = document.getElementById("goal-emoji-input");
+        if (emojiInput) {
+          emojiInput.value = e.target.textContent.trim();
+        }
+      }
+    });
+  }
+
+  if (deleteGoalBtn) {
+    deleteGoalBtn.addEventListener("click", () => {
+      const id = document.getElementById("goal-id-input").value;
+      if (id && confirm("Are you sure you want to delete this goal?")) {
+        State.goals = State.goals.filter(g => g.id !== id);
+        State.save();
+        hideGoalModal();
+        updateDashboardUI();
+      }
+    });
+  }
+
+  if (goalForm) {
+    goalForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      
+      const id = document.getElementById("goal-id-input").value;
+      const name = document.getElementById("goal-name-input").value.trim();
+      const emoji = document.getElementById("goal-emoji-input").value.trim();
+      const currency = document.getElementById("goal-currency-select").value;
+      const target = parseFloat(document.getElementById("goal-target-input").value);
+
+      if (name && emoji && currency && !isNaN(target) && target > 0) {
+        if (id) {
+          // Edit goal
+          const goalIndex = State.goals.findIndex(g => g.id === id);
+          if (goalIndex !== -1) {
+            State.goals[goalIndex] = { id, name, emoji, currency, target };
+          }
+        } else {
+          // Add new goal
+          const newGoal = {
+            id: "goal_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+            name,
+            emoji,
+            currency,
+            target
+          };
+          State.goals.push(newGoal);
+        }
+        
+        State.save();
+        hideGoalModal();
+        updateDashboardUI();
+      }
+    });
+  }
 }
 
 // --- SUPABASE CLOUD SYNC ENGINE WORKFLOWS ---
@@ -1143,6 +1392,9 @@ async function syncStateToSupabase() {
       goldPremium: State.goldPremium,
       upcomingIncome: State.upcomingIncome,
       transactions: State.transactions,
+      goals: State.goals,
+      cachedUsdAud: State.cachedUsdAud,
+      usdAudTrend: State.usdAudTrend,
       lastResetMonth: State.lastResetMonth,
       resetPending: State.resetPending,
       resetRolledIncome: State.resetRolledIncome
@@ -1256,6 +1508,25 @@ async function initSupabaseSync() {
   }
 }
 
+function getDefaultGoals() {
+  return [
+    {
+      id: "goal_zakat",
+      name: "Zakat Threshold",
+      currency: "Gold",
+      target: 85,
+      emoji: "🕌"
+    },
+    {
+      id: "goal_migration",
+      name: "Migration Goal",
+      currency: "AUD",
+      target: 20000,
+      emoji: "🇦🇺"
+    }
+  ];
+}
+
 function handleIncomingCloudState(data) {
   isPreventingSyncLoop = true;
   
@@ -1264,6 +1535,16 @@ function handleIncomingCloudState(data) {
   if (data.goldPremium !== undefined) State.goldPremium = Number(data.goldPremium);
   if (data.upcomingIncome !== undefined) State.upcomingIncome = Number(data.upcomingIncome);
   if (data.transactions !== undefined) State.transactions = data.transactions;
+  
+  if (data.goals !== undefined) {
+    State.goals = data.goals;
+  } else {
+    State.goals = getDefaultGoals();
+  }
+  
+  if (data.cachedUsdAud !== undefined) State.cachedUsdAud = Number(data.cachedUsdAud);
+  if (data.usdAudTrend !== undefined) State.usdAudTrend = data.usdAudTrend;
+  
   if (data.cachedUsdEgp !== undefined) State.cachedUsdEgp = Number(data.cachedUsdEgp);
   if (data.cachedGold24kUsd !== undefined) State.cachedGold24kUsd = Number(data.cachedGold24kUsd);
   if (data.lastFetchedTime !== undefined) State.lastFetchedTime = data.lastFetchedTime;
