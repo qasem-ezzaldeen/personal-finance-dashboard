@@ -164,10 +164,15 @@ async function fetchLiveRates() {
 
       if (scrapedGold24kEgp && scrapedUsdRate) {
         usdEgpRate = scrapedUsdRate;
+        // If the parsed gold price is > 10,000 EGP, it represents a troy ounce price.
+        // We divide by 31.1034768 to get the EGP price per gram of 24k gold.
+        if (scrapedGold24kEgp > 10000) {
+          scrapedGold24kEgp = scrapedGold24kEgp / TROY_OUNCE_TO_GRAM;
+        }
         // Back-calculate 24k USD price from the raw EGP price and EGP exchange rate (premium added dynamically on UI update)
         gold24kUsd = scrapedGold24kEgp / usdEgpRate;
         scrapeSuccess = true;
-        console.log(`Successfully scraped live rates: 24k EGP (raw) = ${scrapedGold24kEgp}, USD/EGP = ${usdEgpRate}, derived 24k USD/g = ${gold24kUsd}`);
+        console.log(`Successfully scraped live rates: 24k EGP (raw gram) = ${scrapedGold24kEgp}, USD/EGP = ${usdEgpRate}, derived 24k USD/g = ${gold24kUsd}`);
       } else {
         throw new Error(`Incomplete scraped data. 24k EGP: ${scrapedGold24kEgp}, USD: ${scrapedUsdRate}`);
       }
