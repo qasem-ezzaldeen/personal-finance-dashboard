@@ -1267,5 +1267,39 @@ body {
     margin: 0 auto;
   }
 }
+/* Cloud Sync Button & Icon Styling */
+.cloud-sync-btn {
+  position: relative;
+  transition: all var(--transition-fast);
+}
 
+.cloud-sync-btn.offline {
+  color: var(--text-muted);
+}
 
+.cloud-sync-btn.offline:hover {
+  color: var(--text-primary);
+  background: var(--color-primary-glow);
+}
+
+.cloud-sync-btn.connected {
+  color: var(--color-savings); /* Synced Green */
+  background: var(--color-savings-glow);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.cloud-sync-btn.connected:hover {
+  color: var(--color-savings);
+  background: rgba(34, 197, 94, 0.15);
+  border-color: var(--color-savings);
+}
+
+.cloud-sync-btn.connecting {
+  color: var(--color-gold);
+  background: var(--color-gold-glow);
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+.cloud-sync-btn.connecting .sync-icon {
+  animation: pulse 1.5s infinite ease-in-out;
+}

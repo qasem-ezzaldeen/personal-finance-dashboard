@@ -1,4 +1,4 @@
-
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 /**
  * AuraFinance // Personal Financial Analytics Controller
@@ -25,6 +25,12 @@ let activeInputMethod = "flat";
 let wealthChart = null;
 
 
+
+// --- SUPABASE CLOUD SYNC STATE ---
+let supabase = null;
+let supabaseChannel = null;
+let isCloudSyncActive = false;
+let isPreventingSyncLoop = false;
 
 // --- STATE DEFINITION & LOCAL STORAGE HELPER ---
 const State = {
@@ -95,6 +101,10 @@ const State = {
     localStorage.setItem("lastResetMonth", this.lastResetMonth);
     localStorage.setItem("resetPending", this.resetPending);
     localStorage.setItem("resetRolledIncome", this.resetRolledIncome);
+    
+    if (isCloudSyncActive && !isPreventingSyncLoop) {
+      syncStateToSupabase();
+    }
   }
 };
 
@@ -982,7 +992,263 @@ function setupModalListeners() {
     refreshBtn.addEventListener("click", fetchLiveRates);
   }
 
+  // --- Supabase Cloud Sync Settings Modal ---
+  const cloudSyncBtn = document.getElementById("cloud-sync-btn");
+  const syncModal = document.getElementById("sync-settings-modal");
+  const closeSyncModal = document.getElementById("close-sync-modal");
+  const syncForm = document.getElementById("sync-settings-form");
+  const syncCodeInput = document.getElementById("sync-code-input");
+  const supabaseUrlInput = document.getElementById("supabase-url-input");
+  const supabaseKeyInput = document.getElementById("supabase-key-input");
+  const disconnectSyncBtn = document.getElementById("disconnect-sync-btn");
 
+  if (cloudSyncBtn && syncModal) {
+    cloudSyncBtn.addEventListener("click", () => {
+      syncCodeInput.value = localStorage.getItem("supabase_sync_code") || "";
+      supabaseUrlInput.value = localStorage.getItem("supabase_url") || "";
+      supabaseKeyInput.value = localStorage.getItem("supabase_key") || "";
+      
+      syncModal.style.display = "flex";
+      setTimeout(() => syncModal.classList.add("active"), 10);
+    });
+  }
+
+  const hideSyncModal = () => {
+    if (syncModal) {
+      syncModal.classList.remove("active");
+      setTimeout(() => syncModal.style.display = "none", 300);
+    }
+  };
+
+  if (closeSyncModal) closeSyncModal.addEventListener("click", hideSyncModal);
+
+  if (syncForm) {
+    syncForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      
+      const urlStr = supabaseUrlInput.value.trim();
+      const keyStr = supabaseKeyInput.value.trim();
+      const codeStr = syncCodeInput.value.trim();
+      
+      if (!urlStr || !keyStr || !codeStr) return;
+      
+      localStorage.setItem("supabase_url", urlStr);
+      localStorage.setItem("supabase_key", keyStr);
+      localStorage.setItem("supabase_sync_code", codeStr);
+      
+      hideSyncModal();
+      initSupabaseSync();
+    });
+  }
+
+  if (disconnectSyncBtn) {
+    disconnectSyncBtn.addEventListener("click", () => {
+      if (confirm("Are you sure you want to disconnect from Supabase cloud sync? Your data will remain stored locally.")) {
+        localStorage.removeItem("supabase_url");
+        localStorage.removeItem("supabase_key");
+        localStorage.removeItem("supabase_sync_code");
+        
+        disconnectSupabase();
+        hideSyncModal();
+      }
+    });
+  }
+
+
+}
+
+// --- THEME MANAGEMENT ENGINE ---
+function initTheme() {
+  const savedTheme = localStorage.getItem("theme") || "dark";
+  const themeToggleBtn = document.getElementById("theme-toggle-btn");
+  const themeIcon = themeToggleBtn ? themeToggleBtn.querySelector(".theme-icon") : null;
+  
+  if (savedTheme === "light") {
+    document.documentElement.classList.add("light-theme");
+    if (themeIcon) themeIcon.textContent = "🌙";
+  } else {
+    document.documentElement.classList.remove("light-theme");
+    if (themeIcon) themeIcon.textContent = "☀️";
+  }
+  
+  if (themeToggleBtn) {
+    themeToggleBtn.addEventListener("click", () => {
+      const isCurrentlyLight = document.documentElement.classList.toggle("light-theme");
+      const newTheme = isCurrentlyLight ? "light" : "dark";
+      localStorage.setItem("theme", newTheme);
+      if (themeIcon) themeIcon.textContent = isCurrentlyLight ? "🌙" : "☀️";
+      
+      // Force update to refresh chart colors/borders
+      updateDashboardUI();
+    });
+  }
+}
+
+// --- SUPABASE CLOUD SYNC WORKFLOWS ---
+function disconnectSupabase() {
+  if (supabaseChannel) {
+    supabase.removeChannel(supabaseChannel);
+    supabaseChannel = null;
+  }
+  supabase = null;
+  isCloudSyncActive = false;
+  
+  const syncBtn = document.getElementById("cloud-sync-btn");
+  if (syncBtn) {
+    syncBtn.className = "refresh-btn cloud-sync-btn offline";
+    syncBtn.title = "Supabase Cloud Sync Settings (Offline)";
+  }
+}
+
+async function syncStateToSupabase() {
+  if (!supabase) return;
+  const syncCode = localStorage.getItem("supabase_sync_code");
+  if (!syncCode) return;
+  
+  try {
+    const payload = {
+      usdSavings: State.usdSavings,
+      goldGrams: State.goldGrams,
+      goldPremium: State.goldPremium,
+      upcomingIncome: State.upcomingIncome,
+      transactions: State.transactions,
+      cachedUsdEgp: State.cachedUsdEgp,
+      cachedGold24kUsd: State.cachedGold24kUsd,
+      lastFetchedTime: State.lastFetchedTime || "",
+      usdEgpTrend: State.usdEgpTrend,
+      gold24kTrend: State.gold24kTrend,
+      gold21kTrend: State.gold21kTrend,
+      lastResetMonth: State.lastResetMonth,
+      resetPending: State.resetPending,
+      resetRolledIncome: State.resetRolledIncome
+    };
+    
+    const { error } = await supabase
+      .from('dashboards')
+      .upsert({ id: syncCode, data: payload, updated_at: new Date().toISOString() });
+      
+    if (error) {
+      console.error("Failed to sync state to Supabase:", error);
+    } else {
+      console.log("State synced to Supabase successfully!");
+    }
+  } catch (err) {
+    console.error("Failed to sync state to Supabase:", err);
+  }
+}
+
+function handleIncomingCloudState(data) {
+  isPreventingSyncLoop = true;
+  
+  if (data.usdSavings !== undefined) State.usdSavings = Number(data.usdSavings);
+  if (data.goldGrams !== undefined) State.goldGrams = Number(data.goldGrams);
+  if (data.goldPremium !== undefined) State.goldPremium = Number(data.goldPremium);
+  if (data.upcomingIncome !== undefined) State.upcomingIncome = Number(data.upcomingIncome);
+  if (data.transactions !== undefined) State.transactions = data.transactions;
+  if (data.cachedUsdEgp !== undefined) State.cachedUsdEgp = Number(data.cachedUsdEgp);
+  if (data.cachedGold24kUsd !== undefined) State.cachedGold24kUsd = Number(data.cachedGold24kUsd);
+  if (data.lastFetchedTime !== undefined) State.lastFetchedTime = data.lastFetchedTime;
+  if (data.usdEgpTrend !== undefined) State.usdEgpTrend = data.usdEgpTrend;
+  if (data.gold24kTrend !== undefined) State.gold24kTrend = data.gold24kTrend;
+  if (data.gold21kTrend !== undefined) State.gold21kTrend = data.gold21kTrend;
+  if (data.lastResetMonth !== undefined) State.lastResetMonth = data.lastResetMonth;
+  if (data.resetPending !== undefined) State.resetPending = data.resetPending;
+  if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
+  
+  State.save();
+  
+  isPreventingSyncLoop = false;
+  
+  updateDashboardUI();
+}
+
+async function initSupabaseSync() {
+  const syncBtn = document.getElementById("cloud-sync-btn");
+  
+  if (supabaseChannel) {
+    supabase.removeChannel(supabaseChannel);
+    supabaseChannel = null;
+  }
+  
+  const supabaseUrl = localStorage.getItem("supabase_url");
+  const supabaseKey = localStorage.getItem("supabase_key");
+  const syncCode = localStorage.getItem("supabase_sync_code");
+  
+  if (!supabaseUrl || !supabaseKey || !syncCode) {
+    disconnectSupabase();
+    return;
+  }
+  
+  try {
+    if (syncBtn) {
+      syncBtn.className = "refresh-btn cloud-sync-btn connecting";
+      syncBtn.title = "Connecting to Supabase...";
+    }
+    
+    supabase = createClient(supabaseUrl, supabaseKey);
+    isCloudSyncActive = true;
+    
+    // 1. Fetch initial state
+    const { data: dbData, error } = await supabase
+      .from('dashboards')
+      .select('data')
+      .eq('id', syncCode)
+      .maybeSingle();
+      
+    if (error) {
+      console.error("Failed to pull state from Supabase on init:", error);
+    } else if (dbData && dbData.data) {
+      console.log("Initial state pulled from Supabase:", dbData.data);
+      handleIncomingCloudState(dbData.data);
+    } else {
+      console.log("No cloud data found for code. Uploading local state...");
+      await syncStateToSupabase();
+    }
+    
+    // 2. Subscribe to real-time changes
+    supabaseChannel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'dashboards',
+          filter: `id=eq.${syncCode}`
+        },
+        (payload) => {
+          console.log("Supabase real-time payload:", payload);
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const newData = payload.new.data;
+            if (newData) {
+              handleIncomingCloudState(newData);
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log("Supabase subscription status:", status);
+        if (status === 'SUBSCRIBED') {
+          if (syncBtn) {
+            syncBtn.className = "refresh-btn cloud-sync-btn connected";
+            syncBtn.title = `Cloud Synced to code: ${syncCode}`;
+          }
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          if (syncBtn) {
+            syncBtn.className = "refresh-btn cloud-sync-btn offline";
+            syncBtn.title = "Supabase Subscription Disconnected";
+          }
+        }
+      });
+      
+  } catch (err) {
+    console.error("Failed to connect to Supabase:", err);
+    disconnectSupabase();
+    if (syncBtn) {
+      syncBtn.className = "refresh-btn cloud-sync-btn offline";
+      syncBtn.title = `Supabase Connection Error: ${err.message}`;
+    }
+  }
 }
 
 // --- THEME MANAGEMENT ENGINE ---
@@ -1020,6 +1286,20 @@ document.addEventListener("DOMContentLoaded", () => {
   // 0.1 Clean up legacy Firebase keys from local storage
   localStorage.removeItem("firebase_config");
   localStorage.removeItem("firebase_sync_code");
+
+  // 0.2 Preseed Supabase config provided by the user
+  if (!localStorage.getItem("supabase_url")) {
+    localStorage.setItem("supabase_url", "https://lrjbqxyanqpakxuuvrfp.supabase.co");
+  }
+  if (!localStorage.getItem("supabase_key")) {
+    localStorage.setItem("supabase_key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyamJxeHlhbnFwYWt4dXV2cmZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MzU5NTcsImV4cCI6MjA5NzUxMTk1N30.uaphqeSkf6uJDdJDH28Zfw0k4J-GVM3nkKknzV_GnG0");
+  }
+  if (!localStorage.getItem("supabase_sync_code")) {
+    localStorage.setItem("supabase_sync_code", "my-vault-2026");
+  }
+
+  // 0.3 Initialize Supabase connection
+  initSupabaseSync();
 
   // 1. Initial State Check
   const initialized = State.load();
