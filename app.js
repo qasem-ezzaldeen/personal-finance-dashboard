@@ -362,6 +362,7 @@ function showResetBannerAndModal() {
  */
 function updateDashboardUI() {
   const usdEgpRate = State.cachedUsdEgp;
+  const usdAudRate = State.cachedUsdAud;
   const gold24kUsdPerGram = State.cachedGold24kUsd;
   
   // Calculate local Egyptian Gold Price (spot converted to EGP + local premium markup)
@@ -371,19 +372,23 @@ function updateDashboardUI() {
   // Local EGP Valuations (Valued at 30 EGP less than market value per gram)
   const goldSavingsEgp = State.goldGrams * Math.max(0, gold21kEgpPerGram - 30);
   
-  // Gold USD Valuations (converted back for consistent side-by-side display)
+  // Gold USD & AUD Valuations (converted back for consistent side-by-side display)
   const goldSavingsUsd = goldSavingsEgp / usdEgpRate;
+  const goldSavingsAud = goldSavingsUsd * usdAudRate;
   
   // Cash Savings valuations
   const savingsUsd = State.usdSavings;
+  const savingsAud = savingsUsd * usdAudRate;
   const savingsEgp = savingsUsd * usdEgpRate;
   
   // Upcoming income valuations
   const upcomingIncomeUsd = State.upcomingIncome;
+  const upcomingIncomeAud = upcomingIncomeUsd * usdAudRate;
   const upcomingIncomeEgp = upcomingIncomeUsd * usdEgpRate;
   
   // Net Worth totals
   const totalNetWorthUsd = savingsUsd + goldSavingsUsd + upcomingIncomeUsd;
+  const totalNetWorthAud = totalNetWorthUsd * usdAudRate;
   const totalNetWorthEgp = savingsEgp + goldSavingsEgp + upcomingIncomeEgp;
 
   // Helper to build trend arrow HTML element
@@ -404,7 +409,6 @@ function updateDashboardUI() {
   // --- 1. Update Rates Bar & Sync Timestamps ---
   document.getElementById("rate-usd-egp").innerHTML = `${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}`;
   
-  const usdAudRate = State.cachedUsdAud;
   const rateUsdAudEl = document.getElementById("rate-usd-aud");
   if (rateUsdAudEl) {
     rateUsdAudEl.innerHTML = `${usdAudRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} AUD${usdAudArrow}`;
@@ -419,20 +423,24 @@ function updateDashboardUI() {
   // Cash row
   document.getElementById("table-savings-holdings").textContent = `$${savingsUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   document.getElementById("table-savings-usd").textContent = `$${savingsUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  document.getElementById("table-savings-aud").textContent = `$${savingsAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
   document.getElementById("table-savings-egp").textContent = `${savingsEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
   
   // Gold row (displays holdings with annotation of Market 21k - 30 EGP/g)
   document.getElementById("table-gold-holdings").textContent = `${State.goldGrams.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 21k - 30 EGP/g)`;
   document.getElementById("table-gold-usd").textContent = `$${goldSavingsUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  document.getElementById("table-gold-aud").textContent = `$${goldSavingsAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
   document.getElementById("table-gold-egp").textContent = `${goldSavingsEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
   
   // Upcoming Income row
   document.getElementById("table-income-holdings").textContent = `$${upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
   document.getElementById("table-income-usd").textContent = `$${upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  document.getElementById("table-income-aud").textContent = `$${upcomingIncomeAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
   document.getElementById("table-income-egp").textContent = `${upcomingIncomeEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
 
   // Total Net Worth row
   document.getElementById("table-total-usd").textContent = `$${totalNetWorthUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+  document.getElementById("table-total-aud").textContent = `$${totalNetWorthAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
   document.getElementById("table-total-egp").textContent = `${totalNetWorthEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
 
   // --- 3. Update Financial Goals Tracking Panel ---
@@ -674,7 +682,7 @@ function renderWealthChart(savingsUsd, goldSavingsUsd, upcomingIncomeUsd) {
     data: data,
     options: {
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
       plugins: {
         legend: {
           display: false // Standard legend is hidden since the table represents it

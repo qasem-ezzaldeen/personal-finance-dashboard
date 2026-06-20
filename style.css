@@ -190,6 +190,7 @@ body {
   border-radius: 50%;
   background-color: var(--text-muted);
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .rate-dot.live {
@@ -862,6 +863,7 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .asset-marker.savings { background-color: var(--color-savings); }
@@ -922,6 +924,11 @@ body {
 
 .value-highlight-usd {
   color: var(--text-primary);
+  font-size: 1.15rem;
+}
+
+.value-highlight-aud {
+  color: #3b82f6;
   font-size: 1.15rem;
 }
 
@@ -1288,7 +1295,8 @@ body {
   justify-content: center;
   align-items: center;
   max-width: 200px;
-  height: 200px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   position: relative;
 }
 
@@ -1299,7 +1307,8 @@ body {
   }
   .wealth-dashboard-container .chart-container {
     max-width: 180px;
-    height: 180px;
+    width: 100%;
+    aspect-ratio: 1 / 1;
     margin: 0 auto;
   }
 }
