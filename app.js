@@ -1,5 +1,11 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
+// --- SUPABASE CLOUD SYNC STATE ---
+let supabase = null;
+let supabaseChannel = null;
+let isCloudSyncActive = false;
+let isPreventingSyncLoop = false;
+
 /**
  * AuraFinance // Personal Financial Analytics Controller
  * 
@@ -25,12 +31,6 @@ let activeInputMethod = "flat";
 let wealthChart = null;
 
 
-
-// --- SUPABASE CLOUD SYNC STATE ---
-let supabase = null;
-let supabaseChannel = null;
-let isCloudSyncActive = false;
-let isPreventingSyncLoop = false;
 
 // --- STATE DEFINITION & LOCAL STORAGE HELPER ---
 const State = {
@@ -102,6 +102,7 @@ const State = {
     localStorage.setItem("resetPending", this.resetPending);
     localStorage.setItem("resetRolledIncome", this.resetRolledIncome);
     
+    // Trigger cloud synchronization if active and not in update loop
     if (isCloudSyncActive && !isPreventingSyncLoop) {
       syncStateToSupabase();
     }
@@ -992,7 +993,7 @@ function setupModalListeners() {
     refreshBtn.addEventListener("click", fetchLiveRates);
   }
 
-  // --- Supabase Cloud Sync Settings Modal ---
+  // --- Cloud Sync Settings Modal ---
   const cloudSyncBtn = document.getElementById("cloud-sync-btn");
   const syncModal = document.getElementById("sync-settings-modal");
   const closeSyncModal = document.getElementById("close-sync-modal");
@@ -1037,6 +1038,8 @@ function setupModalListeners() {
       localStorage.setItem("supabase_sync_code", codeStr);
       
       hideSyncModal();
+      
+      // Re-initialize cloud sync
       initSupabaseSync();
     });
   }
@@ -1053,38 +1056,9 @@ function setupModalListeners() {
       }
     });
   }
-
-
 }
 
-// --- THEME MANAGEMENT ENGINE ---
-function initTheme() {
-  const savedTheme = localStorage.getItem("theme") || "dark";
-  const themeToggleBtn = document.getElementById("theme-toggle-btn");
-  const themeIcon = themeToggleBtn ? themeToggleBtn.querySelector(".theme-icon") : null;
-  
-  if (savedTheme === "light") {
-    document.documentElement.classList.add("light-theme");
-    if (themeIcon) themeIcon.textContent = "🌙";
-  } else {
-    document.documentElement.classList.remove("light-theme");
-    if (themeIcon) themeIcon.textContent = "☀️";
-  }
-  
-  if (themeToggleBtn) {
-    themeToggleBtn.addEventListener("click", () => {
-      const isCurrentlyLight = document.documentElement.classList.toggle("light-theme");
-      const newTheme = isCurrentlyLight ? "light" : "dark";
-      localStorage.setItem("theme", newTheme);
-      if (themeIcon) themeIcon.textContent = isCurrentlyLight ? "🌙" : "☀️";
-      
-      // Force update to refresh chart colors/borders
-      updateDashboardUI();
-    });
-  }
-}
-
-// --- SUPABASE CLOUD SYNC WORKFLOWS ---
+// --- SUPABASE CLOUD SYNC ENGINE WORKFLOWS ---
 function disconnectSupabase() {
   if (supabaseChannel) {
     supabase.removeChannel(supabaseChannel);
@@ -1137,31 +1111,6 @@ async function syncStateToSupabase() {
   }
 }
 
-function handleIncomingCloudState(data) {
-  isPreventingSyncLoop = true;
-  
-  if (data.usdSavings !== undefined) State.usdSavings = Number(data.usdSavings);
-  if (data.goldGrams !== undefined) State.goldGrams = Number(data.goldGrams);
-  if (data.goldPremium !== undefined) State.goldPremium = Number(data.goldPremium);
-  if (data.upcomingIncome !== undefined) State.upcomingIncome = Number(data.upcomingIncome);
-  if (data.transactions !== undefined) State.transactions = data.transactions;
-  if (data.cachedUsdEgp !== undefined) State.cachedUsdEgp = Number(data.cachedUsdEgp);
-  if (data.cachedGold24kUsd !== undefined) State.cachedGold24kUsd = Number(data.cachedGold24kUsd);
-  if (data.lastFetchedTime !== undefined) State.lastFetchedTime = data.lastFetchedTime;
-  if (data.usdEgpTrend !== undefined) State.usdEgpTrend = data.usdEgpTrend;
-  if (data.gold24kTrend !== undefined) State.gold24kTrend = data.gold24kTrend;
-  if (data.gold21kTrend !== undefined) State.gold21kTrend = data.gold21kTrend;
-  if (data.lastResetMonth !== undefined) State.lastResetMonth = data.lastResetMonth;
-  if (data.resetPending !== undefined) State.resetPending = data.resetPending;
-  if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
-  
-  State.save();
-  
-  isPreventingSyncLoop = false;
-  
-  updateDashboardUI();
-}
-
 async function initSupabaseSync() {
   const syncBtn = document.getElementById("cloud-sync-btn");
   
@@ -1205,7 +1154,7 @@ async function initSupabaseSync() {
       await syncStateToSupabase();
     }
     
-    // 2. Subscribe to real-time changes
+    // 2. Real-time Subscription Channel
     supabaseChannel = supabase
       .channel('schema-db-changes')
       .on(
@@ -1251,6 +1200,30 @@ async function initSupabaseSync() {
   }
 }
 
+function handleIncomingCloudState(data) {
+  isPreventingSyncLoop = true;
+  
+  if (data.usdSavings !== undefined) State.usdSavings = Number(data.usdSavings);
+  if (data.goldGrams !== undefined) State.goldGrams = Number(data.goldGrams);
+  if (data.goldPremium !== undefined) State.goldPremium = Number(data.goldPremium);
+  if (data.upcomingIncome !== undefined) State.upcomingIncome = Number(data.upcomingIncome);
+  if (data.transactions !== undefined) State.transactions = data.transactions;
+  if (data.cachedUsdEgp !== undefined) State.cachedUsdEgp = Number(data.cachedUsdEgp);
+  if (data.cachedGold24kUsd !== undefined) State.cachedGold24kUsd = Number(data.cachedGold24kUsd);
+  if (data.lastFetchedTime !== undefined) State.lastFetchedTime = data.lastFetchedTime;
+  if (data.usdEgpTrend !== undefined) State.usdEgpTrend = data.usdEgpTrend;
+  if (data.gold24kTrend !== undefined) State.gold24kTrend = data.gold24kTrend;
+  if (data.gold21kTrend !== undefined) State.gold21kTrend = data.gold21kTrend;
+  if (data.lastResetMonth !== undefined) State.lastResetMonth = data.lastResetMonth;
+  if (data.resetPending !== undefined) State.resetPending = data.resetPending;
+  if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
+  
+  State.save();
+  isPreventingSyncLoop = false;
+  
+  updateDashboardUI();
+}
+
 // --- THEME MANAGEMENT ENGINE ---
 function initTheme() {
   const savedTheme = localStorage.getItem("theme") || "dark";
@@ -1287,18 +1260,7 @@ document.addEventListener("DOMContentLoaded", () => {
   localStorage.removeItem("firebase_config");
   localStorage.removeItem("firebase_sync_code");
 
-  // 0.2 Preseed Supabase config provided by the user
-  if (!localStorage.getItem("supabase_url")) {
-    localStorage.setItem("supabase_url", "https://lrjbqxyanqpakxuuvrfp.supabase.co");
-  }
-  if (!localStorage.getItem("supabase_key")) {
-    localStorage.setItem("supabase_key", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyamJxeHlhbnFwYWt4dXV2cmZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MzU5NTcsImV4cCI6MjA5NzUxMTk1N30.uaphqeSkf6uJDdJDH28Zfw0k4J-GVM3nkKknzV_GnG0");
-  }
-  if (!localStorage.getItem("supabase_sync_code")) {
-    localStorage.setItem("supabase_sync_code", "my-vault-2026");
-  }
-
-  // 0.3 Initialize Supabase connection
+  // 0.2 Initialize Supabase Cloud Sync
   initSupabaseSync();
 
   // 1. Initial State Check
