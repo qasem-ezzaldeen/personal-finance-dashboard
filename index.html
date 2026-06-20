@@ -22,39 +22,57 @@
   <div class="glow-bg-1"></div>
   <div class="glow-bg-2"></div>
 
-  <!-- Setup Wizard Modal Overlay (Shown for new users) -->
+  <!-- Setup Wizard Modal Overlay (Shown for new users or if not logged in) -->
   <div id="setup-wizard-overlay" class="modal-overlay active" style="display: none;">
     <div class="modal-card setup-card">
       <div class="setup-header">
         <div class="logo-mark">⚡</div>
         <h2>Welcome to AuraFinance</h2>
-        <p>Let's configure your initial financial baseline parameters. You can adjust these values at any time.</p>
+        <p id="setup-wizard-desc">Connect to your database vault or create a new one.</p>
       </div>
+      
       <form id="setup-form" class="modal-form">
-        <div class="form-group">
-          <label for="setup-cash-savings">Baseline Cash Savings (USD)</label>
-          <div class="input-wrapper">
-            <span class="input-prefix">$</span>
-            <input type="number" id="setup-cash-savings" placeholder="e.g. 5000" min="0" step="any" required>
+        <!-- STEP 1: Enter Sync Code -->
+        <div id="wizard-step-sync-code">
+          <div class="form-group">
+            <label for="setup-sync-code">Dashboard Sync Code</label>
+            <div class="input-wrapper focus-glow">
+              <input type="text" id="setup-sync-code" placeholder="e.g. my-family-vault" required autocomplete="off">
+            </div>
+            <p class="input-help">Enter a unique code. If this code exists, your dashboard data will be retrieved. If it is new, you will configure initial holdings next.</p>
+          </div>
+          <button type="button" id="wizard-next-btn" class="btn btn-primary w-full" style="margin-top: 0.5rem; display: block; width: 100%;">Continue</button>
+        </div>
+
+        <!-- STEP 2: Configure Baselines (Initially Hidden) -->
+        <div id="wizard-step-baselines" style="display: none;">
+          <div class="form-group">
+            <label for="setup-cash-savings">Baseline Cash Savings (USD)</label>
+            <div class="input-wrapper">
+              <span class="input-prefix">$</span>
+              <input type="number" id="setup-cash-savings" placeholder="e.g. 5000" min="0" step="any">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="setup-gold-grams">21k Physical Gold Owned (Grams)</label>
+            <div class="input-wrapper">
+              <input type="number" id="setup-gold-grams" placeholder="e.g. 50" min="0" step="any">
+              <span class="input-suffix">grams</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="setup-gold-premium">Local Gold Price Premium (%)</label>
+            <div class="input-wrapper">
+              <input type="number" id="setup-gold-premium" value="2.5" min="0" max="100" step="0.1">
+              <span class="input-suffix">%</span>
+            </div>
+            <p class="input-help">Local markup added to the global spot rate to match local jewelry stores in Egypt (typically ~1.5% to 3.0%).</p>
+          </div>
+          <div class="modal-actions" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+            <button type="button" id="wizard-back-btn" class="btn btn-outline" style="flex: 1;">Back</button>
+            <button type="submit" id="setup-submit-btn" class="btn btn-primary" style="flex: 2;">Initialize Vault</button>
           </div>
         </div>
-        <div class="form-group">
-          <label for="setup-gold-grams">21k Physical Gold Owned (Grams)</label>
-          <div class="input-wrapper">
-            <input type="number" id="setup-gold-grams" placeholder="e.g. 50" min="0" step="any" required>
-            <span class="input-suffix">grams</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="setup-gold-premium">Local Gold Price Premium (%)</label>
-          <div class="input-wrapper">
-            <input type="number" id="setup-gold-premium" value="2.5" min="0" max="100" step="0.1" required>
-            <span class="input-suffix">%</span>
-          </div>
-          <p class="input-help">Local markup added to the global spot rate to match local jewelry stores in Egypt
-            (typically ~1.5% to 3.0%).</p>
-        </div>
-        <button type="submit" id="setup-submit-btn" class="btn btn-primary">Initialize Dashboard</button>
       </form>
     </div>
   </div>
@@ -532,40 +550,23 @@
         <h3>Cloud Sync Settings (Supabase)</h3>
         <button class="close-modal-btn" id="close-sync-modal">✕</button>
       </div>
-      <form id="sync-settings-form" class="modal-form">
+      <div class="modal-form">
         <p class="input-help" style="margin-bottom: 0.5rem; color: var(--text-secondary);">
-          Enable real-time syncing between your phone and PC by connecting to your own free Supabase PostgreSQL database.
+          Your financial data is securely synced to Supabase database.
         </p>
         
         <div class="form-group">
-          <label for="sync-code-input">Dashboard Sync Code (Share between devices)</label>
+          <label for="sync-code-input">Active Dashboard Sync Code</label>
           <div class="input-wrapper focus-glow">
-            <input type="text" id="sync-code-input" placeholder="e.g. my-family-dashboard" required autocomplete="off">
+            <input type="text" id="sync-code-input" readonly autocomplete="off" style="background: rgba(255, 255, 255, 0.02); color: var(--text-secondary); cursor: not-allowed;">
           </div>
-          <p class="input-help">Use the exact same code on your phone and PC to link their data.</p>
         </div>
 
-        <div class="form-group">
-          <label for="supabase-url-input">Supabase Project URL</label>
-          <div class="input-wrapper focus-glow">
-            <input type="url" id="supabase-url-input" placeholder="https://xxxxxx.supabase.co" required autocomplete="off">
-          </div>
-          <p class="input-help">Your Supabase API URL found under Settings > API.</p>
+        <div class="modal-actions" style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" id="close-sync-settings-btn" style="flex: 1;">Close</button>
+          <button type="button" class="btn btn-outline" id="disconnect-sync-btn" style="flex: 1; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Disconnect Vault</button>
         </div>
-
-        <div class="form-group">
-          <label for="supabase-key-input">Supabase Anon Key</label>
-          <div class="input-wrapper focus-glow" style="display: block;">
-            <textarea id="supabase-key-input" rows="3" placeholder="Paste your anon public key here..." style="width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.85rem 1rem; border-radius: 8px; font-family: monospace; font-size: 0.8rem; outline: none; transition: var(--transition-fast); resize: vertical;" required></textarea>
-          </div>
-          <p class="input-help">Your Supabase public anon API key found under Settings > API.</p>
-        </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="disconnect-sync-btn" style="color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Disconnect Cloud</button>
-          <button type="submit" class="btn btn-primary" id="save-sync-btn">Save & Connect</button>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 

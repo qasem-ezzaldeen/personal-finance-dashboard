@@ -1,6 +1,9 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-// --- SUPABASE CLOUD SYNC STATE ---
+// --- SUPABASE CLOUD SYNC STATE & CREDENTIALS ---
+const SUPABASE_URL = "https://lrjbqxyanqpakxuuvrfp.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxyamJxeHlhbnFwYWt4dXV2cmZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MzU5NTcsImV4cCI6MjA5NzUxMTk1N30.uaphqeSkf6uJDdJDH28Zfw0k4J-GVM3nkKknzV_GnG0";
+
 let supabase = null;
 let supabaseChannel = null;
 let isCloudSyncActive = false;
@@ -10,7 +13,7 @@ let isPreventingSyncLoop = false;
  * AuraFinance // Personal Financial Analytics Controller
  * 
  * Core Functionality:
- * 1. State Management: HTML5 Local Storage persistence for baseline values and transaction logs.
+ * 1. State Management: Direct Supabase database sync for baseline values and transaction logs.
  * 2. Asynchronous API Integrations:
  *    - USD to EGP Exchange Rate: ExchangeRate-API (https://open.er-api.com/v6/latest/USD)
  *    - Live Gold Price (XAU/USD): Gold API (https://api.gold-api.com/price/XAU)
@@ -32,7 +35,7 @@ let wealthChart = null;
 
 
 
-// --- STATE DEFINITION & LOCAL STORAGE HELPER ---
+// --- STATE DEFINITION ---
 const State = {
   // Financial baselines
   usdSavings: 0,
@@ -56,53 +59,8 @@ const State = {
   resetPending: false,
   resetRolledIncome: 0,
 
-  // Load state from Local Storage
-  load() {
-    if (localStorage.getItem("usdSavings") !== null) {
-      this.usdSavings = parseFloat(localStorage.getItem("usdSavings"));
-      this.goldGrams = parseFloat(localStorage.getItem("goldGrams"));
-      this.goldPremium = localStorage.getItem("goldPremium") !== null ? parseFloat(localStorage.getItem("goldPremium")) : 2.5;
-      if (this.goldPremium === 2.0) {
-        this.goldPremium = 2.5;
-      }
-      this.upcomingIncome = parseFloat(localStorage.getItem("upcomingIncome")) || 0;
-      this.transactions = JSON.parse(localStorage.getItem("transactions")) || [];
-      this.cachedUsdEgp = parseFloat(localStorage.getItem("cachedUsdEgp")) || 49.93;
-      this.cachedGold24kUsd = parseFloat(localStorage.getItem("cachedGold24kUsd")) || 135.88;
-      // Sanity check to fix outdated local storage state:
-      if (this.cachedGold24kUsd < 100 || this.cachedGold24kUsd > 250) {
-        this.cachedGold24kUsd = 135.88;
-      }
-      this.lastFetchedTime = localStorage.getItem("lastFetchedTime");
-      this.usdEgpTrend = localStorage.getItem("usdEgpTrend") || "neutral";
-      this.gold24kTrend = localStorage.getItem("gold24kTrend") || "neutral";
-      this.gold21kTrend = localStorage.getItem("gold21kTrend") || "neutral";
-      this.lastResetMonth = localStorage.getItem("lastResetMonth") || "";
-      this.resetPending = localStorage.getItem("resetPending") === "true";
-      this.resetRolledIncome = parseFloat(localStorage.getItem("resetRolledIncome")) || 0;
-      return true;
-    }
-    return false; // Not initialized
-  },
-
-  // Save state to Local Storage
+  // Save state directly to Supabase
   save() {
-    localStorage.setItem("usdSavings", this.usdSavings);
-    localStorage.setItem("goldGrams", this.goldGrams);
-    localStorage.setItem("goldPremium", this.goldPremium);
-    localStorage.setItem("upcomingIncome", this.upcomingIncome);
-    localStorage.setItem("transactions", JSON.stringify(this.transactions));
-    localStorage.setItem("cachedUsdEgp", this.cachedUsdEgp);
-    localStorage.setItem("cachedGold24kUsd", this.cachedGold24kUsd);
-    localStorage.setItem("lastFetchedTime", this.lastFetchedTime || "");
-    localStorage.setItem("usdEgpTrend", this.usdEgpTrend);
-    localStorage.setItem("gold24kTrend", this.gold24kTrend);
-    localStorage.setItem("gold21kTrend", this.gold21kTrend);
-    localStorage.setItem("lastResetMonth", this.lastResetMonth);
-    localStorage.setItem("resetPending", this.resetPending);
-    localStorage.setItem("resetRolledIncome", this.resetRolledIncome);
-    
-    // Trigger cloud synchronization if active and not in update loop
     if (isCloudSyncActive && !isPreventingSyncLoop) {
       syncStateToSupabase();
     }
@@ -698,19 +656,103 @@ function triggerRevertWorkflow(tx) {
 
 // --- MODAL CONTROLLERS & EVENT ATTACHMENTS ---
 function setupModalListeners() {
-  // --- Setup Wizard Overlay Form Submission ---
+  // --- Setup Wizard Overlay Actions ---
   const setupForm = document.getElementById("setup-form");
+  const wizardNextBtn = document.getElementById("wizard-next-btn");
+  const wizardBackBtn = document.getElementById("wizard-back-btn");
+  const setupSyncCodeInput = document.getElementById("setup-sync-code");
+  const setupOverlay = document.getElementById("setup-wizard-overlay");
+
+  if (wizardNextBtn) {
+    wizardNextBtn.addEventListener("click", async () => {
+      const syncCode = setupSyncCodeInput.value.trim();
+      if (!syncCode) {
+        setupSyncCodeInput.reportValidity();
+        return;
+      }
+      
+      wizardNextBtn.disabled = true;
+      wizardNextBtn.textContent = "Checking...";
+      
+      try {
+        // Connect temporary client to check code
+        const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+        const { data, error } = await tempSupabase
+          .from('dashboards')
+          .select('data')
+          .eq('id', syncCode)
+          .maybeSingle();
+          
+        if (error) {
+          alert("Database error: " + error.message);
+          return;
+        }
+        
+        if (data && data.data) {
+          // Sync code exists! Set code and pull data.
+          localStorage.setItem("supabase_sync_code", syncCode);
+          handleIncomingCloudState(data.data);
+          
+          // Hide overlay
+          setupOverlay.style.display = "none";
+          setupOverlay.classList.remove("active");
+          
+          // Connect active listener
+          initSupabaseSync();
+          fetchLiveRates();
+        } else {
+          // Sync code is new! Transition to Step 2 (Baseline configuration)
+          document.getElementById("wizard-step-sync-code").style.display = "none";
+          document.getElementById("wizard-step-baselines").style.display = "block";
+          document.getElementById("setup-wizard-desc").textContent = "No record found for this code. Let's initialize your baselines.";
+          // Ensure inputs in step 2 have required attributes
+          document.getElementById("setup-cash-savings").setAttribute("required", "");
+          document.getElementById("setup-gold-grams").setAttribute("required", "");
+          document.getElementById("setup-gold-premium").setAttribute("required", "");
+        }
+      } catch (err) {
+        console.error("Setup wizard error:", err);
+        alert("Failed to connect: " + err.message);
+      } finally {
+        wizardNextBtn.disabled = false;
+        wizardNextBtn.textContent = "Continue";
+      }
+    });
+  }
+
+  if (wizardBackBtn) {
+    wizardBackBtn.addEventListener("click", () => {
+      document.getElementById("wizard-step-sync-code").style.display = "block";
+      document.getElementById("wizard-step-baselines").style.display = "none";
+      document.getElementById("setup-wizard-desc").textContent = "Connect to your database vault or create a new one.";
+      
+      // Remove required attributes on step 2 when going back
+      document.getElementById("setup-cash-savings").removeAttribute("required");
+      document.getElementById("setup-gold-grams").removeAttribute("required");
+      document.getElementById("setup-gold-premium").removeAttribute("required");
+    });
+  }
+
   if (setupForm) {
-    setupForm.addEventListener("submit", (e) => {
+    setupForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      
+      const syncCode = setupSyncCodeInput.value.trim();
       const cash = parseFloat(document.getElementById("setup-cash-savings").value);
       const gold = parseFloat(document.getElementById("setup-gold-grams").value);
       const premium = parseFloat(document.getElementById("setup-gold-premium").value);
       
-      if (!isNaN(cash) && !isNaN(gold)) {
+      if (!isNaN(cash) && !isNaN(gold) && syncCode) {
+        const setupSubmitBtn = document.getElementById("setup-submit-btn");
+        if (setupSubmitBtn) {
+          setupSubmitBtn.disabled = true;
+          setupSubmitBtn.textContent = "Initializing...";
+        }
+
+        // Initialize state variables
         State.usdSavings = cash;
         State.goldGrams = gold;
-        State.goldPremium = isNaN(premium) ? 2.0 : premium;
+        State.goldPremium = isNaN(premium) ? 2.5 : premium;
         State.upcomingIncome = 0;
         State.transactions = [];
         State.usdEgpTrend = "neutral";
@@ -718,13 +760,22 @@ function setupModalListeners() {
         State.gold21kTrend = "neutral";
         State.lastResetMonth = "";
         State.resetPending = false;
-        State.save();
+        State.resetRolledIncome = 0;
+        
+        // Save syncCode to localStorage and establish connection
+        localStorage.setItem("supabase_sync_code", syncCode);
+        supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+        isCloudSyncActive = true;
+        
+        // Save initial state directly to database
+        await syncStateToSupabase();
         
         // Hide Wizard
-        document.getElementById("setup-wizard-overlay").style.display = "none";
-        document.getElementById("setup-wizard-overlay").classList.remove("active");
+        setupOverlay.style.display = "none";
+        setupOverlay.classList.remove("active");
         
-        // Fetch fresh market data and render dashboard
+        // Initialize real-time streams
+        initSupabaseSync();
         fetchLiveRates();
       }
     });
@@ -997,18 +1048,13 @@ function setupModalListeners() {
   const cloudSyncBtn = document.getElementById("cloud-sync-btn");
   const syncModal = document.getElementById("sync-settings-modal");
   const closeSyncModal = document.getElementById("close-sync-modal");
-  const syncForm = document.getElementById("sync-settings-form");
+  const closeSyncSettingsBtn = document.getElementById("close-sync-settings-btn");
   const syncCodeInput = document.getElementById("sync-code-input");
-  const supabaseUrlInput = document.getElementById("supabase-url-input");
-  const supabaseKeyInput = document.getElementById("supabase-key-input");
   const disconnectSyncBtn = document.getElementById("disconnect-sync-btn");
 
   if (cloudSyncBtn && syncModal) {
     cloudSyncBtn.addEventListener("click", () => {
       syncCodeInput.value = localStorage.getItem("supabase_sync_code") || "";
-      supabaseUrlInput.value = localStorage.getItem("supabase_url") || "";
-      supabaseKeyInput.value = localStorage.getItem("supabase_key") || "";
-      
       syncModal.style.display = "flex";
       setTimeout(() => syncModal.classList.add("active"), 10);
     });
@@ -1022,37 +1068,41 @@ function setupModalListeners() {
   };
 
   if (closeSyncModal) closeSyncModal.addEventListener("click", hideSyncModal);
-
-  if (syncForm) {
-    syncForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      
-      const urlStr = supabaseUrlInput.value.trim();
-      const keyStr = supabaseKeyInput.value.trim();
-      const codeStr = syncCodeInput.value.trim();
-      
-      if (!urlStr || !keyStr || !codeStr) return;
-      
-      localStorage.setItem("supabase_url", urlStr);
-      localStorage.setItem("supabase_key", keyStr);
-      localStorage.setItem("supabase_sync_code", codeStr);
-      
-      hideSyncModal();
-      
-      // Re-initialize cloud sync
-      initSupabaseSync();
-    });
-  }
+  if (closeSyncSettingsBtn) closeSyncSettingsBtn.addEventListener("click", hideSyncModal);
 
   if (disconnectSyncBtn) {
     disconnectSyncBtn.addEventListener("click", () => {
-      if (confirm("Are you sure you want to disconnect from Supabase cloud sync? Your data will remain stored locally.")) {
-        localStorage.removeItem("supabase_url");
-        localStorage.removeItem("supabase_key");
+      if (confirm("Are you sure you want to disconnect from this vault? Your local dashboard will reset.")) {
         localStorage.removeItem("supabase_sync_code");
-        
         disconnectSupabase();
         hideSyncModal();
+        
+        // Reset local state to blank
+        State.usdSavings = 0;
+        State.goldGrams = 0;
+        State.goldPremium = 2.5;
+        State.upcomingIncome = 0;
+        State.transactions = [];
+        State.usdEgpTrend = "neutral";
+        State.gold24kTrend = "neutral";
+        State.gold21kTrend = "neutral";
+        State.lastResetMonth = "";
+        State.resetPending = false;
+        State.resetRolledIncome = 0;
+        
+        updateDashboardUI();
+        
+        // Clear setup inputs
+        setupSyncCodeInput.value = "";
+        document.getElementById("setup-cash-savings").value = "";
+        document.getElementById("setup-gold-grams").value = "";
+        document.getElementById("setup-gold-premium").value = "2.5";
+        document.getElementById("wizard-step-sync-code").style.display = "block";
+        document.getElementById("wizard-step-baselines").style.display = "none";
+        document.getElementById("setup-wizard-desc").textContent = "Connect to your database vault or create a new one.";
+
+        // Prompt for new sync code
+        showSyncCodePrompt();
       }
     });
   }
@@ -1075,9 +1125,12 @@ function disconnectSupabase() {
 }
 
 async function syncStateToSupabase() {
-  if (!supabase) return;
   const syncCode = localStorage.getItem("supabase_sync_code");
   if (!syncCode) return;
+  
+  if (!supabase) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
   
   try {
     const payload = {
@@ -1119,12 +1172,11 @@ async function initSupabaseSync() {
     supabaseChannel = null;
   }
   
-  const supabaseUrl = localStorage.getItem("supabase_url");
-  const supabaseKey = localStorage.getItem("supabase_key");
   const syncCode = localStorage.getItem("supabase_sync_code");
   
-  if (!supabaseUrl || !supabaseKey || !syncCode) {
+  if (!syncCode) {
     disconnectSupabase();
+    showSyncCodePrompt();
     return;
   }
   
@@ -1134,7 +1186,7 @@ async function initSupabaseSync() {
       syncBtn.title = "Connecting to Supabase...";
     }
     
-    supabase = createClient(supabaseUrl, supabaseKey);
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     isCloudSyncActive = true;
     
     // 1. Fetch initial state
@@ -1146,12 +1198,18 @@ async function initSupabaseSync() {
       
     if (error) {
       console.error("Failed to pull state from Supabase on init:", error);
+      disconnectSupabase();
+      if (syncBtn) {
+        syncBtn.className = "refresh-btn cloud-sync-btn offline";
+        syncBtn.title = `Supabase Error: ${error.message}`;
+      }
     } else if (dbData && dbData.data) {
       console.log("Initial state pulled from Supabase:", dbData.data);
       handleIncomingCloudState(dbData.data);
+      fetchLiveRates(); // Pull fresh rates once connected and loaded
     } else {
-      console.log("No cloud data found for code. Uploading local state...");
-      await syncStateToSupabase();
+      console.log("No cloud data found for code. Opening wizard step 2...");
+      showWizardStep2();
     }
     
     // 2. Real-time Subscription Channel
@@ -1218,10 +1276,34 @@ function handleIncomingCloudState(data) {
   if (data.resetPending !== undefined) State.resetPending = data.resetPending;
   if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
   
-  State.save();
   isPreventingSyncLoop = false;
-  
   updateDashboardUI();
+}
+
+function showSyncCodePrompt() {
+  const setupOverlay = document.getElementById("setup-wizard-overlay");
+  const step1 = document.getElementById("wizard-step-sync-code");
+  const step2 = document.getElementById("wizard-step-baselines");
+  
+  if (setupOverlay && step1 && step2) {
+    step1.style.display = "block";
+    step2.style.display = "none";
+    setupOverlay.style.display = "flex";
+    setTimeout(() => setupOverlay.classList.add("active"), 10);
+  }
+}
+
+function showWizardStep2() {
+  const setupOverlay = document.getElementById("setup-wizard-overlay");
+  const step1 = document.getElementById("wizard-step-sync-code");
+  const step2 = document.getElementById("wizard-step-baselines");
+  
+  if (setupOverlay && step1 && step2) {
+    step1.style.display = "none";
+    step2.style.display = "block";
+    setupOverlay.style.display = "flex";
+    setTimeout(() => setupOverlay.classList.add("active"), 10);
+  }
 }
 
 // --- THEME MANAGEMENT ENGINE ---
@@ -1256,27 +1338,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // 0. Initialize light/dark theme preference
   initTheme();
 
-  // 0.1 Clean up legacy Firebase keys from local storage
-  localStorage.removeItem("firebase_config");
-  localStorage.removeItem("firebase_sync_code");
+  // 0.1 Clean up legacy Local Storage keys to ensure zero local storage persistence
+  const localKeys = [
+    "usdSavings", "goldGrams", "goldPremium", "upcomingIncome", "transactions",
+    "cachedUsdEgp", "cachedGold24kUsd", "lastFetchedTime", "usdEgpTrend",
+    "gold24kTrend", "gold21kTrend", "lastResetMonth", "resetPending",
+    "resetRolledIncome", "supabase_url", "supabase_key",
+    "firebase_config", "firebase_sync_code"
+  ];
+  localKeys.forEach(k => localStorage.removeItem(k));
 
-  // 0.2 Initialize Supabase Cloud Sync
-  initSupabaseSync();
-
-  // 1. Initial State Check
-  const initialized = State.load();
-
-  if (!initialized) {
-    // Show Setup Wizard overlay
-    const setupOverlay = document.getElementById("setup-wizard-overlay");
-    if (setupOverlay) {
-      setupOverlay.style.display = "flex";
-      setTimeout(() => setupOverlay.classList.add("active"), 10);
-    }
+  // 0.2 Initialize Supabase Cloud Sync Connection
+  const syncCode = localStorage.getItem("supabase_sync_code");
+  if (!syncCode) {
+    showSyncCodePrompt();
   } else {
-    // User already exists, render dashboard and pull live API updates
-    updateDashboardUI();
-    fetchLiveRates();
+    initSupabaseSync();
   }
 
   // 2. Setup Event Handlers
