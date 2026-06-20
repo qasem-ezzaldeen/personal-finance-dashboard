@@ -669,7 +669,7 @@ function renderWealthChart(savingsUsd, goldSavingsUsd, upcomingIncomeUsd) {
       backgroundColor: [
         '#22c55e', // Cash green
         '#eab308', // Gold yellow
-        '#a855f7'  // Upcoming purple
+        '#a1a1aa'  // Upcoming purple
       ],
       borderWidth: 2,
       borderColor: isLight ? '#ffffff' : '#09090b',
