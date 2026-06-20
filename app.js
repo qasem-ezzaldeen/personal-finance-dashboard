@@ -240,7 +240,6 @@ async function fetchLiveRates() {
   State.cachedUsdEgp = usdEgpRate;
   State.cachedGold24kUsd = gold24kUsd;
   State.lastFetchedTime = new Date().toLocaleString();
-  State.save();
 
   // Update visual indicators of API status
   if (statusDot && statusBadge) {
@@ -1139,12 +1138,6 @@ async function syncStateToSupabase() {
       goldPremium: State.goldPremium,
       upcomingIncome: State.upcomingIncome,
       transactions: State.transactions,
-      cachedUsdEgp: State.cachedUsdEgp,
-      cachedGold24kUsd: State.cachedGold24kUsd,
-      lastFetchedTime: State.lastFetchedTime || "",
-      usdEgpTrend: State.usdEgpTrend,
-      gold24kTrend: State.gold24kTrend,
-      gold21kTrend: State.gold21kTrend,
       lastResetMonth: State.lastResetMonth,
       resetPending: State.resetPending,
       resetRolledIncome: State.resetRolledIncome
