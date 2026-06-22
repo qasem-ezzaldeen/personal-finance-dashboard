@@ -1461,3 +1461,45 @@ body {
 .cloud-sync-btn.connecting .sync-icon {
   animation: pulse 1.5s infinite ease-in-out;
 }
+
+/* Color Dot Selector & Category Suggestions */
+.color-dot-option {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.color-dot-option:hover {
+  transform: scale(1.1);
+}
+
+.color-dot-option.active {
+  border-color: var(--text-primary) !important;
+  transform: scale(1.2);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+:root.light-theme .color-dot-option.active {
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
+}
+
+.category-suggestion {
+  font-size: 0.72rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-primary-glow);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.category-suggestion:hover {
+  background: var(--color-primary);
+  color: var(--bg-base);
+  border-color: var(--color-primary);
+}

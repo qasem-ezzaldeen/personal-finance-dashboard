@@ -37,9 +37,58 @@ let wealthChart = null;
 
 // --- STATE DEFINITION ---
 const State = {
-  // Financial baselines
-  usdSavings: 0,
-  goldGrams: 0,
+  // Financial dynamic assets list
+  assets: [],
+  
+  // Legacy getters/setters for backwards compatibility and easy API support
+  get usdSavings() {
+    const usdAssets = this.assets.filter(a => a.currency === "USD");
+    return usdAssets.reduce((sum, a) => sum + a.holdings, 0);
+  },
+  
+  set usdSavings(value) {
+    let savingsAsset = this.assets.find(a => a.id === "savings");
+    if (!savingsAsset) {
+      savingsAsset = this.assets.find(a => a.currency === "USD");
+    }
+    if (savingsAsset) {
+      savingsAsset.holdings = value;
+    } else {
+      this.assets.push({
+        id: "savings",
+        name: "Cash Savings",
+        category: "Cash Savings",
+        holdings: value,
+        currency: "USD",
+        color: "#22c55e"
+      });
+    }
+  },
+
+  get goldGrams() {
+    const goldAssets = this.assets.filter(a => a.currency === "Gold (Grams)");
+    return goldAssets.reduce((sum, a) => sum + a.holdings, 0);
+  },
+
+  set goldGrams(value) {
+    let goldAsset = this.assets.find(a => a.id === "gold");
+    if (!goldAsset) {
+      goldAsset = this.assets.find(a => a.currency === "Gold (Grams)");
+    }
+    if (goldAsset) {
+      goldAsset.holdings = value;
+    } else {
+      this.assets.push({
+        id: "gold",
+        name: "Gold Savings (21k)",
+        category: "Gold Savings",
+        holdings: value,
+        currency: "Gold (Grams)",
+        color: "#eab308"
+      });
+    }
+  },
+
   goldPremium: 2.5, // Default 2.5% local Egypt gold premium
   upcomingIncome: 0,
   
@@ -355,6 +404,43 @@ function showResetBannerAndModal() {
   if (modal) modal.classList.add("active");
 }
 
+/**
+ * Calculates dynamic valuations for a given holding and currency in USD, AUD, and EGP.
+ */
+function getAssetValuations(holdings, currency) {
+  const usdEgpRate = State.cachedUsdEgp;
+  const usdAudRate = State.cachedUsdAud;
+  const gold24kUsdPerGram = State.cachedGold24kUsd;
+  
+  const gold24kEgpPerGram = gold24kUsdPerGram * usdEgpRate * (1 + State.goldPremium / 100);
+  const gold21kEgpPerGram = gold24kEgpPerGram * GOLD_21K_RATIO;
+  
+  let usd = 0;
+  let aud = 0;
+  let egp = 0;
+  
+  if (currency === "USD") {
+    usd = holdings;
+    aud = usd * usdAudRate;
+    egp = usd * usdEgpRate;
+  } else if (currency === "AUD") {
+    aud = holdings;
+    usd = usdAudRate > 0 ? (aud / usdAudRate) : 0;
+    egp = usd * usdEgpRate;
+  } else if (currency === "EGP") {
+    egp = holdings;
+    usd = usdEgpRate > 0 ? (egp / usdEgpRate) : 0;
+    aud = usd * usdAudRate;
+  } else if (currency === "Gold (Grams)") {
+    // Egypt 21k Gold formula: valued at 30 EGP less than market value per gram
+    egp = holdings * Math.max(0, gold21kEgpPerGram - 30);
+    usd = usdEgpRate > 0 ? (egp / usdEgpRate) : 0;
+    aud = usd * usdAudRate;
+  }
+  
+  return { usd, aud, egp };
+}
+
 // --- UI UPDATE & CALCULATION ENGINE ---
 /**
  * Calculates current asset valuations and updates all table rows, goals, history log,
@@ -369,27 +455,102 @@ function updateDashboardUI() {
   const gold24kEgpPerGram = gold24kUsdPerGram * usdEgpRate * (1 + State.goldPremium / 100);
   const gold21kEgpPerGram = gold24kEgpPerGram * GOLD_21K_RATIO;
   
-  // Local EGP Valuations (Valued at 30 EGP less than market value per gram)
-  const goldSavingsEgp = State.goldGrams * Math.max(0, gold21kEgpPerGram - 30);
-  
-  // Gold USD & AUD Valuations (converted back for consistent side-by-side display)
-  const goldSavingsUsd = goldSavingsEgp / usdEgpRate;
-  const goldSavingsAud = goldSavingsUsd * usdAudRate;
-  
-  // Cash Savings valuations
-  const savingsUsd = State.usdSavings;
-  const savingsAud = savingsUsd * usdAudRate;
-  const savingsEgp = savingsUsd * usdEgpRate;
-  
-  // Upcoming income valuations
-  const upcomingIncomeUsd = State.upcomingIncome;
-  const upcomingIncomeAud = upcomingIncomeUsd * usdAudRate;
-  const upcomingIncomeEgp = upcomingIncomeUsd * usdEgpRate;
-  
-  // Net Worth totals
-  const totalNetWorthUsd = savingsUsd + goldSavingsUsd + upcomingIncomeUsd;
-  const totalNetWorthAud = totalNetWorthUsd * usdAudRate;
-  const totalNetWorthEgp = savingsEgp + goldSavingsEgp + upcomingIncomeEgp;
+  // 1. Calculate dynamic valuations and Net Worth totals
+  let totalNetWorthUsd = 0;
+  let totalNetWorthAud = 0;
+  let totalNetWorthEgp = 0;
+
+  // Render all dynamic assets and build the tbody content
+  const tbody = document.getElementById("wealth-distribution-tbody");
+  let tbodyHtml = "";
+
+  if (tbody) {
+    State.assets.forEach(asset => {
+      const { usd, aud, egp } = getAssetValuations(asset.holdings, asset.currency);
+      
+      totalNetWorthUsd += usd;
+      totalNetWorthAud += aud;
+      totalNetWorthEgp += egp;
+      
+      let holdingsText = "";
+      if (asset.currency === "USD") {
+        holdingsText = `$${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      } else if (asset.currency === "AUD") {
+        holdingsText = `${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
+      } else if (asset.currency === "EGP") {
+        holdingsText = `${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
+      } else if (asset.currency === "Gold (Grams)") {
+        holdingsText = `${asset.holdings.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 21k - 30 EGP/g)`;
+      }
+
+      tbodyHtml += `
+        <tr>
+          <td class="asset-name">
+            <div class="asset-marker" style="background-color: ${asset.color || '#22c55e'};"></div>
+            <div>
+              <div style="font-weight: 700; color: var(--text-primary);">${asset.name}</div>
+              <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-top: 0.1rem; line-height: 1.1;">${asset.category}</div>
+            </div>
+          </td>
+          <td class="asset-holdings">${holdingsText}</td>
+          <td class="text-right font-medium text-primary">$${usd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+          <td class="text-right font-medium text-secondary">$${aud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
+          <td class="text-right font-medium text-secondary">${egp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
+          <td class="text-center">
+            <button class="btn-icon edit-asset-item-btn" data-asset-id="${asset.id}" title="Edit Asset">✏️</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    // Add Upcoming Income (system managed)
+    const { usd: upUsd, aud: upAud, egp: upEgp } = getAssetValuations(State.upcomingIncome, "USD");
+    totalNetWorthUsd += upUsd;
+    totalNetWorthAud += upAud;
+    totalNetWorthEgp += upEgp;
+
+    tbodyHtml += `
+      <tr>
+        <td class="asset-name">
+          <div class="asset-marker upcoming" style="background-color: #a1a1aa;"></div>
+          <div>
+            <div style="font-weight: 700; color: var(--text-primary);">Upcoming Income</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; margin-top: 0.1rem; line-height: 1.1;">System Managed</div>
+          </div>
+        </td>
+        <td class="asset-holdings">$${State.upcomingIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td class="text-right font-medium text-primary">$${upUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td class="text-right font-medium text-secondary">$${upAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
+        <td class="text-right font-medium text-secondary">${upEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
+        <td class="text-center">-</td>
+      </tr>
+    `;
+
+    // Add Net Worth Summary Row
+    tbodyHtml += `
+      <tr class="net-worth-row">
+        <td class="asset-name font-bold">Total Net Worth</td>
+        <td class="asset-holdings">-</td>
+        <td class="text-right font-extrabold value-highlight-usd">$${totalNetWorthUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        <td class="text-right font-extrabold value-highlight-aud">$${totalNetWorthAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
+        <td class="text-right font-extrabold value-highlight-egp">${totalNetWorthEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
+        <td class="text-center">-</td>
+      </tr>
+    `;
+
+    tbody.innerHTML = tbodyHtml;
+
+    // Attach click listeners to edit buttons
+    tbody.querySelectorAll(".edit-asset-item-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-asset-id");
+        const asset = State.assets.find(a => a.id === id);
+        if (asset) {
+          openAssetModal(asset);
+        }
+      });
+    });
+  }
 
   // Helper to build trend arrow HTML element
   const getTrendArrowHTML = (trend) => {
@@ -418,30 +579,6 @@ function updateDashboardUI() {
   document.getElementById("rate-gold-24k").innerHTML = `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`;
   document.getElementById("rate-gold-21k").innerHTML = `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold21kArrow}`;
   document.getElementById("last-updated-time").textContent = State.lastFetchedTime || "Never";
-
-  // --- 2. Update Total Wealth Distribution Table ---
-  // Cash row
-  document.getElementById("table-savings-holdings").textContent = `$${savingsUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  document.getElementById("table-savings-usd").textContent = `$${savingsUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  document.getElementById("table-savings-aud").textContent = `$${savingsAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
-  document.getElementById("table-savings-egp").textContent = `${savingsEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
-  
-  // Gold row (displays holdings with annotation of Market 21k - 30 EGP/g)
-  document.getElementById("table-gold-holdings").textContent = `${State.goldGrams.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 21k - 30 EGP/g)`;
-  document.getElementById("table-gold-usd").textContent = `$${goldSavingsUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  document.getElementById("table-gold-aud").textContent = `$${goldSavingsAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
-  document.getElementById("table-gold-egp").textContent = `${goldSavingsEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
-  
-  // Upcoming Income row
-  document.getElementById("table-income-holdings").textContent = `$${upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  document.getElementById("table-income-usd").textContent = `$${upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  document.getElementById("table-income-aud").textContent = `$${upcomingIncomeAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
-  document.getElementById("table-income-egp").textContent = `${upcomingIncomeEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
-
-  // Total Net Worth row
-  document.getElementById("table-total-usd").textContent = `$${totalNetWorthUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-  document.getElementById("table-total-aud").textContent = `$${totalNetWorthAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
-  document.getElementById("table-total-egp").textContent = `${totalNetWorthEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
 
   // --- 3. Update Financial Goals Tracking Panel ---
   const goalsContainer = document.getElementById("goals-list-container");
@@ -540,7 +677,7 @@ function updateDashboardUI() {
         goalItem.addEventListener("mouseleave", () => {
           goalItem.style.transform = "none";
         });
-
+ 
         const isMet = currentVal >= targetVal;
         
         goalItem.innerHTML = `
@@ -581,7 +718,7 @@ function updateDashboardUI() {
       });
     }
   }
-
+ 
   // --- 4. Update Income Logs List ---
   const historyList = document.getElementById("history-list");
   const historyBadge = document.getElementById("history-count-badge");
@@ -601,7 +738,7 @@ function updateDashboardUI() {
         
         const beforeEgp = tx.beforeIncome * tx.rateUsdEgp;
         const afterEgp = tx.afterIncome * tx.rateUsdEgp;
-
+ 
         const historyItem = document.createElement("div");
         historyItem.className = "history-item";
         historyItem.title = "Click to revert upcoming income history back to this point";
@@ -624,19 +761,19 @@ function updateDashboardUI() {
         historyItem.addEventListener("click", () => {
           triggerRevertWorkflow(tx);
         });
-
+ 
         historyList.appendChild(historyItem);
       });
     }
   }
-
+ 
   if (historyBadge) {
     historyBadge.textContent = `${State.transactions.length} log${State.transactions.length === 1 ? '' : 's'}`;
   }
-
+ 
   // Render/update the interactive Donut Chart
-  renderWealthChart(savingsUsd, goldSavingsUsd, upcomingIncomeUsd);
-
+  renderWealthChart();
+ 
   // Reset the inputs preview fields to clean defaults
   updateTransactionPreview();
 }
@@ -645,12 +782,35 @@ function updateDashboardUI() {
  * Initializes or dynamically updates the Chart.js donut chart segmenting
  * Cash Savings, Gold Savings (21k), and Upcoming Income.
  */
-function renderWealthChart(savingsUsd, goldSavingsUsd, upcomingIncomeUsd) {
+function renderWealthChart() {
   const ctx = document.getElementById('wealth-donut-chart');
   if (!ctx) return;
 
-  const total = savingsUsd + goldSavingsUsd + upcomingIncomeUsd;
-  const dataValues = total > 0 ? [savingsUsd, goldSavingsUsd, upcomingIncomeUsd] : [0, 0, 0];
+  const slices = [];
+  
+  // 1. Slices from dynamic assets
+  State.assets.forEach(asset => {
+    const { usd } = getAssetValuations(asset.holdings, asset.currency);
+    slices.push({
+      name: asset.name,
+      value: usd,
+      color: asset.color || "#22c55e"
+    });
+  });
+  
+  // 2. Slice from upcoming income
+  const { usd: upUsd } = getAssetValuations(State.upcomingIncome, "USD");
+  slices.push({
+    name: "Upcoming Income",
+    value: upUsd,
+    color: "#a1a1aa"
+  });
+
+  // Calculate total and prepare data lists
+  const total = slices.reduce((sum, s) => sum + s.value, 0);
+  const dataValues = total > 0 ? slices.map(s => s.value) : [0];
+  const labels = total > 0 ? slices.map(s => s.name) : ["No holdings"];
+  const bgColors = total > 0 ? slices.map(s => s.color) : ["#27272a"];
 
   const isLight = document.documentElement.classList.contains('light-theme');
   const textColor = isLight ? '#09090b' : '#ffffff';
@@ -663,14 +823,10 @@ function renderWealthChart(savingsUsd, goldSavingsUsd, upcomingIncomeUsd) {
   };
 
   const data = {
-    labels: ['Cash Savings', 'Gold Savings (21k)', 'Upcoming Income'],
+    labels: labels,
     datasets: [{
       data: dataValues,
-      backgroundColor: [
-        '#22c55e', // Cash green
-        '#eab308', // Gold yellow
-        '#a1a1aa'  // Upcoming purple
-      ],
+      backgroundColor: bgColors,
       borderWidth: 2,
       borderColor: isLight ? '#ffffff' : '#09090b',
       hoverOffset: 6
@@ -709,7 +865,9 @@ function renderWealthChart(savingsUsd, goldSavingsUsd, upcomingIncomeUsd) {
   };
 
   if (wealthChart) {
+    wealthChart.data.labels = labels;
     wealthChart.data.datasets[0].data = dataValues;
+    wealthChart.data.datasets[0].backgroundColor = bgColors;
     wealthChart.data.datasets[0].borderColor = isLight ? '#ffffff' : '#09090b';
     wealthChart.options.plugins.tooltip.backgroundColor = isLight ? '#ffffff' : '#09090b';
     wealthChart.options.plugins.tooltip.titleColor = textColor;
@@ -788,6 +946,73 @@ function triggerRevertWorkflow(tx) {
   if (modal) {
     modal.style.display = "flex";
     setTimeout(() => modal.classList.add("active"), 10);
+  }
+}
+
+// --- DYNAMIC ASSETS MODAL HELPERS ---
+function openAssetModal(asset = null) {
+  const modal = document.getElementById("asset-modal");
+  const title = document.getElementById("asset-modal-title");
+  const idInput = document.getElementById("asset-id-input");
+  const nameInput = document.getElementById("asset-name-input");
+  const categoryInput = document.getElementById("asset-category-input");
+  const currencySelect = document.getElementById("asset-currency-select");
+  const holdingsInput = document.getElementById("asset-holdings-input");
+  const deleteBtn = document.getElementById("delete-asset-btn");
+  const colorPicker = document.getElementById("asset-color-picker");
+
+  if (!modal) return;
+
+  // Reset active color dots class
+  document.querySelectorAll(".color-dot-option").forEach(dot => {
+    dot.classList.remove("active");
+  });
+
+  if (asset) {
+    // Edit Mode
+    title.textContent = "Edit Financial Asset";
+    idInput.value = asset.id;
+    nameInput.value = asset.name;
+    categoryInput.value = asset.category;
+    currencySelect.value = asset.currency;
+    holdingsInput.value = asset.holdings;
+    colorPicker.value = asset.color || "#22c55e";
+    
+    // Highlight matching dot option if active
+    const matchingDot = document.querySelector(`.color-dot-option[data-color="${asset.color}"]`);
+    if (matchingDot) {
+      matchingDot.classList.add("active");
+    }
+
+    if (deleteBtn) deleteBtn.style.display = "block";
+  } else {
+    // Add Mode
+    title.textContent = "Add Financial Asset";
+    idInput.value = "";
+    nameInput.value = "";
+    categoryInput.value = "";
+    currencySelect.value = "USD";
+    holdingsInput.value = "";
+    colorPicker.value = "#22c55e";
+
+    // Highlight green by default
+    const greenDot = document.querySelector(`.color-dot-option[data-color="#22c55e"]`);
+    if (greenDot) {
+      greenDot.classList.add("active");
+    }
+
+    if (deleteBtn) deleteBtn.style.display = "none";
+  }
+
+  modal.style.display = "flex";
+  setTimeout(() => modal.classList.add("active"), 10);
+}
+
+function hideAssetModal() {
+  const modal = document.getElementById("asset-modal");
+  if (modal) {
+    modal.classList.remove("active");
+    setTimeout(() => modal.style.display = "none", 300);
   }
 }
 
@@ -932,8 +1157,10 @@ function setupModalListeners() {
         }
 
         // Initialize state variables
-        State.usdSavings = cash;
-        State.goldGrams = gold;
+        State.assets = [
+          { id: 'savings', name: 'Cash Savings', category: 'Cash Savings', holdings: cash, currency: 'USD', color: '#22c55e' },
+          { id: 'gold', name: 'Gold Savings (21k)', category: 'Gold Savings', holdings: gold, currency: 'Gold (Grams)', color: '#eab308' }
+        ];
         State.goldPremium = isNaN(premium) ? 2.5 : premium;
         State.upcomingIncome = 0;
         State.transactions = [];
@@ -966,79 +1193,118 @@ function setupModalListeners() {
     });
   }
 
-  // --- Edit Cash Savings Modal ---
-  const editSavingsBtn = document.getElementById("edit-savings-btn");
-  const savingsModal = document.getElementById("edit-savings-modal");
-  const cancelSavingsBtn = document.getElementById("cancel-savings-btn");
-  const closeSavingsModal = document.getElementById("close-savings-modal");
-  const editSavingsForm = document.getElementById("edit-savings-form");
-  const editSavingsInput = document.getElementById("edit-cash-savings-input");
+  // --- Dynamic Assets Modal Actions ---
+  const addAssetBtn = document.getElementById("add-asset-btn");
+  const cancelAssetBtn = document.getElementById("cancel-asset-btn");
+  const closeAssetModalBtn = document.getElementById("close-asset-modal");
+  const deleteAssetBtn = document.getElementById("delete-asset-btn");
+  const assetForm = document.getElementById("asset-form");
+  const categorySuggestionsContainer = document.getElementById("category-suggestions-container");
+  const colorPalette = document.getElementById("color-palette");
+  const colorPicker = document.getElementById("asset-color-picker");
 
-  if (editSavingsBtn && savingsModal) {
-    editSavingsBtn.addEventListener("click", () => {
-      editSavingsInput.value = State.usdSavings;
-      savingsModal.style.display = "flex";
-      setTimeout(() => savingsModal.classList.add("active"), 10);
+  if (addAssetBtn) {
+    addAssetBtn.addEventListener("click", () => {
+      openAssetModal();
     });
   }
 
-  const hideSavingsModal = () => {
-    savingsModal.classList.remove("active");
-    setTimeout(() => savingsModal.style.display = "none", 300);
-  };
+  if (cancelAssetBtn) cancelAssetBtn.addEventListener("click", hideAssetModal);
+  if (closeAssetModalBtn) closeAssetModalBtn.addEventListener("click", hideAssetModal);
 
-  if (cancelSavingsBtn) cancelSavingsBtn.addEventListener("click", hideSavingsModal);
-  if (closeSavingsModal) closeSavingsModal.addEventListener("click", hideSavingsModal);
-  
-  if (editSavingsForm) {
-    editSavingsForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const newCash = parseFloat(editSavingsInput.value);
-      if (!isNaN(newCash) && newCash >= 0) {
-        State.usdSavings = newCash;
-        State.save();
-        hideSavingsModal();
-        updateDashboardUI();
+  if (categorySuggestionsContainer) {
+    categorySuggestionsContainer.addEventListener("click", (e) => {
+      if (e.target.classList.contains("category-suggestion")) {
+        const categoryInput = document.getElementById("asset-category-input");
+        if (categoryInput) {
+          categoryInput.value = e.target.textContent.trim();
+        }
       }
     });
   }
 
-  // --- Edit Gold Savings Modal ---
-  const editGoldBtn = document.getElementById("edit-gold-btn");
-  const goldModal = document.getElementById("edit-gold-modal");
-  const cancelGoldBtn = document.getElementById("cancel-gold-btn");
-  const closeGoldModal = document.getElementById("close-gold-modal");
-  const editGoldForm = document.getElementById("edit-gold-form");
-  const editGoldInput = document.getElementById("edit-gold-grams-input");
-  const editGoldPremiumInput = document.getElementById("edit-gold-premium-input");
- 
-  if (editGoldBtn && goldModal) {
-    editGoldBtn.addEventListener("click", () => {
-      editGoldInput.value = State.goldGrams;
-      editGoldPremiumInput.value = State.goldPremium;
-      goldModal.style.display = "flex";
-      setTimeout(() => goldModal.classList.add("active"), 10);
+  if (colorPalette) {
+    colorPalette.addEventListener("click", (e) => {
+      if (e.target.classList.contains("color-dot-option")) {
+        // Remove active class from other dots
+        colorPalette.querySelectorAll(".color-dot-option").forEach(dot => dot.classList.remove("active"));
+        // Add active class to clicked dot
+        e.target.classList.add("active");
+        // Update color picker
+        const selectedColor = e.target.getAttribute("data-color");
+        if (colorPicker) {
+          colorPicker.value = selectedColor;
+        }
+      }
     });
   }
 
-  const hideGoldModal = () => {
-    goldModal.classList.remove("active");
-    setTimeout(() => goldModal.style.display = "none", 300);
-  };
+  if (colorPicker) {
+    colorPicker.addEventListener("input", (e) => {
+      // Find matching color dot if any
+      const hex = e.target.value.toLowerCase();
+      if (colorPalette) {
+        colorPalette.querySelectorAll(".color-dot-option").forEach(dot => {
+          const dotColor = dot.getAttribute("data-color").toLowerCase();
+          if (dotColor === hex) {
+            dot.classList.add("active");
+          } else {
+            dot.classList.remove("active");
+          }
+        });
+      }
+    });
+  }
 
-  if (cancelGoldBtn) cancelGoldBtn.addEventListener("click", hideGoldModal);
-  if (closeGoldModal) closeGoldModal.addEventListener("click", hideGoldModal);
+  if (deleteAssetBtn) {
+    deleteAssetBtn.addEventListener("click", () => {
+      const id = document.getElementById("asset-id-input").value;
+      if (id) {
+        const asset = State.assets.find(a => a.id === id);
+        const assetName = asset ? asset.name : "this asset";
+        if (confirm(`Are you sure you want to delete "${assetName}"?`)) {
+          State.assets = State.assets.filter(a => a.id !== id);
+          State.save();
+          hideAssetModal();
+          updateDashboardUI();
+        }
+      }
+    });
+  }
 
-  if (editGoldForm) {
-    editGoldForm.addEventListener("submit", (e) => {
+  if (assetForm) {
+    assetForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const newGold = parseFloat(editGoldInput.value);
-      const newPremium = parseFloat(editGoldPremiumInput.value);
-      if (!isNaN(newGold) && newGold >= 0 && !isNaN(newPremium)) {
-        State.goldGrams = newGold;
-        State.goldPremium = newPremium;
+      
+      const id = document.getElementById("asset-id-input").value;
+      const name = document.getElementById("asset-name-input").value.trim();
+      const category = document.getElementById("asset-category-input").value.trim();
+      const currency = document.getElementById("asset-currency-select").value;
+      const holdings = parseFloat(document.getElementById("asset-holdings-input").value);
+      const color = colorPicker ? colorPicker.value : "#22c55e";
+
+      if (name && category && currency && !isNaN(holdings) && holdings >= 0) {
+        if (id) {
+          // Edit mode
+          const idx = State.assets.findIndex(a => a.id === id);
+          if (idx !== -1) {
+            State.assets[idx] = { id, name, category, currency, holdings, color };
+          }
+        } else {
+          // Add mode
+          const newAsset = {
+            id: "asset_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+            name,
+            category,
+            currency,
+            holdings,
+            color
+          };
+          State.assets.push(newAsset);
+        }
+        
         State.save();
-        hideGoldModal();
+        hideAssetModal();
         updateDashboardUI();
       }
     });
@@ -1263,8 +1529,7 @@ function setupModalListeners() {
         hideSyncModal();
         
         // Reset local state to blank
-        State.usdSavings = 0;
-        State.goldGrams = 0;
+        State.assets = [];
         State.goldPremium = 2.5;
         State.upcomingIncome = 0;
         State.transactions = [];
@@ -1395,6 +1660,7 @@ async function syncStateToSupabase() {
   
   try {
     const payload = {
+      assets: State.assets,
       usdSavings: State.usdSavings,
       goldGrams: State.goldGrams,
       goldPremium: State.goldPremium,
@@ -1538,8 +1804,14 @@ function getDefaultGoals() {
 function handleIncomingCloudState(data) {
   isPreventingSyncLoop = true;
   
-  if (data.usdSavings !== undefined) State.usdSavings = Number(data.usdSavings);
-  if (data.goldGrams !== undefined) State.goldGrams = Number(data.goldGrams);
+  if (data.assets !== undefined) {
+    State.assets = data.assets;
+  } else {
+    // Migrate legacy data models
+    State.assets = [];
+    if (data.usdSavings !== undefined) State.usdSavings = Number(data.usdSavings);
+    if (data.goldGrams !== undefined) State.goldGrams = Number(data.goldGrams);
+  }
   if (data.goldPremium !== undefined) State.goldPremium = Number(data.goldPremium);
   if (data.upcomingIncome !== undefined) State.upcomingIncome = Number(data.upcomingIncome);
   if (data.transactions !== undefined) State.transactions = data.transactions;
