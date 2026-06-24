@@ -111,9 +111,17 @@ const State = {
   resetPending: false,
   resetRolledIncome: 0,
   lastNsaveTransferMonth: "", // Format: YYYY-MM
+  
+  // Zakat streak states
+  zakatConsecutiveDays: 0,
+  lastZakatCheckDate: "",
+  zakatSavedDueUsd: 0,
+  zakatSavedDueEgp: 0,
+  zakatSavedDueAud: 0,
 
   // Save state directly to Supabase
   save() {
+    ensureZakatGoal();
     if (isCloudSyncActive && !isPreventingSyncLoop) {
       syncStateToSupabase();
     }
@@ -366,9 +374,11 @@ function runClockAndResetCheck() {
           category: "nsave Savings",
           holdings: 0,
           currency: "USD",
-          color: "#14b8a6"
+          color: "#ef4444" // RED ACCENT COLOR
         };
         State.assets.push(nsaveAsset);
+      } else {
+        nsaveAsset.color = "#ef4444"; // Ensure it is red
       }
       
       nsaveAsset.holdings += transferAmount;
@@ -399,17 +409,47 @@ function runClockAndResetCheck() {
   if (currentDay >= 24 && State.lastResetMonth !== currentMonthKey) {
     // 1. Lock reset parameters & log old values
     State.lastResetMonth = currentMonthKey;
-    State.resetPending = true;
+    State.resetPending = false; // Do not prompt the user
     State.resetRolledIncome = State.upcomingIncome;
     
-    // 2. Perform the rollover reset
+    // Transfer incoming money to PayPal
+    const transferAmount = State.upcomingIncome;
+    if (transferAmount > 0) {
+      let paypalAsset = State.assets.find(a => a.id === "paypal" || a.name.toLowerCase() === "paypal");
+      if (!paypalAsset) {
+        paypalAsset = {
+          id: "paypal",
+          name: "PayPal",
+          category: "Digital Wallet",
+          holdings: 0,
+          currency: "USD",
+          color: "#3b82f6"
+        };
+        State.assets.push(paypalAsset);
+      }
+      paypalAsset.holdings += transferAmount;
+      
+      // Log transaction
+      const usdEgpRate = State.cachedUsdEgp;
+      const autoTx = {
+        id: "tx_auto_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        amountUsd: transferAmount,
+        amountEgp: transferAmount * usdEgpRate,
+        rateUsdEgp: usdEgpRate,
+        timestamp: Date.now(),
+        beforeIncome: transferAmount,
+        afterIncome: 0,
+        description: "Auto-Transfer: Upcoming Income to PayPal"
+      };
+      State.transactions.push(autoTx);
+      console.log(`Auto-transferred $${transferAmount} of upcoming income to PayPal.`);
+    }
+    
+    // 2. Perform the rollover reset (start calculating from zero for the next log of upcoming money)
     State.upcomingIncome = 0;
     
     // Save state
     State.save();
-    
-    // 3. Render reset overlays
-    showResetBannerAndModal();
   }
 
   // Update reset UI states continuously based on pending flag
@@ -632,6 +672,7 @@ function updateDashboardUI() {
   // --- 3. Update Financial Goals Tracking Panel ---
   const goalsContainer = document.getElementById("goals-list-container");
   if (goalsContainer) {
+    ensureZakatGoal();
     goalsContainer.innerHTML = "";
     
     if (!State.goals || State.goals.length === 0) {
@@ -740,7 +781,7 @@ function updateDashboardUI() {
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
               <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
-              <button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>
+              ${goal.id !== "goal_zakat" ? `<button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : ''}
             </div>
           </div>
           
@@ -831,6 +872,9 @@ function updateDashboardUI() {
   // Render/update the interactive Donut Chart
   renderWealthChart();
  
+  // Calculate and monitor Zakat streak based on current net worth
+  checkZakatStreak(totalNetWorthEgp, gold24kEgpPerGram, totalNetWorthUsd, totalNetWorthAud);
+
   // Reset the inputs preview fields to clean defaults
   updateTransactionPreview();
 }
@@ -1235,6 +1279,11 @@ function setupModalListeners() {
         State.lastResetMonth = "";
         State.resetPending = false;
         State.resetRolledIncome = 0;
+        State.zakatConsecutiveDays = 0;
+        State.lastZakatCheckDate = "";
+        State.zakatSavedDueUsd = 0;
+        State.zakatSavedDueEgp = 0;
+        State.zakatSavedDueAud = 0;
         
         // Save syncCode to localStorage and establish connection
         localStorage.setItem("supabase_sync_code", syncCode);
@@ -1735,6 +1784,10 @@ function setupModalListeners() {
   if (deleteGoalBtn) {
     deleteGoalBtn.addEventListener("click", () => {
       const id = document.getElementById("goal-id-input").value;
+      if (id === "goal_zakat") {
+        alert("The Zakat Threshold goal is fixed and cannot be deleted.");
+        return;
+      }
       if (id && confirm("Are you sure you want to delete this goal?")) {
         State.goals = State.goals.filter(g => g.id !== id);
         State.save();
@@ -1756,6 +1809,10 @@ function setupModalListeners() {
 
       if (name && emoji && currency && !isNaN(target) && target > 0) {
         if (id) {
+          if (id === "goal_zakat") {
+            hideGoalModal();
+            return;
+          }
           // Edit goal
           const goalIndex = State.goals.findIndex(g => g.id === id);
           if (goalIndex !== -1) {
@@ -1819,7 +1876,12 @@ async function syncStateToSupabase() {
       lastResetMonth: State.lastResetMonth,
       resetPending: State.resetPending,
       resetRolledIncome: State.resetRolledIncome,
-      lastNsaveTransferMonth: State.lastNsaveTransferMonth
+      lastNsaveTransferMonth: State.lastNsaveTransferMonth,
+      zakatConsecutiveDays: State.zakatConsecutiveDays,
+      lastZakatCheckDate: State.lastZakatCheckDate,
+      zakatSavedDueUsd: State.zakatSavedDueUsd,
+      zakatSavedDueEgp: State.zakatSavedDueEgp,
+      zakatSavedDueAud: State.zakatSavedDueAud
     };
     
     const { error } = await supabase
@@ -1949,6 +2011,138 @@ function getDefaultGoals() {
   ];
 }
 
+function ensureZakatGoal() {
+  if (!State.goals) {
+    State.goals = [];
+  }
+  let zakatGoal = State.goals.find(g => g.id === "goal_zakat");
+  if (!zakatGoal) {
+    zakatGoal = {
+      id: "goal_zakat",
+      name: "Zakat Threshold",
+      currency: "Gold",
+      target: 85,
+      emoji: "🕌"
+    };
+  } else {
+    zakatGoal.name = "Zakat Threshold";
+    zakatGoal.currency = "Gold";
+    zakatGoal.target = 85;
+    zakatGoal.emoji = "🕌";
+  }
+  State.goals = [zakatGoal, ...State.goals.filter(g => g.id !== "goal_zakat")];
+}
+
+function checkZakatStreak(totalNetWorthEgp, gold24kEgpPerGram, totalNetWorthUsd, totalNetWorthAud) {
+  const currentVal = gold24kEgpPerGram > 0 ? (totalNetWorthEgp / gold24kEgpPerGram) : 0;
+  
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  
+  if (State.zakatConsecutiveDays === undefined) State.zakatConsecutiveDays = 0;
+  if (State.lastZakatCheckDate === undefined) State.lastZakatCheckDate = "";
+  if (State.zakatSavedDueUsd === undefined) State.zakatSavedDueUsd = 0;
+  if (State.zakatSavedDueEgp === undefined) State.zakatSavedDueEgp = 0;
+  if (State.zakatSavedDueAud === undefined) State.zakatSavedDueAud = 0;
+  
+  if (!State.lastZakatCheckDate) {
+    if (currentVal >= 85) {
+      State.zakatConsecutiveDays = 1;
+      State.zakatSavedDueUsd = totalNetWorthUsd * 0.025;
+      State.zakatSavedDueEgp = totalNetWorthEgp * 0.025;
+      State.zakatSavedDueAud = totalNetWorthAud * 0.025;
+    } else {
+      State.zakatConsecutiveDays = 0;
+      State.zakatSavedDueUsd = 0;
+      State.zakatSavedDueEgp = 0;
+      State.zakatSavedDueAud = 0;
+    }
+    State.lastZakatCheckDate = todayStr;
+    State.save();
+  } else if (State.lastZakatCheckDate !== todayStr) {
+    const [lastYear, lastMonth, lastDay] = State.lastZakatCheckDate.split('-').map(Number);
+    const [currYear, currMonth, currDay] = todayStr.split('-').map(Number);
+    
+    const lastDateObj = new Date(lastYear, lastMonth - 1, lastDay);
+    const currDateObj = new Date(currYear, currMonth - 1, currDay);
+    
+    const diffTime = currDateObj - lastDateObj;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 0) {
+      if (currentVal >= 85) {
+        if (State.zakatConsecutiveDays > 0) {
+          State.zakatConsecutiveDays += diffDays;
+        } else {
+          State.zakatConsecutiveDays = 1;
+          State.zakatSavedDueUsd = totalNetWorthUsd * 0.025;
+          State.zakatSavedDueEgp = totalNetWorthEgp * 0.025;
+          State.zakatSavedDueAud = totalNetWorthAud * 0.025;
+        }
+      } else {
+        State.zakatConsecutiveDays = 0;
+        State.zakatSavedDueUsd = 0;
+        State.zakatSavedDueEgp = 0;
+        State.zakatSavedDueAud = 0;
+      }
+      State.lastZakatCheckDate = todayStr;
+      State.save();
+    }
+  } else {
+    // If the check date is today, and the user updates their net worth so it drops below the threshold,
+    // reset the streak immediately. If it goes above and was 0, start it.
+    if (currentVal < 85 && State.zakatConsecutiveDays > 0) {
+      State.zakatConsecutiveDays = 0;
+      State.zakatSavedDueUsd = 0;
+      State.zakatSavedDueEgp = 0;
+      State.zakatSavedDueAud = 0;
+      State.save();
+    } else if (currentVal >= 85 && State.zakatConsecutiveDays === 0) {
+      State.zakatConsecutiveDays = 1;
+      State.zakatSavedDueUsd = totalNetWorthUsd * 0.025;
+      State.zakatSavedDueEgp = totalNetWorthEgp * 0.025;
+      State.zakatSavedDueAud = totalNetWorthAud * 0.025;
+      State.save();
+    }
+  }
+
+  // Fallback: If streak is active but saved due values aren't initialized yet (version upgrade path)
+  if (State.zakatConsecutiveDays > 0 && (!State.zakatSavedDueUsd || State.zakatSavedDueUsd <= 0)) {
+    State.zakatSavedDueUsd = totalNetWorthUsd * 0.025;
+    State.zakatSavedDueEgp = totalNetWorthEgp * 0.025;
+    State.zakatSavedDueAud = totalNetWorthAud * 0.025;
+    State.save();
+  }
+
+  // Render/toggle Zakat Due announcement
+  const zakatBanner = document.getElementById("zakat-due-banner");
+  if (zakatBanner) {
+    if (State.zakatConsecutiveDays >= 354) {
+      zakatBanner.style.display = "flex";
+      
+      const streakDaysEl = document.getElementById("zakat-streak-days");
+      if (streakDaysEl) streakDaysEl.textContent = State.zakatConsecutiveDays;
+      
+      const dueUsd = State.zakatSavedDueUsd;
+      const dueEgp = State.zakatSavedDueEgp;
+      const dueAud = State.zakatSavedDueAud;
+      
+      const dueUsdEl = document.getElementById("zakat-due-amount-usd");
+      const dueEgpEl = document.getElementById("zakat-due-amount-egp");
+      
+      if (dueUsdEl) {
+        dueUsdEl.textContent = `$${dueUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
+      }
+      if (dueEgpEl) {
+        dueEgpEl.textContent = `${dueEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP | $${dueAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
+      }
+    } else {
+      zakatBanner.style.display = "none";
+    }
+  }
+}
+
+
 function handleIncomingCloudState(data) {
   isPreventingSyncLoop = true;
   
@@ -1983,6 +2177,20 @@ function handleIncomingCloudState(data) {
   if (data.resetPending !== undefined) State.resetPending = data.resetPending;
   if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
   if (data.lastNsaveTransferMonth !== undefined) State.lastNsaveTransferMonth = data.lastNsaveTransferMonth;
+  
+  if (data.zakatConsecutiveDays !== undefined) {
+    State.zakatConsecutiveDays = Number(data.zakatConsecutiveDays);
+  } else {
+    State.zakatConsecutiveDays = 0;
+  }
+  if (data.lastZakatCheckDate !== undefined) {
+    State.lastZakatCheckDate = data.lastZakatCheckDate;
+  } else {
+    State.lastZakatCheckDate = "";
+  }
+  State.zakatSavedDueUsd = data.zakatSavedDueUsd !== undefined ? Number(data.zakatSavedDueUsd) : 0;
+  State.zakatSavedDueEgp = data.zakatSavedDueEgp !== undefined ? Number(data.zakatSavedDueEgp) : 0;
+  State.zakatSavedDueAud = data.zakatSavedDueAud !== undefined ? Number(data.zakatSavedDueAud) : 0;
   
   isPreventingSyncLoop = false;
   updateDashboardUI();

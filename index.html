@@ -147,6 +147,22 @@
       <button id="banner-action-btn" class="btn btn-sm btn-outline">Update Savings</button>
     </div>
 
+    <!-- Zakat Due Warning Banner (Shown if consecutive days >= 354) -->
+    <div id="zakat-due-banner" class="reset-alert-banner" style="display: none; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(234, 179, 8, 0.15) 100%); border: 1px solid rgba(16, 185, 129, 0.3); box-shadow: 0 8px 32px 0 rgba(16, 185, 129, 0.08); margin-bottom: 1.5rem;">
+      <div class="banner-content">
+        <span class="banner-icon" style="font-size: 1.8rem; filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.5));">🕌</span>
+        <div class="banner-text">
+          <h3 style="color: #10b981; font-weight: 800;">Zakat is Due</h3>
+          <p style="color: var(--text-primary);">You have completed <strong id="zakat-streak-days" style="color: #facc15;">354</strong> consecutive days over the Zakat threshold (85g 24k Gold).</p>
+        </div>
+      </div>
+      <div class="banner-wealth-box" style="margin-left: auto; text-align: right; display: flex; flex-direction: column; gap: 0.1rem; justify-content: center;">
+        <span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">2.5% of Total Wealth</span>
+        <span id="zakat-due-amount-usd" style="font-size: 1.2rem; font-weight: 800; color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);">--.-- USD</span>
+        <span id="zakat-due-amount-egp" style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 500;">--.-- EGP</span>
+      </div>
+    </div>
+
     <!-- Dashboard Content Grid -->
     <main class="dashboard-grid">
 
