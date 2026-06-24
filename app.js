@@ -110,6 +110,7 @@ const State = {
   lastResetMonth: "", // Format: YYYY-MM
   resetPending: false,
   resetRolledIncome: 0,
+  lastNsaveTransferMonth: "", // Format: YYYY-MM
 
   // Save state directly to Supabase
   save() {
@@ -349,7 +350,52 @@ function runClockAndResetCheck() {
   const currentDay = now.getDate();
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-  // Reset workflow triggers if day is >= 24 AND the reset hasn't run for this month key yet
+  // 1. PayPal to nsave monthly auto-transfer check
+  if (currentDay >= 1 && State.lastNsaveTransferMonth !== currentMonthKey) {
+    State.lastNsaveTransferMonth = currentMonthKey;
+    
+    const paypalAsset = State.assets.find(a => a.id === "paypal" || a.name.toLowerCase() === "paypal");
+    if (paypalAsset && paypalAsset.holdings > 0) {
+      let nsaveAsset = State.assets.find(a => a.id === "nsave" || a.name.toLowerCase() === "nsave");
+      const transferAmount = paypalAsset.holdings;
+      
+      if (!nsaveAsset) {
+        nsaveAsset = {
+          id: "nsave",
+          name: "nsave",
+          category: "nsave Savings",
+          holdings: 0,
+          currency: "USD",
+          color: "#14b8a6"
+        };
+        State.assets.push(nsaveAsset);
+      }
+      
+      nsaveAsset.holdings += transferAmount;
+      paypalAsset.holdings = 0;
+      
+      // Remove PayPal from assets completely to hide it
+      State.assets = State.assets.filter(a => a.id !== paypalAsset.id);
+      
+      // Log transaction
+      const usdEgpRate = State.cachedUsdEgp;
+      const autoTx = {
+        id: "tx_auto_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+        amountUsd: transferAmount,
+        amountEgp: transferAmount * usdEgpRate,
+        rateUsdEgp: usdEgpRate,
+        timestamp: Date.now(),
+        beforeIncome: State.upcomingIncome,
+        afterIncome: State.upcomingIncome,
+        description: "Auto-Consolidation: PayPal to nsave"
+      };
+      State.transactions.push(autoTx);
+      console.log(`Auto-transferred $${transferAmount} from PayPal to nsave.`);
+    }
+    State.save();
+  }
+
+  // 2. Reset workflow triggers if day is >= 24 AND the reset hasn't run for this month key yet
   if (currentDay >= 24 && State.lastResetMonth !== currentMonthKey) {
     // 1. Lock reset parameters & log old values
     State.lastResetMonth = currentMonthKey;
@@ -466,6 +512,9 @@ function updateDashboardUI() {
 
   if (tbody) {
     State.assets.forEach(asset => {
+      if ((asset.id === "paypal" || asset.name.toLowerCase() === "paypal") && asset.holdings === 0) {
+        return;
+      }
       const { usd, aud, egp } = getAssetValuations(asset.holdings, asset.currency);
       
       totalNetWorthUsd += usd;
@@ -742,9 +791,17 @@ function updateDashboardUI() {
         const historyItem = document.createElement("div");
         historyItem.className = "history-item";
         historyItem.title = "Click to revert upcoming income history back to this point";
+        
+        const isNeg = tx.amountUsd < 0;
+        const sign = isNeg ? "-" : "+";
+        const absUsd = Math.abs(tx.amountUsd).toLocaleString(undefined, {minimumFractionDigits: 2});
+        const absEgp = Math.abs(tx.amountEgp).toLocaleString(undefined, {minimumFractionDigits: 2});
+        const descHtml = tx.description ? `<span class="history-desc" style="display: block; font-size: 0.72rem; color: var(--text-muted); margin-top: 0.1rem; font-weight: 500;">${tx.description}</span>` : '';
+        
         historyItem.innerHTML = `
           <div class="history-details">
-            <span class="history-amount-title">+$${tx.amountUsd.toLocaleString(undefined, {minimumFractionDigits: 2})} USD / +${tx.amountEgp.toLocaleString(undefined, {minimumFractionDigits: 2})} EGP</span>
+            <span class="history-amount-title">${sign}$${absUsd} USD / ${sign}${absEgp} EGP</span>
+            ${descHtml}
             <span class="history-date">${dateStr}</span>
           </div>
           <div class="history-conversions text-right" style="text-align: right;">
@@ -790,6 +847,9 @@ function renderWealthChart() {
   
   // 1. Slices from dynamic assets
   State.assets.forEach(asset => {
+    if ((asset.id === "paypal" || asset.name.toLowerCase() === "paypal") && asset.holdings === 0) {
+      return;
+    }
     const { usd } = getAssetValuations(asset.holdings, asset.currency);
     slices.push({
       name: asset.name,
@@ -892,13 +952,15 @@ function updateTransactionPreview() {
   let amountUsd = 0;
   if (activeInputMethod === "flat") {
     amountUsd = parseFloat(amountInput.value) || 0;
-  } else {
+  } else if (activeInputMethod === "hourly") {
     const hours = parseFloat(document.getElementById("hourly-hours").value) || 0;
     const minutes = parseFloat(document.getElementById("hourly-minutes").value) || 0;
     const rate = parseFloat(document.getElementById("hourly-rate").value) || 0;
     const roundedRate = Math.round(rate * 100) / 100;
     amountUsd = (hours + minutes / 60) * roundedRate;
     amountUsd = Math.round(amountUsd * 100) / 100;
+  } else if (activeInputMethod === "paypal") {
+    amountUsd = parseFloat(document.getElementById("paypal-transfer-amount").value) || 0;
   }
   const currentUsdEgp = State.cachedUsdEgp;
 
@@ -908,7 +970,7 @@ function updateTransactionPreview() {
 
   // Before / After upcoming income simulation
   const beforeIncome = State.upcomingIncome;
-  const afterIncome = beforeIncome + amountUsd;
+  const afterIncome = activeInputMethod === "paypal" ? beforeIncome - amountUsd : beforeIncome + amountUsd;
 
   const beforeIncomeEgp = beforeIncome * currentUsdEgp;
   const afterIncomeEgp = afterIncome * currentUsdEgp;
@@ -1357,23 +1419,35 @@ function setupModalListeners() {
   const txAmountInput = document.getElementById("transaction-amount");
   const tabFlat = document.getElementById("tab-flat");
   const tabHourly = document.getElementById("tab-hourly");
+  const tabPaypal = document.getElementById("tab-paypal");
   const blockFlat = document.getElementById("input-block-flat");
   const blockHourly = document.getElementById("input-block-hourly");
+  const blockPaypal = document.getElementById("input-block-paypal");
   const inputHours = document.getElementById("hourly-hours");
   const inputMinutes = document.getElementById("hourly-minutes");
   const inputRate = document.getElementById("hourly-rate");
+  const inputPaypalAmount = document.getElementById("paypal-transfer-amount");
+  const addTxBtn = document.getElementById("add-transaction-btn");
 
-  if (tabFlat && tabHourly && blockFlat && blockHourly) {
+  if (tabFlat && tabHourly && tabPaypal && blockFlat && blockHourly && blockPaypal) {
     tabFlat.addEventListener("click", () => {
       activeInputMethod = "flat";
       tabFlat.classList.add("active");
       tabHourly.classList.remove("active");
+      tabPaypal.classList.remove("active");
       blockFlat.style.display = "block";
       blockHourly.style.display = "none";
+      blockPaypal.style.display = "none";
 
       txAmountInput.setAttribute("required", "");
       if (inputHours) inputHours.removeAttribute("required");
       if (inputRate) inputRate.removeAttribute("required");
+      if (inputPaypalAmount) inputPaypalAmount.removeAttribute("required");
+
+      if (addTxBtn) {
+        addTxBtn.textContent = "Add Transaction";
+        addTxBtn.className = "btn btn-success";
+      }
 
       updateTransactionPreview();
     });
@@ -1382,12 +1456,42 @@ function setupModalListeners() {
       activeInputMethod = "hourly";
       tabHourly.classList.add("active");
       tabFlat.classList.remove("active");
+      tabPaypal.classList.remove("active");
       blockHourly.style.display = "block";
       blockFlat.style.display = "none";
+      blockPaypal.style.display = "none";
 
       txAmountInput.removeAttribute("required");
       if (inputHours) inputHours.setAttribute("required", "");
       if (inputRate) inputRate.setAttribute("required", "");
+      if (inputPaypalAmount) inputPaypalAmount.removeAttribute("required");
+
+      if (addTxBtn) {
+        addTxBtn.textContent = "Add Transaction";
+        addTxBtn.className = "btn btn-success";
+      }
+
+      updateTransactionPreview();
+    });
+
+    tabPaypal.addEventListener("click", () => {
+      activeInputMethod = "paypal";
+      tabPaypal.classList.add("active");
+      tabFlat.classList.remove("active");
+      tabHourly.classList.remove("active");
+      blockPaypal.style.display = "block";
+      blockFlat.style.display = "none";
+      blockHourly.style.display = "none";
+
+      txAmountInput.removeAttribute("required");
+      if (inputHours) inputHours.removeAttribute("required");
+      if (inputRate) inputRate.removeAttribute("required");
+      if (inputPaypalAmount) inputPaypalAmount.setAttribute("required", "");
+
+      if (addTxBtn) {
+        addTxBtn.textContent = "Transfer to PayPal";
+        addTxBtn.className = "btn btn-primary";
+      }
 
       updateTransactionPreview();
     });
@@ -1400,43 +1504,85 @@ function setupModalListeners() {
       let amountUsd = 0;
       if (activeInputMethod === "flat") {
         amountUsd = parseFloat(txAmountInput.value);
-      } else {
+      } else if (activeInputMethod === "hourly") {
         const hours = parseFloat(inputHours.value) || 0;
         const minutes = parseFloat(inputMinutes.value) || 0;
         const rate = parseFloat(inputRate.value) || 0;
         const roundedRate = Math.round(rate * 100) / 100;
         amountUsd = (hours + minutes / 60) * roundedRate;
         amountUsd = Math.round(amountUsd * 100) / 100;
+      } else if (activeInputMethod === "paypal") {
+        amountUsd = parseFloat(inputPaypalAmount.value);
       }
 
       if (!isNaN(amountUsd) && amountUsd > 0) {
         const usdEgpRate = State.cachedUsdEgp;
         const amountEgp = amountUsd * usdEgpRate;
         const beforeIncome = State.upcomingIncome;
-        const afterIncome = beforeIncome + amountUsd;
-
-        // Build transaction log object
-        const newTx = {
-          id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
-          amountUsd: amountUsd,
-          amountEgp: amountEgp,
-          rateUsdEgp: usdEgpRate,
-          timestamp: Date.now(),
-          beforeIncome: beforeIncome,
-          afterIncome: afterIncome
-        };
-
-        // Append to income lists & totals
-        State.transactions.push(newTx);
-        State.upcomingIncome = afterIncome;
-        State.save();
-
-        // Clear input and update
-        txAmountInput.value = "";
-        if (inputHours) inputHours.value = "";
-        if (inputMinutes) inputMinutes.value = "";
-        if (inputRate) inputRate.value = "";
-        updateDashboardUI();
+        
+        if (activeInputMethod === "paypal") {
+          // Check if we have enough upcoming income
+          if (State.upcomingIncome < amountUsd) {
+            alert("Insufficient funds in Upcoming Income to perform this transfer.");
+            return;
+          }
+          
+          // Deduct from upcoming income
+          State.upcomingIncome -= amountUsd;
+          
+          // Add to PayPal
+          let paypalAsset = State.assets.find(a => a.id === "paypal");
+          if (!paypalAsset) {
+            paypalAsset = {
+              id: "paypal",
+              name: "PayPal",
+              category: "Digital Wallet",
+              holdings: 0,
+              currency: "USD",
+              color: "#3b82f6"
+            };
+            State.assets.push(paypalAsset);
+          }
+          paypalAsset.holdings += amountUsd;
+          
+          // Log transaction as negative (representing a transfer/payment)
+          const newTx = {
+            id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+            amountUsd: -amountUsd,
+            amountEgp: -amountEgp,
+            rateUsdEgp: usdEgpRate,
+            timestamp: Date.now(),
+            beforeIncome: beforeIncome,
+            afterIncome: beforeIncome - amountUsd,
+            description: "Transfer to PayPal"
+          };
+          State.transactions.push(newTx);
+          State.save();
+          
+          if (inputPaypalAmount) inputPaypalAmount.value = "";
+          updateDashboardUI();
+        } else {
+          // flat or hourly
+          const afterIncome = beforeIncome + amountUsd;
+          const newTx = {
+            id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+            amountUsd: amountUsd,
+            amountEgp: amountEgp,
+            rateUsdEgp: usdEgpRate,
+            timestamp: Date.now(),
+            beforeIncome: beforeIncome,
+            afterIncome: afterIncome
+          };
+          State.transactions.push(newTx);
+          State.upcomingIncome = afterIncome;
+          State.save();
+          
+          txAmountInput.value = "";
+          if (inputHours) inputHours.value = "";
+          if (inputMinutes) inputMinutes.value = "";
+          if (inputRate) inputRate.value = "";
+          updateDashboardUI();
+        }
       }
     });
 
@@ -1445,6 +1591,7 @@ function setupModalListeners() {
     }
     if (inputHours) inputHours.addEventListener("input", updateTransactionPreview);
     if (inputMinutes) inputMinutes.addEventListener("input", updateTransactionPreview);
+    if (inputPaypalAmount) inputPaypalAmount.addEventListener("input", updateTransactionPreview);
     if (inputRate) {
       inputRate.addEventListener("input", updateTransactionPreview);
       inputRate.addEventListener("blur", () => {
@@ -1671,7 +1818,8 @@ async function syncStateToSupabase() {
       usdAudTrend: State.usdAudTrend,
       lastResetMonth: State.lastResetMonth,
       resetPending: State.resetPending,
-      resetRolledIncome: State.resetRolledIncome
+      resetRolledIncome: State.resetRolledIncome,
+      lastNsaveTransferMonth: State.lastNsaveTransferMonth
     };
     
     const { error } = await supabase
@@ -1834,6 +1982,7 @@ function handleIncomingCloudState(data) {
   if (data.lastResetMonth !== undefined) State.lastResetMonth = data.lastResetMonth;
   if (data.resetPending !== undefined) State.resetPending = data.resetPending;
   if (data.resetRolledIncome !== undefined) State.resetRolledIncome = Number(data.resetRolledIncome);
+  if (data.lastNsaveTransferMonth !== undefined) State.lastNsaveTransferMonth = data.lastNsaveTransferMonth;
   
   isPreventingSyncLoop = false;
   updateDashboardUI();

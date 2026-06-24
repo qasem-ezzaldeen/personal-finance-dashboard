@@ -169,6 +169,7 @@
               <div class="input-method-tabs">
                 <button type="button" id="tab-flat" class="tab-btn active">Flat Amount</button>
                 <button type="button" id="tab-hourly" class="tab-btn">Hourly Project</button>
+                <button type="button" id="tab-paypal" class="tab-btn">Transfer to PayPal</button>
               </div>
 
               <!-- Flat Amount Input Block -->
@@ -209,6 +210,18 @@
                     <input type="number" id="hourly-rate" placeholder="0.00" min="0.01" step="0.01" autocomplete="off">
                     <span class="input-suffix">/ hr</span>
                   </div>
+                </div>
+              </div>
+
+              <!-- PayPal Input Block -->
+              <div id="input-block-paypal" class="input-block" style="display: none;">
+                <div class="form-group">
+                  <label for="paypal-transfer-amount">PayPal Transfer Amount (USD)</label>
+                  <div class="input-wrapper focus-glow">
+                    <span class="input-prefix">$</span>
+                    <input type="number" id="paypal-transfer-amount" placeholder="0.00" min="0.01" step="any" autocomplete="off">
+                  </div>
+                  <p class="input-help">This will deduct the amount from your Upcoming Income and transfer it to PayPal.</p>
                 </div>
               </div>
 
