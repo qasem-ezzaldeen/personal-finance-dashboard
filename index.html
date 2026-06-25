@@ -22,6 +22,14 @@
   <div class="glow-bg-1"></div>
   <div class="glow-bg-2"></div>
 
+  <!-- App Loader Overlay (Shown while fetching cloud data on startup) -->
+  <div id="app-loader-overlay" class="modal-overlay active" style="display: none;">
+    <div class="app-loader-card">
+      <div class="loader-spinner"></div>
+      <p id="loader-status-text">Connecting to secure vault...</p>
+    </div>
+  </div>
+
   <!-- Setup Wizard Modal Overlay (Shown for new users or if not logged in) -->
   <div id="setup-wizard-overlay" class="modal-overlay active" style="display: none;">
     <div class="modal-card setup-card">

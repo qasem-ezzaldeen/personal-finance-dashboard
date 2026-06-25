@@ -8,6 +8,7 @@ let supabase = null;
 let supabaseChannel = null;
 let isCloudSyncActive = false;
 let isPreventingSyncLoop = false;
+let isInitialLoadComplete = false;
 
 /**
  * AuraFinance // Personal Financial Analytics Controller
@@ -122,7 +123,7 @@ const State = {
   // Save state directly to Supabase
   save() {
     ensureZakatGoal();
-    if (isCloudSyncActive && !isPreventingSyncLoop) {
+    if (isCloudSyncActive && isInitialLoadComplete && !isPreventingSyncLoop) {
       syncStateToSupabase();
     }
   }
@@ -354,6 +355,7 @@ async function fetchLiveRates() {
  * The UI is flagged, and the user is modal-prompted to update baseline cash savings.
  */
 function runClockAndResetCheck() {
+  if (!isInitialLoadComplete) return;
   const now = new Date();
   const currentDay = now.getDate();
   const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -532,7 +534,8 @@ function getAssetValuations(holdings, currency) {
  * Calculates current asset valuations and updates all table rows, goals, history log,
  * and text fields on the primary dashboard.
  */
-function updateDashboardUI() {
+function updateDashboardUI(force = false) {
+  if (!isInitialLoadComplete && !force) return;
   const usdEgpRate = State.cachedUsdEgp;
   const usdAudRate = State.cachedUsdAud;
   const gold24kUsdPerGram = State.cachedGold24kUsd;
@@ -1289,6 +1292,7 @@ function setupModalListeners() {
         localStorage.setItem("supabase_sync_code", syncCode);
         supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
         isCloudSyncActive = true;
+        isInitialLoadComplete = true;
         
         // Save initial state directly to database
         await syncStateToSupabase();
@@ -1736,7 +1740,7 @@ function setupModalListeners() {
         State.resetPending = false;
         State.resetRolledIncome = 0;
         
-        updateDashboardUI();
+        updateDashboardUI(true);
         
         // Clear setup inputs
         setupSyncCodeInput.value = "";
@@ -1838,6 +1842,25 @@ function setupModalListeners() {
   }
 }
 
+// --- APP LOADER SCREEN CONTROLS ---
+function showLoader(message = "Connecting to secure vault...") {
+  const loaderOverlay = document.getElementById("app-loader-overlay");
+  const statusText = document.getElementById("loader-status-text");
+  if (loaderOverlay) {
+    if (statusText) statusText.textContent = message;
+    loaderOverlay.style.display = "flex";
+    setTimeout(() => loaderOverlay.classList.add("active"), 10);
+  }
+}
+
+function hideLoader() {
+  const loaderOverlay = document.getElementById("app-loader-overlay");
+  if (loaderOverlay) {
+    loaderOverlay.classList.remove("active");
+    setTimeout(() => loaderOverlay.style.display = "none", 300);
+  }
+}
+
 // --- SUPABASE CLOUD SYNC ENGINE WORKFLOWS ---
 function disconnectSupabase() {
   if (supabaseChannel) {
@@ -1846,6 +1869,7 @@ function disconnectSupabase() {
   }
   supabase = null;
   isCloudSyncActive = false;
+  isInitialLoadComplete = false;
   
   const syncBtn = document.getElementById("cloud-sync-btn");
   if (syncBtn) {
@@ -1873,6 +1897,12 @@ async function syncStateToSupabase() {
       goals: State.goals,
       cachedUsdAud: State.cachedUsdAud,
       usdAudTrend: State.usdAudTrend,
+      cachedUsdEgp: State.cachedUsdEgp,
+      cachedGold24kUsd: State.cachedGold24kUsd,
+      lastFetchedTime: State.lastFetchedTime,
+      usdEgpTrend: State.usdEgpTrend,
+      gold24kTrend: State.gold24kTrend,
+      gold21kTrend: State.gold21kTrend,
       lastResetMonth: State.lastResetMonth,
       resetPending: State.resetPending,
       resetRolledIncome: State.resetRolledIncome,
@@ -1933,6 +1963,7 @@ async function initSupabaseSync() {
     if (error) {
       console.error("Failed to pull state from Supabase on init:", error);
       disconnectSupabase();
+      hideLoader();
       if (syncBtn) {
         syncBtn.className = "refresh-btn cloud-sync-btn offline";
         syncBtn.title = `Supabase Error: ${error.message}`;
@@ -1940,9 +1971,13 @@ async function initSupabaseSync() {
     } else if (dbData && dbData.data) {
       console.log("Initial state pulled from Supabase:", dbData.data);
       handleIncomingCloudState(dbData.data);
+      isInitialLoadComplete = true;
+      runClockAndResetCheck(); // Run system clock checks now that state is loaded
       fetchLiveRates(); // Pull fresh rates once connected and loaded
+      hideLoader();
     } else {
       console.log("No cloud data found for code. Opening wizard step 2...");
+      hideLoader();
       showWizardStep2();
     }
     
@@ -1985,6 +2020,7 @@ async function initSupabaseSync() {
   } catch (err) {
     console.error("Failed to connect to Supabase:", err);
     disconnectSupabase();
+    hideLoader();
     if (syncBtn) {
       syncBtn.className = "refresh-btn cloud-sync-btn offline";
       syncBtn.title = `Supabase Connection Error: ${err.message}`;
@@ -2192,6 +2228,7 @@ function handleIncomingCloudState(data) {
   State.zakatSavedDueEgp = data.zakatSavedDueEgp !== undefined ? Number(data.zakatSavedDueEgp) : 0;
   State.zakatSavedDueAud = data.zakatSavedDueAud !== undefined ? Number(data.zakatSavedDueAud) : 0;
   
+  isInitialLoadComplete = true;
   isPreventingSyncLoop = false;
   updateDashboardUI();
 }
@@ -2269,6 +2306,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!syncCode) {
     showSyncCodePrompt();
   } else {
+    showLoader("Connecting to secure vault...");
     initSupabaseSync();
   }
 
