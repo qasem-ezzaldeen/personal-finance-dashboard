@@ -121,8 +121,43 @@ const State = {
   zakatSavedDueAud: 0,
 
   // Save state directly to Supabase
+  getPayload() {
+    return {
+      assets: this.assets,
+      usdSavings: this.usdSavings,
+      goldGrams: this.goldGrams,
+      goldPremium: this.goldPremium,
+      upcomingIncome: this.upcomingIncome,
+      transactions: this.transactions,
+      goals: this.goals,
+      cachedUsdAud: this.cachedUsdAud,
+      usdAudTrend: this.usdAudTrend,
+      cachedUsdEgp: this.cachedUsdEgp,
+      cachedGold24kUsd: this.cachedGold24kUsd,
+      lastFetchedTime: this.lastFetchedTime,
+      usdEgpTrend: this.usdEgpTrend,
+      gold24kTrend: this.gold24kTrend,
+      gold21kTrend: this.gold21kTrend,
+      lastResetMonth: this.lastResetMonth,
+      resetPending: this.resetPending,
+      resetRolledIncome: this.resetRolledIncome,
+      lastNsaveTransferMonth: this.lastNsaveTransferMonth,
+      zakatConsecutiveDays: this.zakatConsecutiveDays,
+      lastZakatCheckDate: this.lastZakatCheckDate,
+      zakatSavedDueUsd: this.zakatSavedDueUsd,
+      zakatSavedDueEgp: this.zakatSavedDueEgp,
+      zakatSavedDueAud: this.zakatSavedDueAud
+    };
+  },
+
   save() {
     ensureZakatGoal();
+    
+    // Save backup to Local Storage
+    const payload = this.getPayload();
+    payload.updated_at = new Date().toISOString();
+    localStorage.setItem("aurafinance_local_state", JSON.stringify(payload));
+
     if (isCloudSyncActive && isInitialLoadComplete && !isPreventingSyncLoop) {
       syncStateToSupabase();
     }
@@ -1515,8 +1550,8 @@ function setupModalListeners() {
       blockPaypal.style.display = "none";
 
       txAmountInput.removeAttribute("required");
-      if (inputHours) inputHours.setAttribute("required", "");
-      if (inputRate) inputRate.setAttribute("required", "");
+      if (inputHours) inputHours.removeAttribute("required");
+      if (inputRate) inputRate.removeAttribute("required");
       if (inputPaypalAmount) inputPaypalAmount.removeAttribute("required");
 
       if (addTxBtn) {
@@ -1725,6 +1760,7 @@ function setupModalListeners() {
     disconnectSyncBtn.addEventListener("click", () => {
       if (confirm("Are you sure you want to disconnect from this vault? Your local dashboard will reset.")) {
         localStorage.removeItem("supabase_sync_code");
+        localStorage.removeItem("aurafinance_local_state");
         disconnectSupabase();
         hideSyncModal();
         
@@ -1887,36 +1923,15 @@ async function syncStateToSupabase() {
   }
   
   try {
-    const payload = {
-      assets: State.assets,
-      usdSavings: State.usdSavings,
-      goldGrams: State.goldGrams,
-      goldPremium: State.goldPremium,
-      upcomingIncome: State.upcomingIncome,
-      transactions: State.transactions,
-      goals: State.goals,
-      cachedUsdAud: State.cachedUsdAud,
-      usdAudTrend: State.usdAudTrend,
-      cachedUsdEgp: State.cachedUsdEgp,
-      cachedGold24kUsd: State.cachedGold24kUsd,
-      lastFetchedTime: State.lastFetchedTime,
-      usdEgpTrend: State.usdEgpTrend,
-      gold24kTrend: State.gold24kTrend,
-      gold21kTrend: State.gold21kTrend,
-      lastResetMonth: State.lastResetMonth,
-      resetPending: State.resetPending,
-      resetRolledIncome: State.resetRolledIncome,
-      lastNsaveTransferMonth: State.lastNsaveTransferMonth,
-      zakatConsecutiveDays: State.zakatConsecutiveDays,
-      lastZakatCheckDate: State.lastZakatCheckDate,
-      zakatSavedDueUsd: State.zakatSavedDueUsd,
-      zakatSavedDueEgp: State.zakatSavedDueEgp,
-      zakatSavedDueAud: State.zakatSavedDueAud
-    };
+    const payload = State.getPayload();
+    payload.updated_at = new Date().toISOString();
+    
+    // Mirror locally to keep timestamps and data aligned
+    localStorage.setItem("aurafinance_local_state", JSON.stringify(payload));
     
     const { error } = await supabase
       .from('dashboards')
-      .upsert({ id: syncCode, data: payload, updated_at: new Date().toISOString() });
+      .upsert({ id: syncCode, data: payload, updated_at: payload.updated_at });
       
     if (error) {
       console.error("Failed to sync state to Supabase:", error);
@@ -1962,23 +1977,61 @@ async function initSupabaseSync() {
       
     if (error) {
       console.error("Failed to pull state from Supabase on init:", error);
-      disconnectSupabase();
+      isCloudSyncActive = true;
+      isInitialLoadComplete = true;
       hideLoader();
       if (syncBtn) {
         syncBtn.className = "refresh-btn cloud-sync-btn offline";
-        syncBtn.title = `Supabase Error: ${error.message}`;
+        syncBtn.title = `Offline (loaded locally). Supabase Error: ${error.message}`;
       }
     } else if (dbData && dbData.data) {
       console.log("Initial state pulled from Supabase:", dbData.data);
-      handleIncomingCloudState(dbData.data);
-      isInitialLoadComplete = true;
+      const cloudData = dbData.data;
+      const localStateStr = localStorage.getItem("aurafinance_local_state");
+      let useCloud = true;
+
+      if (localStateStr) {
+        try {
+          const localState = JSON.parse(localStateStr);
+          if (localState.updated_at && cloudData.updated_at) {
+            const localTime = new Date(localState.updated_at).getTime();
+            const cloudTime = new Date(cloudData.updated_at).getTime();
+            if (localTime > cloudTime) {
+              // Local state is newer, push to cloud
+              console.log("Local state is newer than cloud. Syncing local state to cloud...");
+              useCloud = false;
+              isInitialLoadComplete = true;
+              syncStateToSupabase();
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to parse local state during comparison:", e);
+        }
+      }
+
+      if (useCloud) {
+        handleIncomingCloudState(cloudData);
+        isInitialLoadComplete = true;
+        // Cache the cloud data locally
+        localStorage.setItem("aurafinance_local_state", JSON.stringify(cloudData));
+      }
+      
       runClockAndResetCheck(); // Run system clock checks now that state is loaded
       fetchLiveRates(); // Pull fresh rates once connected and loaded
       hideLoader();
     } else {
-      console.log("No cloud data found for code. Opening wizard step 2...");
+      console.log("No cloud data found for code. Checking if we have local state to upload...");
       hideLoader();
-      showWizardStep2();
+      const localStateStr = localStorage.getItem("aurafinance_local_state");
+      if (localStateStr) {
+        console.log("Vault is empty in cloud, but has local state. Syncing local state to cloud...");
+        isInitialLoadComplete = true;
+        syncStateToSupabase();
+        runClockAndResetCheck();
+        fetchLiveRates();
+      } else {
+        showWizardStep2();
+      }
     }
     
     // 2. Real-time Subscription Channel
@@ -1997,7 +2050,24 @@ async function initSupabaseSync() {
           if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
             const newData = payload.new.data;
             if (newData) {
-              handleIncomingCloudState(newData);
+              const localStateStr = localStorage.getItem("aurafinance_local_state");
+              let useCloud = true;
+              if (localStateStr && newData.updated_at) {
+                try {
+                  const localState = JSON.parse(localStateStr);
+                  if (localState.updated_at) {
+                    const localTime = new Date(localState.updated_at).getTime();
+                    const cloudTime = new Date(newData.updated_at).getTime();
+                    if (localTime > cloudTime) {
+                      useCloud = false; // Keep newer local state
+                    }
+                  }
+                } catch (e) {}
+              }
+              if (useCloud) {
+                handleIncomingCloudState(newData);
+                localStorage.setItem("aurafinance_local_state", JSON.stringify(newData));
+              }
             }
           }
         }
@@ -2019,7 +2089,8 @@ async function initSupabaseSync() {
       
   } catch (err) {
     console.error("Failed to connect to Supabase:", err);
-    disconnectSupabase();
+    isCloudSyncActive = true;
+    isInitialLoadComplete = true;
     hideLoader();
     if (syncBtn) {
       syncBtn.className = "refresh-btn cloud-sync-btn offline";
@@ -2301,6 +2372,18 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
   localKeys.forEach(k => localStorage.removeItem(k));
 
+  // 0.15 Load from local storage mirror if available for instant startup UX
+  const localStateStr = localStorage.getItem("aurafinance_local_state");
+  if (localStateStr) {
+    try {
+      const localState = JSON.parse(localStateStr);
+      handleIncomingCloudState(localState);
+      isInitialLoadComplete = true;
+    } catch (e) {
+      console.warn("Failed to parse local state backup:", e);
+    }
+  }
+
   // 0.2 Initialize Supabase Cloud Sync Connection
   const syncCode = localStorage.getItem("supabase_sync_code");
   if (!syncCode) {
@@ -2322,4 +2405,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 4. Auto-fetch live rates every 5 minutes (300000 ms) for automatic updates
   setInterval(fetchLiveRates, 300000);
+
+  // 5. Auto-update and sync cached rates and state to cloud every 2 hours (7200000 ms)
+  setInterval(autoUpdateAndSync, 7200000);
 });
+
+async function autoUpdateAndSync() {
+  console.log("Running periodic 2-hour auto-update and database sync...");
+  await fetchLiveRates();
+  State.save();
+}

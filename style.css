@@ -611,6 +611,16 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Remove spin buttons from number inputs */
+.input-wrapper input[type="number"]::-webkit-outer-spin-button,
+.input-wrapper input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input-wrapper input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .input-wrapper .input-prefix+input {
   padding-left: 2rem;
 }
