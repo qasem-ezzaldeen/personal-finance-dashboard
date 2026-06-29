@@ -584,6 +584,10 @@ function updateDashboardUI(force = false) {
   let totalNetWorthAud = 0;
   let totalNetWorthEgp = 0;
 
+  let netWorthUsdExcludingUpcoming = 0;
+  let netWorthAudExcludingUpcoming = 0;
+  let netWorthEgpExcludingUpcoming = 0;
+
   // Render all dynamic assets and build the tbody content
   const tbody = document.getElementById("wealth-distribution-tbody");
   let tbodyHtml = "";
@@ -629,6 +633,11 @@ function updateDashboardUI(force = false) {
         </tr>
       `;
     });
+
+    // Store net worth values excluding upcoming income for Zakat calculation purposes
+    netWorthUsdExcludingUpcoming = totalNetWorthUsd;
+    netWorthAudExcludingUpcoming = totalNetWorthAud;
+    netWorthEgpExcludingUpcoming = totalNetWorthEgp;
 
     // Add Upcoming Income (system managed)
     const { usd: upUsd, aud: upAud, egp: upEgp } = getAssetValuations(State.upcomingIncome, "USD");
@@ -728,7 +737,7 @@ function updateDashboardUI(force = false) {
         let borderClass = "goal-border-usd";
         
         if (goal.currency === "Gold") {
-          currentVal = gold24kEgpPerGram > 0 ? (totalNetWorthEgp / gold24kEgpPerGram) : 0;
+          currentVal = gold24kEgpPerGram > 0 ? (netWorthEgpExcludingUpcoming / gold24kEgpPerGram) : 0;
           remainingVal = targetVal - currentVal;
           percent = targetVal > 0 ? (currentVal / targetVal) * 100 : 0;
           
@@ -739,8 +748,7 @@ function updateDashboardUI(force = false) {
           currentText = `Net Worth: ${currentVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           
           if (currentVal >= targetVal) {
-            const streakDays = State.zakatConsecutiveDays || 1;
-            remainingText = `Threshold Met (Zakat Due: ${streakDays}d) ✓`;
+            remainingText = "Threshold Met (Zakat Due) ✓";
           } else {
             remainingText = `Remaining: ${remainingVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           }
@@ -912,8 +920,8 @@ function updateDashboardUI(force = false) {
   // Render/update the interactive Donut Chart
   renderWealthChart();
  
-  // Calculate and monitor Zakat streak based on current net worth
-  checkZakatStreak(totalNetWorthEgp, gold24kEgpPerGram, totalNetWorthUsd, totalNetWorthAud);
+  // Calculate and monitor Zakat streak based on current net worth (excluding upcoming income)
+  checkZakatStreak(netWorthEgpExcludingUpcoming, gold24kEgpPerGram, netWorthUsdExcludingUpcoming, netWorthAudExcludingUpcoming);
 
   // Reset the inputs preview fields to clean defaults
   updateTransactionPreview();
