@@ -739,7 +739,8 @@ function updateDashboardUI(force = false) {
           currentText = `Net Worth: ${currentVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           
           if (currentVal >= targetVal) {
-            remainingText = "Threshold Met (Zakat Due) ✓";
+            const streakDays = State.zakatConsecutiveDays || 1;
+            remainingText = `Threshold Met (Zakat Due: ${streakDays}d) ✓`;
           } else {
             remainingText = `Remaining: ${remainingVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           }
@@ -814,6 +815,7 @@ function updateDashboardUI(force = false) {
               <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
                 <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
                 ${goal.name}
+                ${goal.id === "goal_zakat" && isMet ? `<span class="streak-badge" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.1rem;" title="Consecutive days over threshold">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
               </h3>
               <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
             </div>
