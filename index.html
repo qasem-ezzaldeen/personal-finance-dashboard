@@ -193,7 +193,7 @@
               <div class="input-method-tabs">
                 <button type="button" id="tab-flat" class="tab-btn active">Flat Amount</button>
                 <button type="button" id="tab-hourly" class="tab-btn">Hourly Project</button>
-                <button type="button" id="tab-paypal" class="tab-btn">Transfer to PayPal</button>
+                <button type="button" id="tab-transfer" class="tab-btn">Transfer Funds</button>
               </div>
 
               <!-- Flat Amount Input Block -->
@@ -237,15 +237,37 @@
                 </div>
               </div>
 
-              <!-- PayPal Input Block -->
-              <div id="input-block-paypal" class="input-block" style="display: none;">
+              <!-- Transfer Funds Input Block -->
+              <div id="input-block-transfer" class="input-block" style="display: none;">
+                <div class="form-group transfer-grid">
+                  <div>
+                    <label for="transfer-from-select">From</label>
+                    <select id="transfer-from-select" class="form-select">
+                      <option value="upcoming">Upcoming Income</option>
+                      <option value="nsave">nsave</option>
+                      <option value="paypal">PayPal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="transfer-to-select">To</label>
+                    <select id="transfer-to-select" class="form-select">
+                      <option value="paypal">PayPal</option>
+                      <option value="qnb_bebasata">QNB Bebasata</option>
+                      <option value="nsave">nsave</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div class="form-group">
-                  <label for="paypal-transfer-amount">PayPal Transfer Amount (USD)</label>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                    <label for="transfer-amount" style="margin-bottom: 0;">Transfer Amount (USD)</label>
+                    <button type="button" id="btn-transfer-max" class="btn-max-transfer">Transfer All</button>
+                  </div>
                   <div class="input-wrapper focus-glow">
                     <span class="input-prefix">$</span>
-                    <input type="number" id="paypal-transfer-amount" placeholder="0.00" min="0.01" step="any" autocomplete="off">
+                    <input type="number" id="transfer-amount" placeholder="0.00" min="0.01" step="any" autocomplete="off">
                   </div>
-                  <p class="input-help">This will deduct the amount from your Upcoming Income and transfer it to PayPal.</p>
+                  <p class="input-help" id="transfer-balance-help">Available balance: $0.00 USD</p>
                 </div>
               </div>
 
@@ -295,6 +317,8 @@
 
       </div>
 
+      <div class="grid-resizer" id="grid-resizer"></div>
+
       <!-- Right Column: Distribution and Goals -->
       <div class="dashboard-col right-col">
 
@@ -322,7 +346,6 @@
                     <th class="text-right">Valuation (USD)</th>
                     <th class="text-right">Valuation (AUD)</th>
                     <th class="text-right">Valuation (EGP)</th>
-                    <th class="text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody id="wealth-distribution-tbody">
@@ -393,7 +416,7 @@
         <div class="form-group">
           <label for="asset-currency-select">Holding Currency</label>
           <div class="input-wrapper focus-glow">
-            <select id="asset-currency-select" required style="width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.85rem 1rem; border-radius: 8px; font-family: var(--font-family); font-size: 0.95rem; font-weight: 600; outline: none;">
+            <select id="asset-currency-select" class="form-select" required>
               <option value="USD">USD ($)</option>
               <option value="AUD">AUD (Australian Dollar)</option>
               <option value="EGP">EGP (Egyptian Pound)</option>
@@ -545,7 +568,7 @@
         <div class="form-group">
           <label for="goal-currency-select">Currency</label>
           <div class="input-wrapper focus-glow">
-            <select id="goal-currency-select" required style="width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); padding: 0.85rem 1rem; border-radius: 8px; font-family: var(--font-family); font-size: 0.95rem; font-weight: 600; outline: none;">
+            <select id="goal-currency-select" class="form-select" required>
               <option value="Gold">Gold (24k Grams)</option>
               <option value="USD">USD ($)</option>
               <option value="AUD">AUD (Australian Dollar)</option>

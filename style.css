@@ -381,14 +381,24 @@ body {
 /* Main Dashboard Grid */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1.3fr;
-  gap: 1.5rem;
+  grid-template-columns: 1fr 8px 1.3fr;
+  gap: 0;
   align-items: start;
 }
 
 @media (max-width: 1024px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    gap: 1.5rem !important;
+  }
+  .grid-resizer {
+    display: none !important;
+  }
+  .left-col {
+    padding-right: 0 !important;
+  }
+  .right-col {
+    padding-left: 0 !important;
   }
 }
 
@@ -398,13 +408,54 @@ body {
   gap: 1.5rem;
 }
 
+.left-col {
+  padding-right: 0.35rem;
+}
+
+.right-col {
+  padding-left: 0.35rem;
+}
+
+/* Grid Resizer Handle */
+.grid-resizer {
+  grid-column: 2;
+  width: 8px;
+  cursor: col-resize;
+  align-self: stretch;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.grid-resizer::after {
+  content: "";
+  width: 2px;
+  height: 40px;
+  background: var(--card-border);
+  border-radius: 9999px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.grid-resizer:hover::after,
+.grid-resizer.dragging::after {
+  background: var(--color-gold);
+  height: 100%;
+  box-shadow: 0 0 10px var(--color-gold);
+}
+
 /* Minimal Card Component */
 .card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
-  transition: var(--transition-normal);
+  transition: border-color var(--transition-normal);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  resize: vertical;
+  min-height: 180px;
 }
 
 .card:hover {
@@ -466,6 +517,8 @@ body {
 
 .card-body {
   padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .card-body.px-0 {
@@ -533,6 +586,63 @@ body {
 .tab-btn:hover:not(.active) {
   color: var(--text-primary);
   background: var(--color-primary-glow);
+}
+
+.btn-max-transfer {
+  background: none;
+  border: none;
+  color: var(--color-gold);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity var(--transition-fast);
+  outline: none;
+}
+
+.btn-max-transfer:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+.form-select {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  padding: 0.6rem 2.2rem 0.6rem 0.75rem;
+  border-radius: 8px;
+  font-family: var(--font-family);
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  transition: var(--transition-fast);
+  cursor: pointer;
+
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+}
+
+.form-select:focus {
+  border-color: var(--card-border-focus);
+}
+
+.transfer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 600px) {
+  .transfer-grid {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* Flex row for hourly duration */
@@ -776,7 +886,7 @@ body {
 
 /* History List Panel */
 .scroll-card {
-  max-height: 380px;
+  max-height: none;
   display: flex;
   flex-direction: column;
 }
@@ -796,8 +906,8 @@ body {
 }
 
 .history-list-wrapper {
-  overflow-y: auto;
-  max-height: 280px;
+  overflow-y: visible;
+  max-height: none;
   padding: 0 1rem;
 }
 
@@ -916,7 +1026,7 @@ body {
 }
 
 .wealth-table th {
-  padding: 1rem 1.5rem;
+  padding: 1rem 0.75rem;
   color: var(--text-secondary);
   font-weight: 600;
   border-bottom: 1px solid var(--card-border);
@@ -926,7 +1036,7 @@ body {
 }
 
 .wealth-table td {
-  padding: 1.1rem 1.5rem;
+  padding: 1.1rem 0.75rem;
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: middle;
 }
@@ -1399,6 +1509,7 @@ body {
 /* Wealth Dashboard Layout (Table + Chart Side-by-Side) */
 .wealth-dashboard-container {
   display: flex;
+  flex-wrap: wrap;
   gap: 1.5rem;
   align-items: center;
   justify-content: space-between;
@@ -1407,6 +1518,7 @@ body {
 
 .wealth-dashboard-container .table-container {
   flex: 1.3;
+  min-width: 320px;
 }
 
 .wealth-dashboard-container .chart-container {
@@ -1418,19 +1530,16 @@ body {
   width: 100%;
   aspect-ratio: 1 / 1;
   position: relative;
+  margin: 0 auto;
 }
 
 @media (max-width: 768px) {
   .wealth-dashboard-container {
     flex-direction: column;
-    gap: 1.5rem;
+    align-items: center;
   }
-
-  .wealth-dashboard-container .chart-container {
-    max-width: 180px;
+  .wealth-dashboard-container .table-container {
     width: 100%;
-    aspect-ratio: 1 / 1;
-    margin: 0 auto;
   }
 }
 
@@ -1559,4 +1668,43 @@ body {
 @keyframes loader-spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.clickable-asset-row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.clickable-asset-row:hover {
+  background-color: var(--color-primary-glow) !important;
+}
+
+/* Responsiveness enhancements for small mobile screens & layout wrapping */
+@media (max-width: 600px) {
+  .api-rates-bar {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    border-radius: 12px !important;
+    padding: 0.5rem !important;
+    width: 100% !important;
+    gap: 0.5rem !important;
+  }
+  .rate-pill {
+    border-right: none !important;
+    padding: 0.2rem 0.4rem !important;
+  }
+  .wealth-table th,
+  .wealth-table td {
+    padding: 0.75rem 0.4rem !important;
+    font-size: 0.78rem !important;
+  }
+  .app-container {
+    padding: 1rem 0.75rem !important;
+  }
+  .card-header {
+    padding: 1rem !important;
+  }
+  .card-body {
+    padding: 1rem !important;
+  }
 }

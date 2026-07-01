@@ -615,7 +615,7 @@ function updateDashboardUI(force = false) {
       }
 
       tbodyHtml += `
-        <tr>
+        <tr class="clickable-asset-row" data-asset-id="${asset.id}">
           <td class="asset-name">
             <div class="asset-marker" style="background-color: ${asset.color || '#22c55e'};"></div>
             <div>
@@ -627,9 +627,6 @@ function updateDashboardUI(force = false) {
           <td class="text-right font-medium text-primary">$${usd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
           <td class="text-right font-medium text-secondary">$${aud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
           <td class="text-right font-medium text-secondary">${egp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
-          <td class="text-center">
-            <button class="btn-icon edit-asset-item-btn" data-asset-id="${asset.id}" title="Edit Asset">✏️</button>
-          </td>
         </tr>
       `;
     });
@@ -658,7 +655,6 @@ function updateDashboardUI(force = false) {
         <td class="text-right font-medium text-primary">$${upUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
         <td class="text-right font-medium text-secondary">$${upAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
         <td class="text-right font-medium text-secondary">${upEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
-        <td class="text-center">-</td>
       </tr>
     `;
 
@@ -670,16 +666,15 @@ function updateDashboardUI(force = false) {
         <td class="text-right font-extrabold value-highlight-usd">$${totalNetWorthUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
         <td class="text-right font-extrabold value-highlight-aud">$${totalNetWorthAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
         <td class="text-right font-extrabold value-highlight-egp">${totalNetWorthEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
-        <td class="text-center">-</td>
       </tr>
     `;
 
     tbody.innerHTML = tbodyHtml;
 
-    // Attach click listeners to edit buttons
-    tbody.querySelectorAll(".edit-asset-item-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-asset-id");
+    // Attach click listeners to clickable asset rows
+    tbody.querySelectorAll(".clickable-asset-row").forEach(row => {
+      row.addEventListener("click", () => {
+        const id = row.getAttribute("data-asset-id");
         const asset = State.assets.find(a => a.id === id);
         if (asset) {
           openAssetModal(asset);
@@ -1051,10 +1046,41 @@ function updateTransactionPreview() {
     const roundedRate = Math.round(rate * 100) / 100;
     amountUsd = (hours + minutes / 60) * roundedRate;
     amountUsd = Math.round(amountUsd * 100) / 100;
-  } else if (activeInputMethod === "paypal") {
-    amountUsd = parseFloat(document.getElementById("paypal-transfer-amount").value) || 0;
+  } else if (activeInputMethod === "transfer") {
+    const inputVal = document.getElementById("transfer-amount");
+    amountUsd = inputVal ? (parseFloat(inputVal.value) || 0) : 0;
   }
   const currentUsdEgp = State.cachedUsdEgp;
+
+  // Update transfer balance help text dynamically based on selected route
+  const fromSelect = document.getElementById("transfer-from-select");
+  let maxTransferable = 0;
+  let sourceName = "Upcoming Income";
+  let destName = "PayPal";
+
+  if (fromSelect) {
+    const fromVal = fromSelect.value;
+    if (fromVal === "upcoming") {
+      maxTransferable = State.upcomingIncome;
+      sourceName = "Upcoming Income";
+      destName = "PayPal";
+    } else if (fromVal === "nsave") {
+      const nsaveAsset = State.assets.find(a => a.id === "nsave" || a.name.toLowerCase() === "nsave");
+      maxTransferable = nsaveAsset ? nsaveAsset.holdings : 0;
+      sourceName = "nsave";
+      destName = "QNB Bebasata";
+    } else if (fromVal === "paypal") {
+      const paypalAsset = State.assets.find(a => a.id === "paypal" || a.name.toLowerCase() === "paypal");
+      maxTransferable = paypalAsset ? paypalAsset.holdings : 0;
+      sourceName = "PayPal";
+      destName = "nsave";
+    }
+  }
+
+  const transferHelp = document.getElementById("transfer-balance-help");
+  if (transferHelp) {
+    transferHelp.textContent = `Transfer funds from ${sourceName} to ${destName}. Available: $${maxTransferable.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
+  }
 
   // Real-time EGP conversion output
   const equivalentEgp = amountUsd * currentUsdEgp;
@@ -1062,7 +1088,17 @@ function updateTransactionPreview() {
 
   // Before / After upcoming income simulation
   const beforeIncome = State.upcomingIncome;
-  const afterIncome = activeInputMethod === "paypal" ? beforeIncome - amountUsd : beforeIncome + amountUsd;
+  let afterIncome = beforeIncome;
+  if (activeInputMethod === "transfer") {
+    const fromVal = fromSelect ? fromSelect.value : "upcoming";
+    if (fromVal === "upcoming") {
+      afterIncome = beforeIncome - amountUsd;
+    } else {
+      afterIncome = beforeIncome; // asset to asset transfer doesn't change upcoming income
+    }
+  } else {
+    afterIncome = beforeIncome + amountUsd;
+  }
 
   const beforeIncomeEgp = beforeIncome * currentUsdEgp;
   const afterIncomeEgp = afterIncome * currentUsdEgp;
@@ -1517,82 +1553,102 @@ function setupModalListeners() {
   const txAmountInput = document.getElementById("transaction-amount");
   const tabFlat = document.getElementById("tab-flat");
   const tabHourly = document.getElementById("tab-hourly");
-  const tabPaypal = document.getElementById("tab-paypal");
+  const tabTransfer = document.getElementById("tab-transfer");
   const blockFlat = document.getElementById("input-block-flat");
   const blockHourly = document.getElementById("input-block-hourly");
-  const blockPaypal = document.getElementById("input-block-paypal");
+  const blockTransfer = document.getElementById("input-block-transfer");
   const inputHours = document.getElementById("hourly-hours");
   const inputMinutes = document.getElementById("hourly-minutes");
   const inputRate = document.getElementById("hourly-rate");
-  const inputPaypalAmount = document.getElementById("paypal-transfer-amount");
+  const inputTransferAmount = document.getElementById("transfer-amount");
+  const fromSelect = document.getElementById("transfer-from-select");
+  const toSelect = document.getElementById("transfer-to-select");
+  const btnTransferMax = document.getElementById("btn-transfer-max");
   const addTxBtn = document.getElementById("add-transaction-btn");
 
-  if (tabFlat && tabHourly && tabPaypal && blockFlat && blockHourly && blockPaypal) {
-    tabFlat.addEventListener("click", () => {
-      activeInputMethod = "flat";
-      tabFlat.classList.add("active");
+  if (tabFlat && tabHourly && tabTransfer && blockFlat && blockHourly && blockTransfer) {
+    const deactivateAllTabs = () => {
+      tabFlat.classList.remove("active");
       tabHourly.classList.remove("active");
-      tabPaypal.classList.remove("active");
-      blockFlat.style.display = "block";
-      blockHourly.style.display = "none";
-      blockPaypal.style.display = "none";
+      tabTransfer.classList.remove("active");
 
-      txAmountInput.setAttribute("required", "");
+      blockFlat.style.display = "none";
+      blockHourly.style.display = "none";
+      blockTransfer.style.display = "none";
+
+      txAmountInput.removeAttribute("required");
       if (inputHours) inputHours.removeAttribute("required");
       if (inputRate) inputRate.removeAttribute("required");
-      if (inputPaypalAmount) inputPaypalAmount.removeAttribute("required");
+      if (inputTransferAmount) inputTransferAmount.removeAttribute("required");
+    };
+
+    tabFlat.addEventListener("click", () => {
+      deactivateAllTabs();
+      activeInputMethod = "flat";
+      tabFlat.classList.add("active");
+      blockFlat.style.display = "block";
+      txAmountInput.setAttribute("required", "");
 
       if (addTxBtn) {
         addTxBtn.textContent = "Add Transaction";
         addTxBtn.className = "btn btn-success";
       }
-
       updateTransactionPreview();
     });
 
     tabHourly.addEventListener("click", () => {
+      deactivateAllTabs();
       activeInputMethod = "hourly";
       tabHourly.classList.add("active");
-      tabFlat.classList.remove("active");
-      tabPaypal.classList.remove("active");
       blockHourly.style.display = "block";
-      blockFlat.style.display = "none";
-      blockPaypal.style.display = "none";
-
-      txAmountInput.removeAttribute("required");
-      if (inputHours) inputHours.removeAttribute("required");
-      if (inputRate) inputRate.removeAttribute("required");
-      if (inputPaypalAmount) inputPaypalAmount.removeAttribute("required");
 
       if (addTxBtn) {
         addTxBtn.textContent = "Add Transaction";
         addTxBtn.className = "btn btn-success";
       }
-
       updateTransactionPreview();
     });
 
-    tabPaypal.addEventListener("click", () => {
-      activeInputMethod = "paypal";
-      tabPaypal.classList.add("active");
-      tabFlat.classList.remove("active");
-      tabHourly.classList.remove("active");
-      blockPaypal.style.display = "block";
-      blockFlat.style.display = "none";
-      blockHourly.style.display = "none";
-
-      txAmountInput.removeAttribute("required");
-      if (inputHours) inputHours.removeAttribute("required");
-      if (inputRate) inputRate.removeAttribute("required");
-      if (inputPaypalAmount) inputPaypalAmount.setAttribute("required", "");
+    tabTransfer.addEventListener("click", () => {
+      deactivateAllTabs();
+      activeInputMethod = "transfer";
+      tabTransfer.classList.add("active");
+      blockTransfer.style.display = "block";
+      if (inputTransferAmount) inputTransferAmount.setAttribute("required", "");
 
       if (addTxBtn) {
-        addTxBtn.textContent = "Transfer to PayPal";
+        addTxBtn.textContent = "Transfer Funds";
         addTxBtn.className = "btn btn-primary";
       }
-
       updateTransactionPreview();
     });
+
+    // Synchronize From and To dropdown routes
+    if (fromSelect && toSelect) {
+      fromSelect.addEventListener("change", () => {
+        const fromVal = fromSelect.value;
+        if (fromVal === "upcoming") {
+          toSelect.value = "paypal";
+        } else if (fromVal === "nsave") {
+          toSelect.value = "qnb_bebasata";
+        } else if (fromVal === "paypal") {
+          toSelect.value = "nsave";
+        }
+        updateTransactionPreview();
+      });
+
+      toSelect.addEventListener("change", () => {
+        const toVal = toSelect.value;
+        if (toVal === "paypal") {
+          fromSelect.value = "upcoming";
+        } else if (toVal === "qnb_bebasata") {
+          fromSelect.value = "nsave";
+        } else if (toVal === "nsave") {
+          fromSelect.value = "paypal";
+        }
+        updateTransactionPreview();
+      });
+    }
   }
 
   if (txForm) {
@@ -1609,8 +1665,8 @@ function setupModalListeners() {
         const roundedRate = Math.round(rate * 100) / 100;
         amountUsd = (hours + minutes / 60) * roundedRate;
         amountUsd = Math.round(amountUsd * 100) / 100;
-      } else if (activeInputMethod === "paypal") {
-        amountUsd = parseFloat(inputPaypalAmount.value);
+      } else if (activeInputMethod === "transfer") {
+        amountUsd = parseFloat(inputTransferAmount.value);
       }
 
       if (!isNaN(amountUsd) && amountUsd > 0) {
@@ -1618,47 +1674,145 @@ function setupModalListeners() {
         const amountEgp = amountUsd * usdEgpRate;
         const beforeIncome = State.upcomingIncome;
         
-        if (activeInputMethod === "paypal") {
-          // Check if we have enough upcoming income
-          if (State.upcomingIncome < amountUsd) {
-            alert("Insufficient funds in Upcoming Income to perform this transfer.");
-            return;
-          }
-          
-          // Deduct from upcoming income
-          State.upcomingIncome -= amountUsd;
-          
-          // Add to PayPal
-          let paypalAsset = State.assets.find(a => a.id === "paypal");
-          if (!paypalAsset) {
-            paypalAsset = {
-              id: "paypal",
-              name: "PayPal",
-              category: "Digital Wallet",
-              holdings: 0,
-              currency: "USD",
-              color: "#3b82f6"
+        if (activeInputMethod === "transfer") {
+          const fromVal = fromSelect.value;
+
+          if (fromVal === "upcoming") {
+            // Check if we have enough upcoming income
+            if (State.upcomingIncome < amountUsd) {
+              alert("Insufficient funds in Upcoming Income to perform this transfer.");
+              return;
+            }
+            
+            // Deduct from upcoming income
+            State.upcomingIncome -= amountUsd;
+            
+            // Add to PayPal
+            let paypalAsset = State.assets.find(a => a.id === "paypal" || a.name.toLowerCase() === "paypal");
+            if (!paypalAsset) {
+              paypalAsset = {
+                id: "paypal",
+                name: "PayPal",
+                category: "Digital Wallet",
+                holdings: 0,
+                currency: "USD",
+                color: "#3b82f6"
+              };
+              State.assets.push(paypalAsset);
+            }
+            paypalAsset.holdings += amountUsd;
+            
+            // Log transaction
+            const newTx = {
+              id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+              amountUsd: -amountUsd,
+              amountEgp: -amountEgp,
+              rateUsdEgp: usdEgpRate,
+              timestamp: Date.now(),
+              beforeIncome: beforeIncome,
+              afterIncome: beforeIncome - amountUsd,
+              description: "Transfer to PayPal"
             };
-            State.assets.push(paypalAsset);
+            State.transactions.push(newTx);
+            State.save();
+            
+            if (inputTransferAmount) inputTransferAmount.value = "";
+            updateDashboardUI();
+
+          } else if (fromVal === "nsave") {
+            // Find nsave asset
+            const nsaveAsset = State.assets.find(a => a.id === "nsave" || a.name.toLowerCase() === "nsave");
+            if (!nsaveAsset || nsaveAsset.holdings < amountUsd) {
+              alert("Insufficient funds in nsave to perform this transfer.");
+              return;
+            }
+
+            // Deduct from nsave
+            nsaveAsset.holdings -= amountUsd;
+
+            // Find or create QNB Bebasata
+            let bankAsset = State.assets.find(a => a.id === "qnb_bebasata" || a.name.toLowerCase() === "qnb bebasata");
+            if (!bankAsset) {
+              bankAsset = {
+                id: "qnb_bebasata",
+                name: "QNB Bebasata",
+                category: "Cash Savings",
+                holdings: 0,
+                currency: "USD",
+                color: "#0ea5e9"
+              };
+              State.assets.push(bankAsset);
+            }
+
+            // Add to QNB Bebasata
+            const transferAmountInBankCurrency = bankAsset.currency === "USD" ? amountUsd : (bankAsset.currency === "EGP" ? amountUsd * usdEgpRate : amountUsd);
+            bankAsset.holdings += transferAmountInBankCurrency;
+
+            // Log transaction (neutral effect on upcoming income)
+            const newTx = {
+              id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+              amountUsd: -amountUsd,
+              amountEgp: -amountEgp,
+              rateUsdEgp: usdEgpRate,
+              timestamp: Date.now(),
+              beforeIncome: beforeIncome,
+              afterIncome: beforeIncome,
+              description: `Transfer: $${amountUsd.toFixed(2)} from nsave to QNB Bebasata`
+            };
+            State.transactions.push(newTx);
+            State.save();
+
+            if (inputTransferAmount) inputTransferAmount.value = "";
+            updateDashboardUI();
+
+          } else if (fromVal === "paypal") {
+            // Find paypal asset
+            const paypalAsset = State.assets.find(a => a.id === "paypal" || a.name.toLowerCase() === "paypal");
+            if (!paypalAsset || paypalAsset.holdings < amountUsd) {
+              alert("Insufficient funds in PayPal to perform this transfer.");
+              return;
+            }
+
+            // Deduct from paypal
+            paypalAsset.holdings -= amountUsd;
+
+            // Hide/remove PayPal asset completely if empty
+            if (paypalAsset.holdings === 0) {
+              State.assets = State.assets.filter(a => a.id !== paypalAsset.id);
+            }
+
+            // Find or create nsave
+            let nsaveAsset = State.assets.find(a => a.id === "nsave" || a.name.toLowerCase() === "nsave");
+            if (!nsaveAsset) {
+              nsaveAsset = {
+                id: "nsave",
+                name: "nsave",
+                category: "nsave Savings",
+                holdings: 0,
+                currency: "USD",
+                color: "#ef4444"
+              };
+              State.assets.push(nsaveAsset);
+            }
+            nsaveAsset.holdings += amountUsd;
+
+            // Log transaction (neutral effect on upcoming income)
+            const newTx = {
+              id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
+              amountUsd: -amountUsd,
+              amountEgp: -amountEgp,
+              rateUsdEgp: usdEgpRate,
+              timestamp: Date.now(),
+              beforeIncome: beforeIncome,
+              afterIncome: beforeIncome,
+              description: `Transfer: $${amountUsd.toFixed(2)} from PayPal to nsave`
+            };
+            State.transactions.push(newTx);
+            State.save();
+
+            if (inputTransferAmount) inputTransferAmount.value = "";
+            updateDashboardUI();
           }
-          paypalAsset.holdings += amountUsd;
-          
-          // Log transaction as negative (representing a transfer/payment)
-          const newTx = {
-            id: "tx_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
-            amountUsd: -amountUsd,
-            amountEgp: -amountEgp,
-            rateUsdEgp: usdEgpRate,
-            timestamp: Date.now(),
-            beforeIncome: beforeIncome,
-            afterIncome: beforeIncome - amountUsd,
-            description: "Transfer to PayPal"
-          };
-          State.transactions.push(newTx);
-          State.save();
-          
-          if (inputPaypalAmount) inputPaypalAmount.value = "";
-          updateDashboardUI();
         } else {
           // flat or hourly
           const afterIncome = beforeIncome + amountUsd;
@@ -1689,7 +1843,25 @@ function setupModalListeners() {
     }
     if (inputHours) inputHours.addEventListener("input", updateTransactionPreview);
     if (inputMinutes) inputMinutes.addEventListener("input", updateTransactionPreview);
-    if (inputPaypalAmount) inputPaypalAmount.addEventListener("input", updateTransactionPreview);
+    if (inputTransferAmount) inputTransferAmount.addEventListener("input", updateTransactionPreview);
+
+    if (btnTransferMax && inputTransferAmount) {
+      btnTransferMax.addEventListener("click", () => {
+        const fromVal = fromSelect ? fromSelect.value : "upcoming";
+        let maxVal = 0;
+        if (fromVal === "upcoming") {
+          maxVal = State.upcomingIncome;
+        } else if (fromVal === "nsave") {
+          const nsaveAsset = State.assets.find(a => a.id === "nsave" || a.name.toLowerCase() === "nsave");
+          maxVal = nsaveAsset ? nsaveAsset.holdings : 0;
+        } else if (fromVal === "paypal") {
+          const paypalAsset = State.assets.find(a => a.id === "paypal" || a.name.toLowerCase() === "paypal");
+          maxVal = paypalAsset ? paypalAsset.holdings : 0;
+        }
+        inputTransferAmount.value = maxVal.toFixed(2);
+        updateTransactionPreview();
+      });
+    }
     if (inputRate) {
       inputRate.addEventListener("input", updateTransactionPreview);
       inputRate.addEventListener("blur", () => {
@@ -2418,10 +2590,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 5. Auto-update and sync cached rates and state to cloud every 2 hours (7200000 ms)
   setInterval(autoUpdateAndSync, 7200000);
+
+  // 6. Initialize Grid Resizer for dashboard columns
+  initGridResizer();
 });
 
 async function autoUpdateAndSync() {
   console.log("Running periodic 2-hour auto-update and database sync...");
   await fetchLiveRates();
   State.save();
+}
+
+/**
+ * Initializes the drag-to-resize behavior for the main dashboard column layout.
+ * Drag ratio is persisted in localStorage.
+ */
+function initGridResizer() {
+  const resizer = document.getElementById("grid-resizer");
+  const grid = document.querySelector(".dashboard-grid");
+
+  if (resizer && grid) {
+    let isDragging = false;
+
+    // Load saved layout ratio
+    const savedRatio = localStorage.getItem("dashboard_grid_ratio");
+    if (savedRatio) {
+      const percentage = parseFloat(savedRatio);
+      grid.style.gridTemplateColumns = `${percentage}% 8px ${100 - percentage}%`;
+    }
+
+    const startDragging = (e) => {
+      isDragging = true;
+      document.body.style.cursor = "col-resize";
+      resizer.classList.add("dragging");
+      e.preventDefault();
+    };
+
+    const stopDragging = () => {
+      if (isDragging) {
+        isDragging = false;
+        document.body.style.cursor = "";
+        resizer.classList.remove("dragging");
+      }
+    };
+
+    const doDrag = (e) => {
+      if (!isDragging) return;
+
+      const clientX = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX);
+      if (clientX === undefined) return;
+
+      const gridRect = grid.getBoundingClientRect();
+      const relativeX = clientX - gridRect.left;
+      const percentage = (relativeX / gridRect.width) * 100;
+
+      // Constrain percentage between 20% and 80% to keep layout columns readable
+      if (percentage > 20 && percentage < 80) {
+        grid.style.gridTemplateColumns = `${percentage}% 8px ${100 - percentage}%`;
+        localStorage.setItem("dashboard_grid_ratio", percentage);
+      }
+    };
+
+    // Mouse events
+    resizer.addEventListener("mousedown", startDragging);
+    document.addEventListener("mousemove", doDrag);
+    document.addEventListener("mouseup", stopDragging);
+
+    // Touch events
+    resizer.addEventListener("touchstart", startDragging, { passive: true });
+    document.addEventListener("touchmove", doDrag, { passive: true });
+    document.addEventListener("touchend", stopDragging);
+  }
 }
