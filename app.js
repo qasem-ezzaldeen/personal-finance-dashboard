@@ -1,4 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { initChatbot } from "./chatbot.js";
 
 // --- SUPABASE CLOUD SYNC STATE & CREDENTIALS ---
 const SUPABASE_URL = "https://lrjbqxyanqpakxuuvrfp.supabase.co";
@@ -48,7 +49,7 @@ const State = {
   },
   
   set usdSavings(value) {
-    let savingsAsset = this.assets.find(a => a.id === "savings");
+    let savingsAsset = this.assets.find(a => a.id === "qnb_bebasata" || a.id === "savings");
     if (!savingsAsset) {
       savingsAsset = this.assets.find(a => a.currency === "USD");
     }
@@ -56,12 +57,12 @@ const State = {
       savingsAsset.holdings = value;
     } else {
       this.assets.push({
-        id: "savings",
-        name: "Cash Savings",
+        id: "qnb_bebasata",
+        name: "QNB Bebasata",
         category: "Cash Savings",
         holdings: value,
         currency: "USD",
-        color: "#22c55e"
+        color: "#0ea5e9"
       });
     }
   },
@@ -1348,7 +1349,7 @@ function setupModalListeners() {
 
         // Initialize state variables
         State.assets = [
-          { id: 'savings', name: 'Cash Savings', category: 'Cash Savings', holdings: cash, currency: 'USD', color: '#22c55e' },
+          { id: 'qnb_bebasata', name: 'QNB Bebasata', category: 'Cash Savings', holdings: cash, currency: 'USD', color: '#0ea5e9' },
           { id: 'gold', name: 'Gold Savings (21k)', category: 'Gold Savings', holdings: gold, currency: 'Gold (Grams)', color: '#eab308' }
         ];
         State.goldPremium = isNaN(premium) ? 2.5 : premium;
@@ -2593,6 +2594,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 6. Initialize Grid Resizer for dashboard columns
   initGridResizer();
+
+  // 7. Initialize Aura AI Chatbot Assistant
+  initChatbot(State, getAssetValuations, updateDashboardUI);
 });
 
 async function autoUpdateAndSync() {
