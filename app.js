@@ -931,6 +931,7 @@ function renderWealthChart() {
   const ctx = document.getElementById('wealth-donut-chart');
   if (!ctx) return;
 
+  const isLight = document.documentElement.classList.contains("light-theme");
   const slices = [];
   
   // 1. Slices from dynamic assets
