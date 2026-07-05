@@ -48,38 +48,7 @@
   --shadow-lg: none;
 }
 
-/* Light Theme Overrides */
-:root.light-theme {
-  --bg-base: #f4f4f5;
-  /* Light gray base */
-  --card-bg: #ffffff;
-  /* White cards */
-  --card-border: #e4e4e7;
-  /* Light gray border */
-  --input-bg: #ffffff;
-  /* White inputs */
 
-  --text-primary: #09090b;
-  /* Dark charcoal text */
-  --text-secondary: #71717a;
-  /* Medium gray text */
-  --text-muted: #a1a1aa;
-  /* Light gray text */
-
-  --color-primary: #09090b;
-  --color-primary-hover: #27272a;
-  --color-primary-glow: rgba(0, 0, 0, 0.03);
-
-  --color-savings-glow: rgba(34, 197, 94, 0.08);
-  --color-gold-glow: rgba(234, 179, 8, 0.08);
-  --color-income-glow: rgba(168, 85, 247, 0.08);
-  --track-bg: rgba(0, 0, 0, 0.08);
-  --border-subtle: rgba(0, 0, 0, 0.05);
-
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-}
 
 /* Global Reset & Base Setup */
 * {
@@ -1471,40 +1440,7 @@ body {
   gap: 1rem;
 }
 
-.theme-toggle-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--card-border);
-  color: var(--text-primary);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: all var(--transition-fast);
-  padding: 0;
-  outline: none;
-}
 
-.theme-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--text-muted);
-  transform: scale(1.05);
-}
-
-.theme-toggle-btn:active {
-  transform: scale(0.95);
-}
-
-:root.light-theme .theme-toggle-btn {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-:root.light-theme .theme-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-}
 
 /* Wealth Dashboard Layout (Table + Chart Side-by-Side) */
 .wealth-dashboard-container {
@@ -1602,9 +1538,7 @@ body {
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
 }
 
-:root.light-theme .color-dot-option.active {
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.2);
-}
+
 
 .category-suggestion {
   font-size: 0.72rem;
@@ -1778,10 +1712,7 @@ body {
   overflow: hidden;
 }
 
-.light-theme .chatbot-window {
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
-}
+
 
 .chatbot-window.active {
   opacity: 1;
@@ -1866,9 +1797,6 @@ body {
   border-bottom-left-radius: 4px;
 }
 
-.light-theme .chat-bubble-assistant {
-  background-color: rgba(0, 0, 0, 0.03);
-}
 
 .chat-bubble-user {
   align-self: flex-end;
@@ -1904,9 +1832,6 @@ body {
   font-weight: 500;
 }
 
-.light-theme .suggestion-pill {
-  background: rgba(0, 0, 0, 0.02);
-}
 
 .suggestion-pill:hover {
   background: rgba(234, 179, 8, 0.1);

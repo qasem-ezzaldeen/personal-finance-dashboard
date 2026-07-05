@@ -960,8 +960,7 @@ function renderWealthChart() {
   const labels = total > 0 ? slices.map(s => s.name) : ["No holdings"];
   const bgColors = total > 0 ? slices.map(s => s.color) : ["#27272a"];
 
-  const isLight = document.documentElement.classList.contains('light-theme');
-  const textColor = isLight ? '#09090b' : '#ffffff';
+  const textColor = '#ffffff';
   
   // Custom font styling matching Outfit
   const fontConfig = {
@@ -2513,37 +2512,11 @@ function showWizardStep2() {
   }
 }
 
-// --- THEME MANAGEMENT ENGINE ---
-function initTheme() {
-  const savedTheme = localStorage.getItem("theme") || "dark";
-  const themeToggleBtn = document.getElementById("theme-toggle-btn");
-  const themeIcon = themeToggleBtn ? themeToggleBtn.querySelector(".theme-icon") : null;
-  
-  if (savedTheme === "light") {
-    document.documentElement.classList.add("light-theme");
-    if (themeIcon) themeIcon.textContent = "🌙";
-  } else {
-    document.documentElement.classList.remove("light-theme");
-    if (themeIcon) themeIcon.textContent = "☀️";
-  }
-  
-  if (themeToggleBtn) {
-    themeToggleBtn.addEventListener("click", () => {
-      const isCurrentlyLight = document.documentElement.classList.toggle("light-theme");
-      const newTheme = isCurrentlyLight ? "light" : "dark";
-      localStorage.setItem("theme", newTheme);
-      if (themeIcon) themeIcon.textContent = isCurrentlyLight ? "🌙" : "☀️";
-      
-      // Force update to refresh chart colors/borders
-      updateDashboardUI();
-    });
-  }
-}
-
 // --- APP INITIALIZATION & BOOTSTRAP ---
 document.addEventListener("DOMContentLoaded", () => {
-  // 0. Initialize light/dark theme preference
-  initTheme();
+  // 0. Force dark theme and remove saved preference
+  document.documentElement.classList.remove("light-theme");
+  localStorage.removeItem("theme");
 
   // 0.1 Clean up legacy Local Storage keys to ensure zero local storage persistence
   const localKeys = [
