@@ -267,8 +267,9 @@ async function fetchLiveRates() {
         if (scrapedGold24kEgp > 10000) {
           scrapedGold24kEgp = scrapedGold24kEgp / TROY_OUNCE_TO_GRAM;
         }
-        // Back-calculate 24k USD price from the raw EGP price and EGP exchange rate (premium added dynamically on UI update)
-        gold24kUsd = scrapedGold24kEgp / usdEgpRate;
+        // Back-calculate 24k USD price from the raw EGP price and EGP exchange rate.
+        // Factor out the local gold premium so it is not double-added during UI update.
+        gold24kUsd = (scrapedGold24kEgp / (1 + State.goldPremium / 100)) / usdEgpRate;
         scrapeSuccess = true;
         console.log(`Successfully scraped live rates: 24k EGP (raw gram) = ${scrapedGold24kEgp}, USD/EGP = ${usdEgpRate}, derived 24k USD/g = ${gold24kUsd}`);
       } else {
