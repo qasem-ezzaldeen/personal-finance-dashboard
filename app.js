@@ -187,64 +187,105 @@ async function fetchLiveRates() {
   let usdEgpRate = State.cachedUsdEgp;
   let gold24kUsd = State.cachedGold24kUsd;
   let scrapeSuccess = false;
+  let scrapedGold24kEgp = null;
+  let scrapedUsdRate = null;
 
   try {
-    let htmlText = "";
+    let homeHtmlText = "";
+    let goldHtmlText = "";
     
-    // 1. First, attempt to fetch directly from https://gold-price-live.com/
-    // (This will succeed if a CORS bypass extension is active or if hosted with disabled security)
+    // 1. Attempt to fetch homepage and kerat-24 page directly
     try {
-      const response = await fetch("https://gold-price-live.com/");
-      if (response.ok) {
-        htmlText = await response.text();
-        console.log("Successfully fetched rates directly from gold-price-live.com (CORS extension or bypass active)");
-      } else {
-        throw new Error("Direct fetch returned non-ok status");
+      const homeResponse = await fetch("https://gold-price-live.com/");
+      if (homeResponse.ok) {
+        homeHtmlText = await homeResponse.text();
       }
-    } catch (directError) {
-      // 2. Direct fetch failed (CORS block or network). Fall back to the public CORS proxy.
-      console.log("Direct fetch to gold-price-live.com failed or was blocked by CORS. Attempting CORS proxy...");
-      const targetUrl = "https://gold-price-live.com/";
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-      const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error("CORS proxy request failed");
-      const data = await response.json();
-      if (!data || !data.contents) throw new Error("Invalid payload from CORS proxy");
-      htmlText = data.contents;
+    } catch (e) {
+      console.log("Direct fetch to gold-price-live.com homepage failed or blocked by CORS.");
+    }
+    
+    try {
+      const goldResponse = await fetch("https://gold-price-live.com/view/kerat-24");
+      if (goldResponse.ok) {
+        goldHtmlText = await goldResponse.text();
+      }
+    } catch (e) {
+      console.log("Direct fetch to gold-price-live.com/view/kerat-24 failed or blocked by CORS.");
     }
 
-    if (htmlText) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlText, "text/html");
-      
-      let scrapedGold24kEgp = null;
-      let scrapedUsdRate = null;
+    // 2. Fall back to AllOrigins CORS proxy for any failed fetches
+    if (!homeHtmlText) {
+      try {
+        console.log("Attempting to fetch homepage via CORS proxy...");
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent("https://gold-price-live.com/")}`;
+        const response = await fetch(proxyUrl);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.contents) homeHtmlText = data.contents;
+        }
+      } catch (e) {
+        console.warn("CORS proxy for homepage failed:", e);
+      }
+    }
 
-      // Check table rows first
-      const rows = doc.querySelectorAll("tr");
-      for (const row of rows) {
-        const cells = row.querySelectorAll("td");
-        if (cells.length >= 2) {
-          const firstCellText = cells[0].textContent.trim();
-          if (firstCellText.includes("عيار 24") || firstCellText.includes("24 قيراط")) {
-            const valText = cells[1].textContent.replace(/,/g, '');
-            const match = valText.match(/(\d+(?:\.\d+)?)/);
-            if (match) scrapedGold24kEgp = parseFloat(match[1]);
+    if (!goldHtmlText) {
+      try {
+        console.log("Attempting to fetch gold page via CORS proxy...");
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent("https://gold-price-live.com/view/kerat-24")}`;
+        const response = await fetch(proxyUrl);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.contents) goldHtmlText = data.contents;
+        }
+      } catch (e) {
+        console.warn("CORS proxy for gold page failed:", e);
+      }
+    }
+
+    // 3. Parse Gold price from the gold page
+    if (goldHtmlText) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(goldHtmlText, "text/html");
+      
+      // Try currency-result tag as requested by user
+      const currencyResult = doc.getElementById("currency-result");
+      if (currencyResult) {
+        const valText = currencyResult.textContent.replace(/,/g, '').trim();
+        const numVal = parseFloat(valText);
+        if (!isNaN(numVal) && numVal > 0) {
+          scrapedGold24kEgp = numVal;
+        }
+      }
+
+      // Fallback 1: check #currency-select option value
+      if (!scrapedGold24kEgp) {
+        const selectOption = doc.querySelector('#currency-select option[value]');
+        if (selectOption) {
+          const numVal = parseFloat(selectOption.value);
+          if (!isNaN(numVal) && numVal > 0) {
+            scrapedGold24kEgp = numVal;
           }
         }
       }
 
-      // Fallback: Check anchor elements for gold price if table rows missed
+      // Fallback 2: check .mb-5 div containing the large text price
       if (!scrapedGold24kEgp) {
-        const anchor24 = doc.querySelector('a[href*="kerat-24"]');
-        if (anchor24) {
-          const valText = anchor24.textContent.replace(/,/g, '');
-          const match = valText.match(/(\d+(?:\.\d+)?)/);
-          if (match) scrapedGold24kEgp = parseFloat(match[1]);
+        const divMb5 = doc.querySelector('.mb-5');
+        if (divMb5) {
+          const valText = divMb5.textContent.replace(/,/g, '').trim();
+          const numVal = parseFloat(valText);
+          if (!isNaN(numVal) && numVal > 0) {
+            scrapedGold24kEgp = numVal;
+          }
         }
       }
+    }
 
-      // Extract USD rate
+    // 4. Parse USD rate from homepage
+    if (homeHtmlText) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(homeHtmlText, "text/html");
+      
       const bankUsdAnchor = doc.querySelector('a[href*="bank-usd"]');
       if (bankUsdAnchor) {
         const valText = bankUsdAnchor.textContent.replace(/,/g, '');
@@ -259,22 +300,23 @@ async function fetchLiveRates() {
           if (match) scrapedUsdRate = parseFloat(match[1]);
         }
       }
+    }
 
-      if (scrapedGold24kEgp && scrapedUsdRate) {
+    if (scrapedGold24kEgp) {
+      if (scrapedUsdRate) {
         usdEgpRate = scrapedUsdRate;
-        // If the parsed gold price is > 10,000 EGP, it represents a troy ounce price.
-        // We divide by 31.1034768 to get the EGP price per gram of 24k gold.
-        if (scrapedGold24kEgp > 10000) {
-          scrapedGold24kEgp = scrapedGold24kEgp / TROY_OUNCE_TO_GRAM;
-        }
-        // Back-calculate 24k USD price from the raw EGP price and EGP exchange rate.
-        // Factor out the local gold premium so it is not double-added during UI update.
-        gold24kUsd = (scrapedGold24kEgp / (1 + State.goldPremium / 100)) / usdEgpRate;
-        scrapeSuccess = true;
-        console.log(`Successfully scraped live rates: 24k EGP (raw gram) = ${scrapedGold24kEgp}, USD/EGP = ${usdEgpRate}, derived 24k USD/g = ${gold24kUsd}`);
-      } else {
-        throw new Error(`Incomplete scraped data. 24k EGP: ${scrapedGold24kEgp}, USD: ${scrapedUsdRate}`);
       }
+      
+      let goldPricePerGram = scrapedGold24kEgp;
+      if (goldPricePerGram > 10000) {
+        goldPricePerGram = goldPricePerGram / TROY_OUNCE_TO_GRAM;
+      }
+      // Back-calculate 24k USD price
+      gold24kUsd = (goldPricePerGram / (1 + State.goldPremium / 100)) / usdEgpRate;
+      scrapeSuccess = true;
+      console.log(`Successfully scraped live rates: 24k EGP = ${goldPricePerGram}, USD/EGP = ${usdEgpRate}, derived 24k USD/g = ${gold24kUsd}`);
+    } else {
+      throw new Error(`Could not parse 24k gold price.`);
     }
   } catch (error) {
     console.warn("Failed to scrape gold-price-live.com, falling back to global APIs:", error);
@@ -291,8 +333,15 @@ async function fetchLiveRates() {
       if (fxData.rates.AUD) {
         usdAudRate = parseFloat(fxData.rates.AUD);
       }
-      if (!scrapeSuccess && fxData.rates.EGP) {
+      if (fxData.rates.EGP && !scrapedUsdRate) {
         usdEgpRate = parseFloat(fxData.rates.EGP);
+        if (scrapedGold24kEgp) {
+          let goldPricePerGram = scrapedGold24kEgp;
+          if (goldPricePerGram > 10000) {
+            goldPricePerGram = goldPricePerGram / TROY_OUNCE_TO_GRAM;
+          }
+          gold24kUsd = (goldPricePerGram / (1 + State.goldPremium / 100)) / usdEgpRate;
+        }
       }
     } else {
       throw new Error("Invalid exchange rate payload");
