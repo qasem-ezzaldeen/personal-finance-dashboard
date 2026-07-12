@@ -303,10 +303,11 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
         .filter(a => a.category === "Cash Savings" || a.id === "qnb_bebasata" || a.id === "nsave")
         .map(a => ({ name: a.name, holdings: a.holdings, currency: a.currency })),
       gold: {
-        grams: State.goldGrams,
+        grams21k: State.assets.filter(a => a.currency === "Gold (Grams)").reduce((sum, a) => sum + a.holdings, 0),
+        grams24k: State.assets.filter(a => a.currency === "Gold 24k (Grams)").reduce((sum, a) => sum + a.holdings, 0),
         premiumPercent: State.goldPremium,
-        usdValue: getAssetValuations(State.goldGrams, "Gold (Grams)").usd,
-        egpValue: getAssetValuations(State.goldGrams, "Gold (Grams)").egp
+        usdValue: State.assets.filter(a => a.currency.includes("Gold")).reduce((sum, a) => sum + getAssetValuations(a.holdings, a.currency).usd, 0),
+        egpValue: State.assets.filter(a => a.currency.includes("Gold")).reduce((sum, a) => sum + getAssetValuations(a.holdings, a.currency).egp, 0)
       },
       paypalHoldingsUsd: paypalHoldings,
       upcomingIncomeUsd: State.upcomingIncome,

@@ -587,6 +587,11 @@ function getAssetValuations(holdings, currency) {
     egp = holdings * Math.max(0, gold21kEgpPerGram - 30);
     usd = usdEgpRate > 0 ? (egp / usdEgpRate) : 0;
     aud = usd * usdAudRate;
+  } else if (currency === "Gold 24k (Grams)") {
+    // Egypt 24k Gold formula: valued at 30 EGP less than market value per gram
+    egp = holdings * Math.max(0, gold24kEgpPerGram - 30);
+    usd = usdEgpRate > 0 ? (egp / usdEgpRate) : 0;
+    aud = usd * usdAudRate;
   }
   
   return { usd, aud, egp };
@@ -640,6 +645,8 @@ function updateDashboardUI(force = false) {
         holdingsText = `${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
       } else if (asset.currency === "Gold (Grams)") {
         holdingsText = `${asset.holdings.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 21k - 30 EGP/g)`;
+      } else if (asset.currency === "Gold 24k (Grams)") {
+        holdingsText = `${asset.holdings.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 24k - 30 EGP/g)`;
       }
 
       tbodyHtml += `
