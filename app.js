@@ -588,8 +588,8 @@ function getAssetValuations(holdings, currency) {
     usd = usdEgpRate > 0 ? (egp / usdEgpRate) : 0;
     aud = usd * usdAudRate;
   } else if (currency === "Gold 24k (Grams)") {
-    // Egypt 24k Gold formula: valued at 30 EGP less than market value per gram
-    egp = holdings * Math.max(0, gold24kEgpPerGram - 30);
+    // Egypt 24k Gold Ingots formula: valued at market price + 30 EGP/g cashback on workmanship (مصنعية)
+    egp = holdings * (gold24kEgpPerGram + 30);
     usd = usdEgpRate > 0 ? (egp / usdEgpRate) : 0;
     aud = usd * usdAudRate;
   }
@@ -646,7 +646,7 @@ function updateDashboardUI(force = false) {
       } else if (asset.currency === "Gold (Grams)") {
         holdingsText = `${asset.holdings.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 21k - 30 EGP/g)`;
       } else if (asset.currency === "Gold 24k (Grams)") {
-        holdingsText = `${asset.holdings.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Market 24k - 30 EGP/g)`;
+        holdingsText = `${asset.holdings.toLocaleString(undefined, {maximumFractionDigits: 3})} g (Ingots 24k + 30 EGP/g cashback)`;
       }
 
       tbodyHtml += `
@@ -774,7 +774,7 @@ function updateDashboardUI(force = false) {
           gradientClass = "gold-gradient";
           borderClass = "goal-border-gold";
           
-          targetText = `Target: ${targetVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g (24k Gold)`;
+          targetText = `Target: ${targetVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g (24k Gold Ingots)`;
           currentText = `Net Worth: ${currentVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           
           if (currentVal >= targetVal) {
