@@ -256,29 +256,6 @@ async function fetchLiveRates() {
           scrapedGold24kEgp = numVal;
         }
       }
-
-      // Fallback 1: check #currency-select option value
-      if (!scrapedGold24kEgp) {
-        const selectOption = doc.querySelector('#currency-select option[value]');
-        if (selectOption) {
-          const numVal = parseFloat(selectOption.value);
-          if (!isNaN(numVal) && numVal > 0) {
-            scrapedGold24kEgp = numVal;
-          }
-        }
-      }
-
-      // Fallback 2: check .mb-5 div containing the large text price
-      if (!scrapedGold24kEgp) {
-        const divMb5 = doc.querySelector('.mb-5');
-        if (divMb5) {
-          const valText = divMb5.textContent.replace(/,/g, '').trim();
-          const numVal = parseFloat(valText);
-          if (!isNaN(numVal) && numVal > 0) {
-            scrapedGold24kEgp = numVal;
-          }
-        }
-      }
     }
 
     // 4. Parse USD rate from homepage
