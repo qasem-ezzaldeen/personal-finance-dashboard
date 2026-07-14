@@ -651,6 +651,7 @@ function updateDashboardUI(force = false) {
 
       tbodyHtml += `
         <tr class="clickable-asset-row" data-asset-id="${asset.id}">
+          <td class="drag-handle" title="Drag to reorder">⋮⋮</td>
           <td class="asset-name">
             <div class="asset-marker" style="background-color: ${asset.color || '#22c55e'};"></div>
             <div>
@@ -679,6 +680,7 @@ function updateDashboardUI(force = false) {
 
     tbodyHtml += `
       <tr>
+        <td></td>
         <td class="asset-name">
           <div class="asset-marker upcoming" style="background-color: #a1a1aa;"></div>
           <div>
@@ -696,6 +698,7 @@ function updateDashboardUI(force = false) {
     // Add Net Worth Summary Row
     tbodyHtml += `
       <tr class="net-worth-row">
+        <td></td>
         <td class="asset-name font-bold">Total Net Worth</td>
         <td class="asset-holdings">-</td>
         <td class="text-right font-extrabold value-highlight-usd">$${totalNetWorthUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -708,7 +711,11 @@ function updateDashboardUI(force = false) {
 
     // Attach click listeners to clickable asset rows
     tbody.querySelectorAll(".clickable-asset-row").forEach(row => {
-      row.addEventListener("click", () => {
+      row.addEventListener("click", (e) => {
+        // Prevent opening edit modal if the user clicked on the drag handle
+        if (e.target.closest(".drag-handle")) {
+          return;
+        }
         const id = row.getAttribute("data-asset-id");
         const asset = State.assets.find(a => a.id === id);
         if (asset) {
@@ -2603,6 +2610,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // 6. Initialize Grid Resizer for dashboard columns
   initGridResizer();
 
+  // 6.5 Initialize drag and drop for wealth distribution rows
+  initWealthTableDragAndDrop();
+
   // 7. Initialize Aura AI Chatbot Assistant
   initChatbot(State, getAssetValuations, updateDashboardUI);
 });
@@ -2673,4 +2683,138 @@ function initGridResizer() {
     document.addEventListener("touchmove", doDrag, { passive: true });
     document.addEventListener("touchend", stopDragging);
   }
+}
+
+/**
+ * Initializes drag-and-drop row reordering for the wealth distribution table
+ * supporting both desktop (mouse HTML5 Drag & Drop) and mobile (touch events).
+ */
+function initWealthTableDragAndDrop() {
+  const tbody = document.getElementById("wealth-distribution-tbody");
+  if (!tbody) return;
+
+  // --- DESKTOP MOUSE EVENTS ---
+  tbody.addEventListener("mousedown", (e) => {
+    const handle = e.target.closest(".drag-handle");
+    if (handle) {
+      const row = handle.closest(".clickable-asset-row");
+      if (row) {
+        row.setAttribute("draggable", "true");
+      }
+    }
+  });
+
+  tbody.addEventListener("mouseup", () => {
+    tbody.querySelectorAll(".clickable-asset-row").forEach(row => {
+      row.removeAttribute("draggable");
+    });
+  });
+
+  tbody.addEventListener("dragstart", (e) => {
+    const row = e.target.closest(".clickable-asset-row");
+    if (row && row.getAttribute("draggable") === "true") {
+      row.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", row.getAttribute("data-asset-id"));
+      e.dataTransfer.effectAllowed = "move";
+    } else {
+      e.preventDefault();
+    }
+  });
+
+  tbody.addEventListener("dragend", (e) => {
+    const row = e.target.closest(".clickable-asset-row");
+    if (row) {
+      row.classList.remove("dragging");
+      row.removeAttribute("draggable");
+    }
+    // Safety cleanup
+    tbody.querySelectorAll(".clickable-asset-row").forEach(r => {
+      r.removeAttribute("draggable");
+      r.classList.remove("dragging");
+    });
+    saveNewAssetOrder();
+  });
+
+  tbody.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const draggingRow = tbody.querySelector(".dragging");
+    if (!draggingRow) return;
+
+    const targetRow = e.target.closest(".clickable-asset-row");
+    if (targetRow && targetRow !== draggingRow) {
+      const rect = targetRow.getBoundingClientRect();
+      const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+      tbody.insertBefore(draggingRow, next ? targetRow.nextSibling : targetRow);
+    }
+  });
+
+  // --- MOBILE TOUCH EVENTS ---
+  let touchStartRow = null;
+
+  tbody.addEventListener("touchstart", (e) => {
+    const handle = e.target.closest(".drag-handle");
+    if (handle) {
+      const row = handle.closest(".clickable-asset-row");
+      if (row) {
+        touchStartRow = row;
+        row.classList.add("dragging");
+      }
+    }
+  }, { passive: true });
+
+  tbody.addEventListener("touchmove", (e) => {
+    if (!touchStartRow) return;
+    e.preventDefault(); // Stop scrolling when dragging a row
+
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!element) return;
+
+    const targetRow = element.closest(".clickable-asset-row");
+    if (targetRow && targetRow !== touchStartRow) {
+      const rect = targetRow.getBoundingClientRect();
+      const nextBoolean = (touch.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+      tbody.insertBefore(touchStartRow, nextBoolean ? targetRow.nextSibling : targetRow);
+    }
+  }, { passive: false });
+
+  tbody.addEventListener("touchend", () => {
+    if (touchStartRow) {
+      touchStartRow.classList.remove("dragging");
+      touchStartRow = null;
+      saveNewAssetOrder();
+    }
+  });
+}
+
+/**
+ * Syncs the visual order of elements in the DOM table body to the internal State
+ * assets array, stores changes locally and in the database, and forces a dashboard update.
+ */
+function saveNewAssetOrder() {
+  const tbody = document.getElementById("wealth-distribution-tbody");
+  if (!tbody) return;
+
+  const newOrderIds = Array.from(tbody.querySelectorAll(".clickable-asset-row"))
+                           .map(row => row.getAttribute("data-asset-id"))
+                           .filter(id => id);
+
+  if (newOrderIds.length === 0) return;
+
+  const newAssets = [];
+  // 1. Re-add rendering assets in user's customized drag sequence
+  newOrderIds.forEach(id => {
+    const asset = State.assets.find(a => a.id === id);
+    if (asset) newAssets.push(asset);
+  });
+  // 2. Append non-rendering assets (like Paypal with 0 holdings) to prevent losing them
+  State.assets.forEach(asset => {
+    if (!newOrderIds.includes(asset.id)) {
+      newAssets.push(asset);
+    }
+  });
+
+  State.assets = newAssets;
+  State.save();
+  updateDashboardUI(true);
 }

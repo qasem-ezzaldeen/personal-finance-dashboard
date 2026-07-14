@@ -1010,6 +1010,32 @@ body {
   vertical-align: middle;
 }
 
+.drag-handle {
+  cursor: grab;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1rem;
+  user-select: none;
+  width: 40px;
+  min-width: 40px;
+  padding: 0.5rem;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.drag-handle:hover {
+  color: var(--text-primary);
+  transform: scale(1.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.clickable-asset-row.dragging {
+  opacity: 0.4;
+  background: var(--border-subtle) !important;
+}
+
 .asset-name {
   display: flex;
   align-items: center;
