@@ -179,175 +179,78 @@ async function fetchLiveRates() {
   const refreshIcon = refreshBtn ? refreshBtn.querySelector(".refresh-icon") : null;
   const statusDot = document.getElementById("api-status-dot");
   const statusBadge = document.getElementById("api-status-indicator");
-  
+
   // Trigger spinner animation
   if (refreshIcon) refreshIcon.classList.add("spinning");
-  
-  let fetchError = false;
+
+  let fxSuccess = false;
+  let goldSuccess = false;
+
   let usdEgpRate = State.cachedUsdEgp;
-  let gold24kUsd = State.cachedGold24kUsd;
-  let scrapeSuccess = false;
-  let scrapedGold24kEgp = null;
-  let scrapedUsdRate = null;
-
-  try {
-    let homeHtmlText = "";
-    let goldHtmlText = "";
-    
-    // 1. Attempt to fetch homepage and kerat-24 page directly
-    try {
-      const homeResponse = await fetch("https://gold-price-live.com/");
-      if (homeResponse.ok) {
-        homeHtmlText = await homeResponse.text();
-      }
-    } catch (e) {
-      console.log("Direct fetch to gold-price-live.com homepage failed or blocked by CORS.");
-    }
-    
-    try {
-      const goldResponse = await fetch("https://gold-price-live.com/view/kerat-24");
-      if (goldResponse.ok) {
-        goldHtmlText = await goldResponse.text();
-      }
-    } catch (e) {
-      console.log("Direct fetch to gold-price-live.com/view/kerat-24 failed or blocked by CORS.");
-    }
-
-    // 2. Fall back to AllOrigins CORS proxy for any failed fetches
-    if (!homeHtmlText) {
-      try {
-        console.log("Attempting to fetch homepage via CORS proxy...");
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent("https://gold-price-live.com/")}`;
-        const response = await fetch(proxyUrl);
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.contents) homeHtmlText = data.contents;
-        }
-      } catch (e) {
-        console.warn("CORS proxy for homepage failed:", e);
-      }
-    }
-
-    if (!goldHtmlText) {
-      try {
-        console.log("Attempting to fetch gold page via CORS proxy...");
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent("https://gold-price-live.com/view/kerat-24")}`;
-        const response = await fetch(proxyUrl);
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.contents) goldHtmlText = data.contents;
-        }
-      } catch (e) {
-        console.warn("CORS proxy for gold page failed:", e);
-      }
-    }
-
-    // 3. Parse Gold price from the gold page
-    if (goldHtmlText) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(goldHtmlText, "text/html");
-      
-      // Try currency-result tag as requested by user
-      const currencyResult = doc.getElementById("currency-result");
-      if (currencyResult) {
-        const valText = currencyResult.textContent.replace(/,/g, '').trim();
-        const numVal = parseFloat(valText);
-        if (!isNaN(numVal) && numVal > 0) {
-          scrapedGold24kEgp = numVal;
-        }
-      }
-    }
-
-    // 4. Parse USD rate from homepage
-    if (homeHtmlText) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(homeHtmlText, "text/html");
-      
-      const bankUsdAnchor = doc.querySelector('a[href*="bank-usd"]');
-      if (bankUsdAnchor) {
-        const valText = bankUsdAnchor.textContent.replace(/,/g, '');
-        const match = valText.match(/(\d+(?:\.\d+)?)/);
-        if (match) scrapedUsdRate = parseFloat(match[1]);
-      }
-      if (!scrapedUsdRate) {
-        const saghaUsdAnchor = doc.querySelector('a[href*="sagha-usd"]');
-        if (saghaUsdAnchor) {
-          const valText = saghaUsdAnchor.textContent.replace(/,/g, '');
-          const match = valText.match(/(\d+(?:\.\d+)?)/);
-          if (match) scrapedUsdRate = parseFloat(match[1]);
-        }
-      }
-    }
-
-    if (scrapedGold24kEgp) {
-      if (scrapedUsdRate) {
-        usdEgpRate = scrapedUsdRate;
-      }
-      
-      let goldPricePerGram = scrapedGold24kEgp;
-      if (goldPricePerGram > 10000) {
-        goldPricePerGram = goldPricePerGram / TROY_OUNCE_TO_GRAM;
-      }
-      // Back-calculate 24k USD price
-      gold24kUsd = (goldPricePerGram / (1 + State.goldPremium / 100)) / usdEgpRate;
-      scrapeSuccess = true;
-      console.log(`Successfully scraped live rates: 24k EGP = ${goldPricePerGram}, USD/EGP = ${usdEgpRate}, derived 24k USD/g = ${gold24kUsd}`);
-    } else {
-      throw new Error(`Could not parse 24k gold price.`);
-    }
-  } catch (error) {
-    console.warn("Failed to scrape gold-price-live.com, falling back to global APIs:", error);
-  }
-
   let usdAudRate = State.cachedUsdAud;
+  let gold24kUsd = State.cachedGold24kUsd;
 
-  // Fetch exchange rates (USD to AUD always, and USD to EGP if scraping failed)
+  // 1. Fetch Exchange Rates (Primary: open.er-api.com, Fallback: api.exchangerate-api.com)
   try {
     const fxResponse = await fetch("https://open.er-api.com/v6/latest/USD");
-    if (!fxResponse.ok) throw new Error("Exchange rate API failed");
+    if (!fxResponse.ok) throw new Error(`Primary FX API returned status ${fxResponse.status}`);
     const fxData = await fxResponse.json();
     if (fxData && fxData.rates) {
-      if (fxData.rates.AUD) {
-        usdAudRate = parseFloat(fxData.rates.AUD);
-      }
-      if (fxData.rates.EGP && !scrapedUsdRate) {
-        usdEgpRate = parseFloat(fxData.rates.EGP);
-        if (scrapedGold24kEgp) {
-          let goldPricePerGram = scrapedGold24kEgp;
-          if (goldPricePerGram > 10000) {
-            goldPricePerGram = goldPricePerGram / TROY_OUNCE_TO_GRAM;
-          }
-          gold24kUsd = (goldPricePerGram / (1 + State.goldPremium / 100)) / usdEgpRate;
-        }
-      }
+      if (fxData.rates.EGP) usdEgpRate = parseFloat(fxData.rates.EGP);
+      if (fxData.rates.AUD) usdAudRate = parseFloat(fxData.rates.AUD);
+      fxSuccess = true;
+      console.log(`[FX API] Successfully fetched primary rates: USD/EGP = ${usdEgpRate}, USD/AUD = ${usdAudRate}`);
     } else {
-      throw new Error("Invalid exchange rate payload");
+      throw new Error("Invalid FX API payload structure");
     }
-  } catch (error) {
-    console.warn("Exchange Rate API failure, utilizing cached rates:", error);
-    if (!scrapeSuccess) {
-      fetchError = true;
+  } catch (primaryFxErr) {
+    console.warn("[FX API] Primary Exchange Rate API failed, trying fallback FX API:", primaryFxErr);
+    try {
+      const fallbackFxResponse = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+      if (!fallbackFxResponse.ok) throw new Error(`Fallback FX API returned status ${fallbackFxResponse.status}`);
+      const fallbackFxData = await fallbackFxResponse.json();
+      if (fallbackFxData && fallbackFxData.rates) {
+        if (fallbackFxData.rates.EGP) usdEgpRate = parseFloat(fallbackFxData.rates.EGP);
+        if (fallbackFxData.rates.AUD) usdAudRate = parseFloat(fallbackFxData.rates.AUD);
+        fxSuccess = true;
+        console.log(`[FX API] Successfully fetched fallback rates: USD/EGP = ${usdEgpRate}, USD/AUD = ${usdAudRate}`);
+      }
+    } catch (fallbackFxErr) {
+      console.error("[FX API] All FX APIs failed. Utilizing cached rates:", fallbackFxErr);
     }
   }
 
-  // 3. Fallback Gold API (runs if scraping failed)
-  if (!scrapeSuccess) {
+  // 2. Fetch Spot Gold Rates (Primary: api.gold-api.com, Fallback: FawazAhmed XAU currency API)
+  try {
+    const goldResponse = await fetch("https://api.gold-api.com/price/XAU");
+    if (!goldResponse.ok) throw new Error(`Primary Gold API returned status ${goldResponse.status}`);
+    const goldData = await goldResponse.json();
+    if (goldData && goldData.price) {
+      const pricePerOunceUsd = parseFloat(goldData.price);
+      gold24kUsd = pricePerOunceUsd / TROY_OUNCE_TO_GRAM;
+      goldSuccess = true;
+      console.log(`[Gold API] Successfully fetched spot gold rate: XAU/USD = $${pricePerOunceUsd}/oz ($${gold24kUsd.toFixed(2)}/g 24k USD)`);
+    } else {
+      throw new Error("Invalid Gold API payload structure");
+    }
+  } catch (primaryGoldErr) {
+    console.warn("[Gold API] Primary Gold API failed, trying fallback Gold API:", primaryGoldErr);
     try {
-      const goldResponse = await fetch("https://api.gold-api.com/price/XAU");
-      if (!goldResponse.ok) throw new Error("Gold API failed");
-      const goldData = await goldResponse.json();
-      if (goldData && goldData.price) {
-        const pricePerOunceUsd = parseFloat(goldData.price);
+      const fallbackGoldResp = await fetch("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/xau.json");
+      if (!fallbackGoldResp.ok) throw new Error(`Fallback Gold API returned status ${fallbackGoldResp.status}`);
+      const fallbackGoldData = await fallbackGoldResp.json();
+      if (fallbackGoldData && fallbackGoldData.xau && fallbackGoldData.xau.usd) {
+        const pricePerOunceUsd = parseFloat(fallbackGoldData.xau.usd);
         gold24kUsd = pricePerOunceUsd / TROY_OUNCE_TO_GRAM;
-        console.log(`Successfully fetched live spot gold rate from gold-api.com: XAU/USD = ${pricePerOunceUsd}, 24k USD/g = ${gold24kUsd}`);
-      } else {
-        throw new Error("Invalid gold price payload");
+        goldSuccess = true;
+        console.log(`[Gold API] Successfully fetched fallback spot gold rate: XAU/USD = $${pricePerOunceUsd}/oz`);
       }
-    } catch (error) {
-      console.warn("Gold Price API failure, utilizing cached rate:", error);
-      fetchError = true;
+    } catch (fallbackGoldErr) {
+      console.error("[Gold API] All Gold APIs failed. Utilizing cached rates:", fallbackGoldErr);
     }
   }
+
+  const fetchError = (!fxSuccess && !goldSuccess);
 
   // Calculate trends before updating cached values
   const prevGold24kEgp = State.cachedGold24kUsd * State.cachedUsdEgp * (1 + State.goldPremium / 100);
