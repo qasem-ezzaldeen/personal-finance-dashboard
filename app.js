@@ -101,10 +101,12 @@ const State = {
   // Rate caching
   cachedUsdEgp: 49.93, // Default fallback
   cachedUsdAud: 1.50, // Default fallback for AUD
+  cachedAudEgp: 33.28, // Default fallback for AUD/EGP
   cachedGold24kUsd: 135.88, // Default fallback (~$4226/oz)
   lastFetchedTime: null,
   usdEgpTrend: "neutral",
   usdAudTrend: "neutral", // Trend for AUD
+  audEgpTrend: "neutral", // Trend for AUD/EGP
   gold24kTrend: "neutral",
   gold21kTrend: "neutral",
   
@@ -132,7 +134,9 @@ const State = {
       transactions: this.transactions,
       goals: this.goals,
       cachedUsdAud: this.cachedUsdAud,
+      cachedAudEgp: this.cachedAudEgp,
       usdAudTrend: this.usdAudTrend,
+      audEgpTrend: this.audEgpTrend,
       cachedUsdEgp: this.cachedUsdEgp,
       cachedGold24kUsd: this.cachedGold24kUsd,
       lastFetchedTime: this.lastFetchedTime,
@@ -185,42 +189,73 @@ async function fetchLiveRates() {
 
   let fxSuccess = false;
   let goldSuccess = false;
+  let scrapedSuccess = false;
 
   let usdEgpRate = State.cachedUsdEgp;
   let usdAudRate = State.cachedUsdAud;
   let gold24kUsd = State.cachedGold24kUsd;
 
-  // 1. Fetch Exchange Rates (Primary: open.er-api.com, Fallback: api.exchangerate-api.com)
+  // 0. Primary Scraper: Egydahab Live Rates (https://egydahab.vercel.app)
   try {
-    const fxResponse = await fetch("https://open.er-api.com/v6/latest/USD");
-    if (!fxResponse.ok) throw new Error(`Primary FX API returned status ${fxResponse.status}`);
-    const fxData = await fxResponse.json();
-    if (fxData && fxData.rates) {
-      if (fxData.rates.EGP) usdEgpRate = parseFloat(fxData.rates.EGP);
-      if (fxData.rates.AUD) usdAudRate = parseFloat(fxData.rates.AUD);
-      fxSuccess = true;
-      console.log(`[FX API] Successfully fetched primary rates: USD/EGP = ${usdEgpRate}, USD/AUD = ${usdAudRate}`);
-    } else {
-      throw new Error("Invalid FX API payload structure");
-    }
-  } catch (primaryFxErr) {
-    console.warn("[FX API] Primary Exchange Rate API failed, trying fallback FX API:", primaryFxErr);
-    try {
-      const fallbackFxResponse = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
-      if (!fallbackFxResponse.ok) throw new Error(`Fallback FX API returned status ${fallbackFxResponse.status}`);
-      const fallbackFxData = await fallbackFxResponse.json();
-      if (fallbackFxData && fallbackFxData.rates) {
-        if (fallbackFxData.rates.EGP) usdEgpRate = parseFloat(fallbackFxData.rates.EGP);
-        if (fallbackFxData.rates.AUD) usdAudRate = parseFloat(fallbackFxData.rates.AUD);
+    const egyResponse = await fetch(`https://raw.githubusercontent.com/dimarizo53-creator/egydahab.3/main/prices.json?t=${Date.now()}`);
+    if (egyResponse.ok) {
+      const egyData = await egyResponse.json();
+      if (egyData && egyData.gold && egyData.currencies) {
+        if (egyData.currencies.USD && egyData.currencies.USD.sell) {
+          usdEgpRate = parseFloat(egyData.currencies.USD.sell);
+        }
+        if (egyData.currencies.AUD && egyData.currencies.AUD.sell) {
+          const directAudEgp = parseFloat(egyData.currencies.AUD.sell);
+          usdAudRate = directAudEgp > 0 ? (usdEgpRate / directAudEgp) : State.cachedUsdAud;
+        }
+        if (egyData.gold.k24 && egyData.gold.k24.sell) {
+          const gold24kEgpDirect = parseFloat(egyData.gold.k24.sell);
+          gold24kUsd = (usdEgpRate * (1 + State.goldPremium / 100)) > 0 ? (gold24kEgpDirect / (usdEgpRate * (1 + State.goldPremium / 100))) : State.cachedGold24kUsd;
+        }
+        scrapedSuccess = true;
         fxSuccess = true;
-        console.log(`[FX API] Successfully fetched fallback rates: USD/EGP = ${usdEgpRate}, USD/AUD = ${usdAudRate}`);
+        goldSuccess = true;
+        console.log(`[Egydahab Scraper] Scraped live data from egydahab.vercel.app: USD/EGP=${usdEgpRate}, AUD/EGP=${(usdEgpRate / usdAudRate).toFixed(2)}, Gold 24k=${(gold24kUsd * usdEgpRate * (1 + State.goldPremium/100)).toFixed(2)} EGP`);
       }
-    } catch (fallbackFxErr) {
-      console.error("[FX API] All FX APIs failed. Utilizing cached rates:", fallbackFxErr);
+    }
+  } catch (egyErr) {
+    console.warn("[Egydahab Scraper] Primary scraper failed, falling back to global APIs:", egyErr);
+  }
+
+  // 1. Fetch Exchange Rates (Primary: open.er-api.com, Fallback: api.exchangerate-api.com)
+  if (!scrapedSuccess) {
+    try {
+      const fxResponse = await fetch("https://open.er-api.com/v6/latest/USD");
+      if (!fxResponse.ok) throw new Error(`Primary FX API returned status ${fxResponse.status}`);
+      const fxData = await fxResponse.json();
+      if (fxData && fxData.rates) {
+        if (fxData.rates.EGP) usdEgpRate = parseFloat(fxData.rates.EGP);
+        if (fxData.rates.AUD) usdAudRate = parseFloat(fxData.rates.AUD);
+        fxSuccess = true;
+        console.log(`[FX API] Successfully fetched primary rates: USD/EGP = ${usdEgpRate}, USD/AUD = ${usdAudRate}`);
+      } else {
+        throw new Error("Invalid FX API payload structure");
+      }
+    } catch (primaryFxErr) {
+      console.warn("[FX API] Primary Exchange Rate API failed, trying fallback FX API:", primaryFxErr);
+      try {
+        const fallbackFxResponse = await fetch("https://api.exchangerate-api.com/v4/latest/USD");
+        if (!fallbackFxResponse.ok) throw new Error(`Fallback FX API returned status ${fallbackFxResponse.status}`);
+        const fallbackFxData = await fallbackFxResponse.json();
+        if (fallbackFxData && fallbackFxData.rates) {
+          if (fallbackFxData.rates.EGP) usdEgpRate = parseFloat(fallbackFxData.rates.EGP);
+          if (fallbackFxData.rates.AUD) usdAudRate = parseFloat(fallbackFxData.rates.AUD);
+          fxSuccess = true;
+          console.log(`[FX API] Successfully fetched fallback rates: USD/EGP = ${usdEgpRate}, USD/AUD = ${usdAudRate}`);
+        }
+      } catch (fallbackFxErr) {
+        console.error("[FX API] All FX APIs failed. Utilizing cached rates:", fallbackFxErr);
+      }
     }
   }
 
   // 2. Fetch Spot Gold Rates (Primary: api.gold-api.com, Fallback: FawazAhmed XAU currency API)
+  if (!scrapedSuccess) {
   try {
     const goldResponse = await fetch("https://api.gold-api.com/price/XAU");
     if (!goldResponse.ok) throw new Error(`Primary Gold API returned status ${goldResponse.status}`);
@@ -249,6 +284,7 @@ async function fetchLiveRates() {
       console.error("[Gold API] All Gold APIs failed. Utilizing cached rates:", fallbackGoldErr);
     }
   }
+  }
 
   const fetchError = (!fxSuccess && !goldSuccess);
 
@@ -270,6 +306,14 @@ async function fetchLiveRates() {
     State.usdAudTrend = "down";
   }
 
+  // Determine AUD/EGP trend
+  const audEgpRate = usdAudRate > 0 ? (usdEgpRate / usdAudRate) : 0;
+  if (audEgpRate > State.cachedAudEgp) {
+    State.audEgpTrend = "up";
+  } else if (audEgpRate < State.cachedAudEgp) {
+    State.audEgpTrend = "down";
+  }
+
   // Determine Gold 24k trend
   const currentGold24kEgp = gold24kUsd * usdEgpRate * (1 + State.goldPremium / 100);
   if (currentGold24kEgp > prevGold24kEgp) {
@@ -289,6 +333,7 @@ async function fetchLiveRates() {
   // Update cached state and timestamp
   State.cachedUsdEgp = usdEgpRate;
   State.cachedUsdAud = usdAudRate;
+  State.cachedAudEgp = audEgpRate;
   State.cachedGold24kUsd = gold24kUsd;
   State.lastFetchedTime = new Date().toLocaleString();
 
@@ -639,16 +684,17 @@ function updateDashboardUI(force = false) {
   };
 
   const usdEgpArrow = getTrendArrowHTML(State.usdEgpTrend);
-  const usdAudArrow = getTrendArrowHTML(State.usdAudTrend);
+  const audEgpArrow = getTrendArrowHTML(State.audEgpTrend || State.usdAudTrend);
   const gold24kArrow = getTrendArrowHTML(State.gold24kTrend);
   const gold21kArrow = getTrendArrowHTML(State.gold21kTrend);
 
   // --- 1. Update Rates Bar & Sync Timestamps ---
   document.getElementById("rate-usd-egp").innerHTML = `${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}`;
   
-  const rateUsdAudEl = document.getElementById("rate-usd-aud");
-  if (rateUsdAudEl) {
-    rateUsdAudEl.innerHTML = `${usdAudRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} AUD${usdAudArrow}`;
+  const audEgpRate = State.cachedAudEgp || (usdAudRate > 0 ? (usdEgpRate / usdAudRate) : 0);
+  const rateAudEgpEl = document.getElementById("rate-aud-egp") || document.getElementById("rate-usd-aud");
+  if (rateAudEgpEl) {
+    rateAudEgpEl.innerHTML = `${audEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${audEgpArrow}`;
   }
 
   // Display Egyptian gold rates in EGP in the header
@@ -2504,8 +2550,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Actively check clock every 10 seconds for real-time monitoring
   setInterval(runClockAndResetCheck, 10000);
 
-  // 4. Auto-fetch live rates every 5 minutes (300000 ms) for automatic updates
-  setInterval(fetchLiveRates, 300000);
+  // 4. Auto-fetch live rates every 1 hour (3600000 ms) for automatic updates
+  setInterval(fetchLiveRates, 3600000);
 
   // 5. Auto-update and sync cached rates and state to cloud every 2 hours (7200000 ms)
   setInterval(autoUpdateAndSync, 7200000);
