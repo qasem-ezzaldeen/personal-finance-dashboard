@@ -105,11 +105,11 @@
           <span class="rate-label">USD/EGP:</span>
           <span class="rate-value" id="rate-usd-egp">--.-- EGP</span>
         </div>
-        <div class="rate-pill">
+        <div class="rate-pill gold-rate-pill" id="pill-gold-24k" title="Click to manually edit gold price">
           <span class="rate-label">Gold 24k/g:</span>
           <span class="rate-value" id="rate-gold-24k">--.-- EGP</span>
         </div>
-        <div class="rate-pill">
+        <div class="rate-pill gold-rate-pill" id="pill-gold-21k" title="Click to manually edit gold price">
           <span class="rate-label">Gold 21k/g:</span>
           <span class="rate-value" id="rate-gold-21k">--.-- EGP</span>
         </div>
@@ -117,6 +117,9 @@
           <span class="rate-label">AUD/EGP:</span>
           <span class="rate-value" id="rate-aud-egp">--.-- EGP</span>
         </div>
+        <button id="edit-gold-rate-btn" class="refresh-btn edit-gold-btn" title="Manually Edit Gold & FX Rates" type="button">
+          ✏️
+        </button>
         <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
           <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-1.19" stroke-linecap="round"
@@ -616,6 +619,68 @@
           <button type="button" class="btn btn-outline" id="disconnect-sync-btn" style="flex: 1; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Disconnect Vault</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Gold Price & Market Settings Edit Modal -->
+  <div id="gold-rate-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem;">🪙</span>
+          <h3>Gold Price & Market Settings</h3>
+        </div>
+        <button class="close-modal-btn" id="close-gold-modal" type="button">✕</button>
+      </div>
+      <form id="gold-rate-form" class="modal-form">
+        <!-- Rate Source Selection Toggle -->
+        <div class="form-group">
+          <label>Gold Price Mode</label>
+          <div class="input-method-tabs" style="margin-top: 0.25rem;">
+            <button type="button" id="gold-mode-auto" class="tab-btn active">🌐 Auto (Live API)</button>
+            <button type="button" id="gold-mode-manual" class="tab-btn">✏️ Manual Override</button>
+          </div>
+          <p class="input-help" id="gold-mode-help">
+            Auto mode fetches live spot gold prices automatically. Switch to Manual Override to set custom market prices.
+          </p>
+        </div>
+
+        <!-- Manual Gold Price Fields (Inputs) -->
+        <div id="manual-gold-fields" style="display: none;">
+          <div class="form-group">
+            <label for="manual-gold-24k-input">24k Gold Price (EGP / Gram)</label>
+            <div class="input-wrapper focus-glow">
+              <input type="number" id="manual-gold-24k-input" placeholder="e.g. 4500.00" min="0" step="any">
+              <span class="input-suffix">EGP/g</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="manual-gold-21k-input">21k Gold Price (EGP / Gram)</label>
+            <div class="input-wrapper focus-glow">
+              <input type="number" id="manual-gold-21k-input" placeholder="e.g. 3937.50" min="0" step="any">
+              <span class="input-suffix">EGP/g</span>
+            </div>
+            <p class="input-help">21k gold is automatically calculated as 87.5% of 24k price.</p>
+          </div>
+        </div>
+
+        <!-- Local Gold Premium (%) -->
+        <div class="form-group">
+          <label for="gold-premium-input">Local Gold Premium Markup (%)</label>
+          <div class="input-wrapper focus-glow">
+            <input type="number" id="gold-premium-input" placeholder="2.5" min="0" max="100" step="0.1">
+            <span class="input-suffix">%</span>
+          </div>
+          <p class="input-help">Additional local Egypt markup added over global spot rate (default: 2.5%).</p>
+        </div>
+
+        <div class="modal-actions" style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+          <button type="button" class="btn btn-outline" id="cancel-gold-btn" style="flex: 1;">Cancel</button>
+          <button type="button" class="btn btn-outline" id="reset-gold-live-btn" style="flex: 1; color: var(--color-gold); border-color: rgba(234, 179, 8, 0.3);">Use Live Rate</button>
+          <button type="submit" class="btn btn-primary" id="save-gold-btn" style="flex: 1.5; background: var(--color-gold); color: #000; font-weight: 700;">Save Changes</button>
+        </div>
+      </form>
     </div>
   </div>
 

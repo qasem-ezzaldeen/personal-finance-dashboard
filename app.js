@@ -92,6 +92,8 @@ const State = {
   },
 
   goldPremium: 2.5, // Default 2.5% local Egypt gold premium
+  isManualGold: false,
+  manualGold24kEgp: null,
   upcomingIncome: 0,
   
   // Lists
@@ -140,6 +142,8 @@ const State = {
       audEgpTrend: this.audEgpTrend,
       cachedUsdEgp: this.cachedUsdEgp,
       cachedGold24kUsd: this.cachedGold24kUsd,
+      isManualGold: this.isManualGold,
+      manualGold24kEgp: this.manualGold24kEgp,
       lastFetchedTime: this.lastFetchedTime,
       lastGoldApiFetchTime: this.lastGoldApiFetchTime,
       usdEgpTrend: this.usdEgpTrend,
@@ -228,50 +232,69 @@ async function fetchLiveRates(forceGoldApi = false) {
     }
   }
 
-  // 2. Fetch Spot Gold Rates via GoldAPI.io (Rate-limited to once every 8 hours / 28,800,000 ms to preserve 100 req/month quota)
+  // 2. Fetch Spot Gold Rates (Primary: api.gold-api.com, Fallback: GoldAPI.io)
   const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000; // 28,800,000 ms
   const now = Date.now();
   const timeSinceLastGoldFetch = now - (State.lastGoldApiFetchTime || 0);
 
-  if (forceGoldApi || timeSinceLastGoldFetch >= EIGHT_HOURS_MS || !State.cachedGold24kUsd) {
+  if (State.isManualGold && State.manualGold24kEgp > 0) {
+    const raw24kEgp = State.manualGold24kEgp;
+    const denominator = usdEgpRate * (1 + State.goldPremium / 100);
+    gold24kUsd = denominator > 0 ? (raw24kEgp / denominator) : (raw24kEgp / usdEgpRate);
+    goldSuccess = true;
+    console.log(`[Gold Rates] Utilizing Manual Gold Price Override: ${raw24kEgp} EGP/g`);
+  } else if (forceGoldApi || timeSinceLastGoldFetch >= EIGHT_HOURS_MS || !State.cachedGold24kUsd) {
     try {
-      const goldResponse = await fetch("https://www.goldapi.io/api/XAU/EGP", {
-        headers: {
-          "x-access-token": "goldapi-e3308dd9c8ef61770304d1cf6f0f0da8-io",
-          "Content-Type": "application/json"
-        }
-      });
-      if (!goldResponse.ok) throw new Error(`GoldAPI returned status ${goldResponse.status}`);
+      // Primary Gold Fetch: Free, public XAU/USD spot endpoint from api.gold-api.com
+      const goldResponse = await fetch("https://api.gold-api.com/price/XAU");
+      if (!goldResponse.ok) throw new Error(`Primary Gold API returned status ${goldResponse.status}`);
       const goldData = await goldResponse.json();
-      
-      if (goldData && (goldData.price_gram_24k || goldData.price)) {
-        let raw24kGramEgp = 0;
-        if (goldData.price_gram_24k) {
-          raw24kGramEgp = parseFloat(goldData.price_gram_24k);
-        } else if (goldData.price) {
-          raw24kGramEgp = parseFloat(goldData.price) / TROY_OUNCE_TO_GRAM;
+
+      if (goldData && goldData.price) {
+        const spotUsdPerOz = parseFloat(goldData.price);
+        // Numerical boundary check: Spot USD/oz must be between $1,000 and $10,000
+        if (isNaN(spotUsdPerOz) || spotUsdPerOz < 1000 || spotUsdPerOz > 10000) {
+          throw new Error(`Out of bounds Gold spot price returned: $${spotUsdPerOz}`);
         }
-
-        // Always add +1.5% markup as required
-        const gold24kEgpWithMarkup = raw24kGramEgp * 1.015;
-        
-        // Convert to USD base for internal portfolio calculation consistency
-        gold24kUsd = (usdEgpRate * (1 + State.goldPremium / 100)) > 0 
-          ? (gold24kEgpWithMarkup / (usdEgpRate * (1 + State.goldPremium / 100))) 
-          : (gold24kEgpWithMarkup / usdEgpRate);
-
+        gold24kUsd = spotUsdPerOz / TROY_OUNCE_TO_GRAM;
         State.lastGoldApiFetchTime = now;
         goldSuccess = true;
-        console.log(`[GoldAPI.io] Successfully fetched Gold rate: Raw 24k = ${raw24kGramEgp.toFixed(2)} EGP, +1.5% Markup = ${gold24kEgpWithMarkup.toFixed(2)} EGP/g`);
+        console.log(`[GoldAPI] Successfully fetched spot Gold rate: $${spotUsdPerOz.toFixed(2)}/oz ($${gold24kUsd.toFixed(2)}/g USD)`);
       } else {
-        throw new Error("Invalid GoldAPI payload structure");
+        throw new Error("Invalid payload structure from api.gold-api.com");
       }
-    } catch (goldApiErr) {
-      console.warn("[GoldAPI.io] GoldAPI fetch failed, utilizing cached gold rate:", goldApiErr);
+    } catch (primaryGoldErr) {
+      console.warn("[GoldAPI] Primary Gold API failed, trying fallback GoldAPI.io:", primaryGoldErr);
+      try {
+        const fallbackGoldResponse = await fetch("https://www.goldapi.io/api/XAU/EGP", {
+          headers: {
+            "x-access-token": "goldapi-e3308dd9c8ef61770304d1cf6f0f0da8-io",
+            "Content-Type": "application/json"
+          }
+        });
+        if (!fallbackGoldResponse.ok) throw new Error(`Fallback GoldAPI returned status ${fallbackGoldResponse.status}`);
+        const fallbackGoldData = await fallbackGoldResponse.json();
+        
+        if (fallbackGoldData && (fallbackGoldData.price_gram_24k || fallbackGoldData.price)) {
+          let raw24kGramEgp = fallbackGoldData.price_gram_24k ? parseFloat(fallbackGoldData.price_gram_24k) : parseFloat(fallbackGoldData.price) / TROY_OUNCE_TO_GRAM;
+          if (isNaN(raw24kGramEgp) || raw24kGramEgp <= 0) throw new Error("Invalid gold numbers");
+          const gold24kEgpWithMarkup = raw24kGramEgp * 1.015;
+          gold24kUsd = (usdEgpRate * (1 + State.goldPremium / 100)) > 0 
+            ? (gold24kEgpWithMarkup / (usdEgpRate * (1 + State.goldPremium / 100))) 
+            : (gold24kEgpWithMarkup / usdEgpRate);
+
+          State.lastGoldApiFetchTime = now;
+          goldSuccess = true;
+          console.log(`[GoldAPI Fallback] Successfully fetched Gold rate: ${raw24kGramEgp.toFixed(2)} EGP/g`);
+        } else {
+          throw new Error("Invalid fallback Gold payload structure");
+        }
+      } catch (fallbackGoldErr) {
+        console.warn("[GoldAPI] All Gold APIs failed, utilizing cached spot gold rate:", fallbackGoldErr);
+      }
     }
   } else {
-    goldSuccess = true; // Utilizing cached rate within 8-hour window
-    console.log(`[GoldAPI.io] Utilizing 8-hour cached Gold rate (${Math.round((EIGHT_HOURS_MS - timeSinceLastGoldFetch) / (1000 * 60))} mins remaining until next API quota call).`);
+    goldSuccess = true; // Utilizing cached rate within window
   }
 
   const fetchError = (!fxSuccess && !goldSuccess);
@@ -327,7 +350,11 @@ async function fetchLiveRates(forceGoldApi = false) {
 
   // Update visual indicators of API status
   if (statusDot && statusBadge) {
-    if (fetchError) {
+    if (State.isManualGold) {
+      statusDot.className = "rate-dot live";
+      statusBadge.textContent = "Live FX + Manual Gold";
+      statusBadge.className = "api-status-badge positive";
+    } else if (fetchError) {
       statusDot.className = "rate-dot error";
       statusBadge.textContent = "Rates Cached (Offline)";
       statusBadge.className = "api-status-badge negative";
@@ -499,7 +526,12 @@ function getAssetValuations(holdings, currency) {
   const usdAudRate = State.cachedUsdAud;
   const gold24kUsdPerGram = State.cachedGold24kUsd;
   
-  const gold24kEgpPerGram = gold24kUsdPerGram * usdEgpRate * (1 + State.goldPremium / 100);
+  let gold24kEgpPerGram = 0;
+  if (State.isManualGold && State.manualGold24kEgp > 0) {
+    gold24kEgpPerGram = State.manualGold24kEgp;
+  } else {
+    gold24kEgpPerGram = gold24kUsdPerGram * usdEgpRate * (1 + State.goldPremium / 100);
+  }
   const gold21kEgpPerGram = gold24kEgpPerGram * GOLD_21K_RATIO;
   
   let usd = 0;
@@ -544,8 +576,13 @@ function updateDashboardUI(force = false) {
   const usdAudRate = State.cachedUsdAud;
   const gold24kUsdPerGram = State.cachedGold24kUsd;
   
-  // Calculate local Egyptian Gold Price (spot converted to EGP + local premium markup)
-  const gold24kEgpPerGram = gold24kUsdPerGram * usdEgpRate * (1 + State.goldPremium / 100);
+  // Calculate local Egyptian Gold Price
+  let gold24kEgpPerGram = 0;
+  if (State.isManualGold && State.manualGold24kEgp > 0) {
+    gold24kEgpPerGram = State.manualGold24kEgp;
+  } else {
+    gold24kEgpPerGram = gold24kUsdPerGram * usdEgpRate * (1 + State.goldPremium / 100);
+  }
   const gold21kEgpPerGram = gold24kEgpPerGram * GOLD_21K_RATIO;
   
   // 1. Calculate dynamic valuations and Net Worth totals
@@ -686,8 +723,20 @@ function updateDashboardUI(force = false) {
   }
 
   // Display Egyptian gold rates in EGP in the header
-  document.getElementById("rate-gold-24k").innerHTML = `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`;
-  document.getElementById("rate-gold-21k").innerHTML = `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold21kArrow}`;
+  const manualBadgeHtml = State.isManualGold ? ` <span class="manual-badge" title="Manual Gold Price Override">Manual</span>` : "";
+  const el24k = document.getElementById("rate-gold-24k");
+  if (el24k) {
+    el24k.innerHTML = State.isManualGold 
+      ? `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${manualBadgeHtml}`
+      : `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`;
+  }
+
+  const el21k = document.getElementById("rate-gold-21k");
+  if (el21k) {
+    el21k.innerHTML = State.isManualGold 
+      ? `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${manualBadgeHtml}`
+      : `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold21kArrow}`;
+  }
   document.getElementById("last-updated-time").textContent = State.lastFetchedTime || "Never";
 
   // --- 3. Update Financial Goals Tracking Panel ---
@@ -2037,6 +2086,138 @@ function setupModalListeners() {
       }
     });
   }
+
+  // --- Gold Rate Modal Setup ---
+  setupGoldRateModal();
+}
+
+function setupGoldRateModal() {
+  const goldModal = document.getElementById("gold-rate-modal");
+  const editGoldBtn = document.getElementById("edit-gold-rate-btn");
+  const pill24k = document.getElementById("pill-gold-24k");
+  const pill21k = document.getElementById("pill-gold-21k");
+  const closeGoldBtn = document.getElementById("close-gold-modal");
+  const cancelGoldBtn = document.getElementById("cancel-gold-btn");
+  const resetGoldLiveBtn = document.getElementById("reset-gold-live-btn");
+  const goldRateForm = document.getElementById("gold-rate-form");
+  
+  const modeAutoBtn = document.getElementById("gold-mode-auto");
+  const modeManualBtn = document.getElementById("gold-mode-manual");
+  const modeHelp = document.getElementById("gold-mode-help");
+  const manualFields = document.getElementById("manual-gold-fields");
+  
+  const input24k = document.getElementById("manual-gold-24k-input");
+  const input21k = document.getElementById("manual-gold-21k-input");
+  const inputPremium = document.getElementById("gold-premium-input");
+
+  let activeMode = State.isManualGold ? "manual" : "auto";
+
+  const setModeUI = (mode) => {
+    activeMode = mode;
+    if (mode === "manual") {
+      if (modeManualBtn) modeManualBtn.classList.add("active");
+      if (modeAutoBtn) modeAutoBtn.classList.remove("active");
+      if (manualFields) manualFields.style.display = "block";
+      if (modeHelp) modeHelp.textContent = "Manual Override active. Enter custom gold rates per gram below.";
+    } else {
+      if (modeAutoBtn) modeAutoBtn.classList.add("active");
+      if (modeManualBtn) modeManualBtn.classList.remove("active");
+      if (manualFields) manualFields.style.display = "none";
+      if (modeHelp) modeHelp.textContent = "Auto mode fetches live spot gold prices automatically. Switch to Manual Override to set custom market prices.";
+    }
+  };
+
+  const openGoldModal = () => {
+    if (!goldModal) return;
+    const usdEgpRate = State.cachedUsdEgp || 49.93;
+    const gold24kEgp = State.isManualGold && State.manualGold24kEgp > 0 
+      ? State.manualGold24kEgp 
+      : (State.cachedGold24kUsd * usdEgpRate * (1 + State.goldPremium / 100));
+
+    if (inputPremium) inputPremium.value = State.goldPremium || 2.5;
+    if (input24k) input24k.value = gold24kEgp ? gold24kEgp.toFixed(2) : "";
+    if (input21k) input21k.value = gold24kEgp ? (gold24kEgp * GOLD_21K_RATIO).toFixed(2) : "";
+
+    setModeUI(State.isManualGold ? "manual" : "auto");
+
+    goldModal.style.display = "flex";
+    setTimeout(() => goldModal.classList.add("active"), 10);
+  };
+
+  const hideGoldModal = () => {
+    if (!goldModal) return;
+    goldModal.classList.remove("active");
+    setTimeout(() => goldModal.style.display = "none", 300);
+  };
+
+  if (editGoldBtn) editGoldBtn.addEventListener("click", openGoldModal);
+  if (pill24k) pill24k.addEventListener("click", openGoldModal);
+  if (pill21k) pill21k.addEventListener("click", openGoldModal);
+
+  if (closeGoldBtn) closeGoldBtn.addEventListener("click", hideGoldModal);
+  if (cancelGoldBtn) cancelGoldBtn.addEventListener("click", hideGoldModal);
+
+  if (modeAutoBtn) modeAutoBtn.addEventListener("click", () => setModeUI("auto"));
+  if (modeManualBtn) modeManualBtn.addEventListener("click", () => setModeUI("manual"));
+
+  // Bidirectional input syncing for 24k <-> 21k
+  if (input24k) {
+    input24k.addEventListener("input", () => {
+      const val24k = parseFloat(input24k.value);
+      if (!isNaN(val24k) && val24k >= 0 && input21k) {
+        input21k.value = (val24k * GOLD_21K_RATIO).toFixed(2);
+      }
+    });
+  }
+
+  if (input21k) {
+    input21k.addEventListener("input", () => {
+      const val21k = parseFloat(input21k.value);
+      if (!isNaN(val21k) && val21k >= 0 && input24k) {
+        input24k.value = (val21k / GOLD_21K_RATIO).toFixed(2);
+      }
+    });
+  }
+
+  if (goldRateForm) {
+    goldRateForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const parsedPremium = parseFloat(inputPremium.value);
+      if (!isNaN(parsedPremium) && parsedPremium >= 0) {
+        State.goldPremium = parsedPremium;
+      }
+
+      if (activeMode === "manual") {
+        const val24k = parseFloat(input24k.value);
+        if (!isNaN(val24k) && val24k > 0) {
+          State.isManualGold = true;
+          State.manualGold24kEgp = val24k;
+
+          const usdEgp = State.cachedUsdEgp || 49.93;
+          const denom = usdEgp * (1 + State.goldPremium / 100);
+          State.cachedGold24kUsd = denom > 0 ? (val24k / denom) : (val24k / usdEgp);
+        }
+      } else {
+        State.isManualGold = false;
+        State.manualGold24kEgp = null;
+        fetchLiveRates(true);
+      }
+
+      State.save();
+      updateDashboardUI();
+      hideGoldModal();
+    });
+  }
+
+  if (resetGoldLiveBtn) {
+    resetGoldLiveBtn.addEventListener("click", () => {
+      State.isManualGold = false;
+      State.manualGold24kEgp = null;
+      State.save();
+      fetchLiveRates(true);
+      hideGoldModal();
+    });
+  }
 }
 
 // --- APP LOADER SCREEN CONTROLS ---
@@ -2437,6 +2618,8 @@ function handleIncomingCloudState(data) {
   
   if (data.cachedUsdEgp !== undefined) State.cachedUsdEgp = Number(data.cachedUsdEgp);
   if (data.cachedGold24kUsd !== undefined) State.cachedGold24kUsd = Number(data.cachedGold24kUsd);
+  if (data.isManualGold !== undefined) State.isManualGold = Boolean(data.isManualGold);
+  if (data.manualGold24kEgp !== undefined && data.manualGold24kEgp !== null) State.manualGold24kEgp = Number(data.manualGold24kEgp);
   if (data.lastFetchedTime !== undefined) State.lastFetchedTime = data.lastFetchedTime;
   if (data.usdEgpTrend !== undefined) State.usdEgpTrend = data.usdEgpTrend;
   if (data.gold24kTrend !== undefined) State.gold24kTrend = data.gold24kTrend;

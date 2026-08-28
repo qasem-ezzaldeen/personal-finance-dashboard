@@ -2010,3 +2010,42 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Gold Rate Pills & Manual Mode Badge */
+.gold-rate-pill {
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border-radius: 6px;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.gold-rate-pill:hover {
+  background: rgba(234, 179, 8, 0.12);
+}
+
+.edit-gold-btn {
+  font-size: 0.85rem;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  color: var(--color-gold);
+}
+
+.edit-gold-btn:hover {
+  background: rgba(234, 179, 8, 0.25);
+  transform: scale(1.05);
+}
+
+.manual-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: rgba(234, 179, 8, 0.2);
+  color: var(--color-gold);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  margin-left: 0.35rem;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
