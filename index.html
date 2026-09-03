@@ -790,10 +790,28 @@
         <span class="chatbot-status-dot"></span>
         <div class="chatbot-header-text">
           <h3>Aura Assistant</h3>
-          <p>Online</p>
+          <p id="chatbot-status-text">Online</p>
         </div>
       </div>
-      <button id="chatbot-close" class="chatbot-close-btn" title="Minimize Chat" type="button">✕</button>
+      <div style="display: flex; align-items: center; gap: 0.35rem;">
+        <button id="chatbot-settings-toggle" class="chatbot-icon-btn" title="AI API Key Settings" type="button">⚙️</button>
+        <button id="chatbot-close" class="chatbot-close-btn" title="Minimize Chat" type="button">✕</button>
+      </div>
+    </div>
+
+    <!-- Chatbot API Key Settings Panel (Collapsible) -->
+    <div id="chatbot-api-panel" class="chatbot-api-panel" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-gold);">🔑 Google Gemini / Groq API Key</span>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="font-size: 0.72rem; color: var(--color-savings); text-decoration: underline; font-weight: 600;">Get Free Key ↗</a>
+      </div>
+      <div style="display: flex; gap: 0.35rem;">
+        <input type="password" id="chatbot-api-key-input" placeholder="Paste Gemini (AIza...) or Groq key" autocomplete="off" style="flex: 1; padding: 0.35rem 0.6rem; font-size: 0.75rem; border-radius: 6px; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); outline: none;">
+        <button type="button" id="chatbot-save-api-key-btn" style="padding: 0.35rem 0.75rem; font-size: 0.75rem; font-weight: 700; background: var(--color-gold); color: #000; border: none; border-radius: 6px; cursor: pointer;">Save</button>
+      </div>
+      <p style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.35rem; margin-bottom: 0;">
+        100% free lifetime at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--color-savings); text-decoration: underline;">aistudio.google.com</a> (no credit card needed).
+      </p>
     </div>
     
     <div id="chatbot-messages" class="chatbot-messages">

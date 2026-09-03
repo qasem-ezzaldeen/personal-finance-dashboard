@@ -1797,6 +1797,28 @@ body {
   color: var(--text-primary);
 }
 
+.chatbot-icon-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.2rem;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.chatbot-icon-btn:hover {
+  color: var(--color-gold);
+  transform: scale(1.1);
+}
+
+.chatbot-api-panel {
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid var(--card-border);
+  padding: 0.75rem 1rem;
+  animation: chatbot-fade-in 0.2s ease-out;
+}
+
 .chatbot-messages {
   flex: 1;
   padding: 1.25rem;
