@@ -100,6 +100,11 @@ const State = {
   transactions: [],
   goals: [], // Dynamic goals
   
+  // Stock market state
+  stockPrices: { "SPUS": 58.62 },
+  stockTrends: { "SPUS": "neutral" },
+  followedStockKpis: [],
+
   // Rate caching
   cachedUsdEgp: 49.93, // Default fallback
   cachedUsdAud: 1.50, // Default fallback for AUD
@@ -136,6 +141,9 @@ const State = {
       upcomingIncome: this.upcomingIncome,
       transactions: this.transactions,
       goals: this.goals,
+      stockPrices: this.stockPrices,
+      stockTrends: this.stockTrends,
+      followedStockKpis: this.followedStockKpis,
       cachedUsdAud: this.cachedUsdAud,
       cachedAudEgp: this.cachedAudEgp,
       usdAudTrend: this.usdAudTrend,
@@ -180,11 +188,110 @@ const State = {
 const TROY_OUNCE_TO_GRAM = 31.1034768;
 const GOLD_21K_RATIO = 0.875; // 21k gold is 21/24 = 87.5% purity
 
+// Stock benchmarks for instant zero-latency loading and offline fallback
+const DEFAULT_STOCK_PRICES = {
+  "SPUS": 58.62,
+  "HLAL": 47.85,
+  "AAPL": 224.23,
+  "MSFT": 417.88,
+  "NVDA": 119.37,
+  "AMZN": 178.50,
+  "GOOGL": 163.40,
+  "TSLA": 210.10,
+  "SPY": 558.12,
+  "QQQ": 478.30,
+  "VOO": 512.45
+};
+
+/**
+ * Fetches live stock/ETF price from financial APIs with intelligent multi-tier fallback.
+ */
+async function fetchStockPrice(symbol) {
+  if (!symbol) return 0;
+  const sym = symbol.trim().toUpperCase();
+  let price = null;
+
+  // 1. Try Twelve Data CORS-friendly quote endpoint
+  try {
+    const res = await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(sym)}&apikey=demo`, { method: "GET" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.price && !isNaN(parseFloat(data.price))) {
+        price = parseFloat(data.price);
+        console.log(`[Stock API] Successfully fetched ${sym} from TwelveData: $${price}`);
+      }
+    }
+  } catch (err) {
+    // Silently continue to fallback
+  }
+
+  // 2. Try Yahoo Finance chart endpoint
+  if (!price) {
+    try {
+      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`);
+      if (res.ok) {
+        const data = await res.json();
+        const marketPrice = data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+        if (marketPrice && !isNaN(parseFloat(marketPrice))) {
+          price = parseFloat(marketPrice);
+          console.log(`[Stock API] Successfully fetched ${sym} from Yahoo Finance: $${price}`);
+        }
+      }
+    } catch (err) {
+      // Silently continue to fallback
+    }
+  }
+
+  // 3. Fallback to cached or benchmark price
+  if (!price) {
+    if (State.stockPrices && State.stockPrices[sym]) {
+      price = State.stockPrices[sym];
+    } else if (DEFAULT_STOCK_PRICES[sym]) {
+      price = DEFAULT_STOCK_PRICES[sym];
+    } else {
+      price = 50.00;
+    }
+  }
+
+  if (!State.stockPrices) State.stockPrices = {};
+  if (!State.stockTrends) State.stockTrends = {};
+
+  const prevPrice = State.stockPrices[sym];
+  if (prevPrice && prevPrice !== price) {
+    State.stockTrends[sym] = price > prevPrice ? "up" : "down";
+  } else if (!State.stockTrends[sym]) {
+    State.stockTrends[sym] = "neutral";
+  }
+
+  State.stockPrices[sym] = price;
+  return price;
+}
+
+/**
+ * Fetches quotes for all tracked stocks: SPUS, followed top-bar KPIs, and stock assets.
+ */
+async function fetchAllTrackedStocks() {
+  const tickers = new Set(["SPUS"]);
+  if (Array.isArray(State.followedStockKpis)) {
+    State.followedStockKpis.forEach(t => tickers.add(t.toUpperCase()));
+  }
+  if (Array.isArray(State.assets)) {
+    State.assets.forEach(a => {
+      if (a.currency === "Stock" && a.ticker) {
+        tickers.add(a.ticker.toUpperCase());
+      }
+    });
+  }
+
+  const fetchPromises = Array.from(tickers).map(t => fetchStockPrice(t));
+  await Promise.allSettled(fetchPromises);
+}
+
 /**
  * Fetches live financial rates:
  * 1. FX Rates: USD/EGP & USD/AUD via ExchangeRate-API.
- * 2. Live Gold Rate: GoldAPI.io (https://www.goldapi.io/api/XAU/EGP) with +1.5% markup.
- * Rate-limited to max 3 requests per day (once per 8 hours = 28,800,000 ms) to preserve the 100 req/month quota.
+ * 2. Live Gold Rate: GoldAPI.io with markup.
+ * 3. US Stock & ETF Quotes (SPUS & followed tickers).
  */
 async function fetchLiveRates(forceGoldApi = false) {
   const refreshBtn = document.getElementById("manual-refresh-btn");
@@ -365,6 +472,9 @@ async function fetchLiveRates(forceGoldApi = false) {
     }
   }
   
+  // Fetch live prices for all tracked stocks/ETFs
+  await fetchAllTrackedStocks();
+
   // Stop spinner animation
   if (refreshIcon) {
     setTimeout(() => refreshIcon.classList.remove("spinning"), 500);
@@ -521,7 +631,7 @@ function showResetBannerAndModal() {
 /**
  * Calculates dynamic valuations for a given holding and currency in USD, AUD, and EGP.
  */
-function getAssetValuations(holdings, currency) {
+function getAssetValuations(holdings, currency, asset = null) {
   const usdEgpRate = State.cachedUsdEgp;
   const usdAudRate = State.cachedUsdAud;
   const gold24kUsdPerGram = State.cachedGold24kUsd;
@@ -540,6 +650,14 @@ function getAssetValuations(holdings, currency) {
   
   if (currency === "USD") {
     usd = holdings;
+    aud = usd * usdAudRate;
+    egp = usd * usdEgpRate;
+  } else if (currency === "Stock") {
+    const ticker = (asset && asset.ticker) ? asset.ticker.toUpperCase() : "SPUS";
+    const pricePerShare = (State.stockPrices && State.stockPrices[ticker] !== undefined)
+      ? State.stockPrices[ticker]
+      : ((asset && asset.stockPrice) ? asset.stockPrice : 58.62);
+    usd = holdings * pricePerShare;
     aud = usd * usdAudRate;
     egp = usd * usdEgpRate;
   } else if (currency === "AUD") {
@@ -603,7 +721,7 @@ function updateDashboardUI(force = false) {
       if ((asset.id === "paypal" || asset.name.toLowerCase() === "paypal") && asset.holdings === 0) {
         return;
       }
-      const { usd, aud, egp } = getAssetValuations(asset.holdings, asset.currency);
+      const { usd, aud, egp } = getAssetValuations(asset.holdings, asset.currency, asset);
       
       totalNetWorthUsd += usd;
       totalNetWorthAud += aud;
@@ -612,6 +730,12 @@ function updateDashboardUI(force = false) {
       let holdingsText = "";
       if (asset.currency === "USD") {
         holdingsText = `$${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      } else if (asset.currency === "Stock") {
+        const ticker = (asset.ticker || "SPUS").toUpperCase();
+        const price = (State.stockPrices && State.stockPrices[ticker] !== undefined)
+          ? State.stockPrices[ticker]
+          : (asset.stockPrice || 58.62);
+        holdingsText = `<span class="stock-badge-tag">${ticker}</span>${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 4})} shares <span style="color: var(--text-muted); font-size: 0.72rem;">(@ $${price.toFixed(2)})</span>`;
       } else if (asset.currency === "AUD") {
         holdingsText = `${asset.holdings.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
       } else if (asset.currency === "EGP") {
@@ -634,7 +758,6 @@ function updateDashboardUI(force = false) {
           </td>
           <td class="asset-holdings">${holdingsText}</td>
           <td class="text-right font-medium text-primary">$${usd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-          <td class="text-right font-medium text-secondary">$${aud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
           <td class="text-right font-medium text-secondary">${egp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
         </tr>
       `;
@@ -663,7 +786,6 @@ function updateDashboardUI(force = false) {
         </td>
         <td class="asset-holdings">$${State.upcomingIncome.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
         <td class="text-right font-medium text-primary">$${upUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-        <td class="text-right font-medium text-secondary">$${upAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
         <td class="text-right font-medium text-secondary">${upEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
       </tr>
     `;
@@ -675,7 +797,6 @@ function updateDashboardUI(force = false) {
         <td class="asset-name font-bold">Total Net Worth</td>
         <td class="asset-holdings">-</td>
         <td class="text-right font-extrabold value-highlight-usd">$${totalNetWorthUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-        <td class="text-right font-extrabold value-highlight-aud">$${totalNetWorthAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD</td>
         <td class="text-right font-extrabold value-highlight-egp">${totalNetWorthEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</td>
       </tr>
     `;
@@ -709,17 +830,49 @@ function updateDashboardUI(force = false) {
   };
 
   const usdEgpArrow = getTrendArrowHTML(State.usdEgpTrend);
-  const audEgpArrow = getTrendArrowHTML(State.audEgpTrend || State.usdAudTrend);
   const gold24kArrow = getTrendArrowHTML(State.gold24kTrend);
   const gold21kArrow = getTrendArrowHTML(State.gold21kTrend);
 
   // --- 1. Update Rates Bar & Sync Timestamps ---
   document.getElementById("rate-usd-egp").innerHTML = `${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}`;
   
-  const audEgpRate = State.cachedAudEgp || (usdAudRate > 0 ? (usdEgpRate / usdAudRate) : 0);
-  const rateAudEgpEl = document.getElementById("rate-aud-egp") || document.getElementById("rate-usd-aud");
-  if (rateAudEgpEl) {
-    rateAudEgpEl.innerHTML = `${audEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${audEgpArrow}`;
+  // SPUS Live Stock Price in Top Rates Bar
+  const spusPrice = (State.stockPrices && State.stockPrices["SPUS"] !== undefined) ? State.stockPrices["SPUS"] : 58.62;
+  const spusTrend = (State.stockTrends && State.stockTrends["SPUS"]) ? State.stockTrends["SPUS"] : "neutral";
+  const spusArrow = getTrendArrowHTML(spusTrend);
+  const rateSpusEl = document.getElementById("rate-stock-spus");
+  if (rateSpusEl) {
+    rateSpusEl.innerHTML = `$${spusPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}${spusArrow}`;
+  }
+
+  // Render Followed Stocks Pills in Top Rates Bar
+  const followedContainer = document.getElementById("followed-stocks-container");
+  if (followedContainer) {
+    const followedList = State.followedStockKpis || [];
+    followedContainer.innerHTML = followedList.map(ticker => {
+      const uTicker = ticker.toUpperCase();
+      const p = (State.stockPrices && State.stockPrices[uTicker] !== undefined) ? State.stockPrices[uTicker] : 0;
+      const t = (State.stockTrends && State.stockTrends[uTicker]) ? State.stockTrends[uTicker] : "neutral";
+      const arrow = getTrendArrowHTML(t);
+      const priceStr = p > 0 ? `$${p.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "--.--";
+      return `
+        <div class="rate-pill stock-rate-pill followed-stock-pill" data-ticker="${uTicker}" title="${uTicker} Live Stock Price">
+          <span class="rate-label">${uTicker}:</span>
+          <span class="rate-value">${priceStr}${arrow}</span>
+          <button class="stock-pill-remove-btn" title="Unfollow ${uTicker}" data-ticker="${uTicker}" type="button">×</button>
+        </div>
+      `;
+    }).join("");
+
+    followedContainer.querySelectorAll(".stock-pill-remove-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const t = btn.getAttribute("data-ticker");
+        if (t) {
+          unfollowStock(t);
+        }
+      });
+    });
   }
 
   // Display Egyptian gold rates in EGP in the header
@@ -1167,6 +1320,29 @@ function triggerRevertWorkflow(tx) {
   }
 }
 
+// Helper to unfollow a stock from the top KPI bar
+function unfollowStock(ticker) {
+  if (!ticker) return;
+  const uTicker = ticker.toUpperCase();
+  if (State.followedStockKpis) {
+    State.followedStockKpis = State.followedStockKpis.filter(t => t.toUpperCase() !== uTicker);
+    State.save();
+    updateDashboardUI();
+  }
+}
+
+// Helper to update stock price preview inside Asset Modal
+function updateStockPriceDisplayInAssetModal() {
+  const tickerInput = document.getElementById("asset-stock-ticker-input");
+  const displayEl = document.getElementById("stock-market-price-display");
+  if (!tickerInput || !displayEl) return;
+  const sym = (tickerInput.value.trim() || "SPUS").toUpperCase();
+  const price = (State.stockPrices && State.stockPrices[sym] !== undefined)
+    ? State.stockPrices[sym]
+    : (DEFAULT_STOCK_PRICES[sym] || 58.62);
+  displayEl.textContent = `$${price.toFixed(2)} USD`;
+}
+
 // --- DYNAMIC ASSETS MODAL HELPERS ---
 function openAssetModal(asset = null) {
   const modal = document.getElementById("asset-modal");
@@ -1176,6 +1352,9 @@ function openAssetModal(asset = null) {
   const categoryInput = document.getElementById("asset-category-input");
   const currencySelect = document.getElementById("asset-currency-select");
   const holdingsInput = document.getElementById("asset-holdings-input");
+  const holdingsLabel = document.getElementById("asset-holdings-label");
+  const stockFieldsGroup = document.getElementById("stock-fields-group");
+  const stockTickerInput = document.getElementById("asset-stock-ticker-input");
   const deleteBtn = document.getElementById("delete-asset-btn");
   const colorPicker = document.getElementById("asset-color-picker");
 
@@ -1192,10 +1371,21 @@ function openAssetModal(asset = null) {
     idInput.value = asset.id;
     nameInput.value = asset.name;
     categoryInput.value = asset.category;
-    currencySelect.value = asset.currency;
+    currencySelect.value = asset.currency === "AUD" ? "USD" : asset.currency;
     holdingsInput.value = asset.holdings;
     colorPicker.value = asset.color || "#22c55e";
     
+    if (asset.currency === "Stock") {
+      if (stockFieldsGroup) stockFieldsGroup.style.display = "block";
+      if (holdingsLabel) holdingsLabel.textContent = "Number of Shares";
+      if (stockTickerInput) stockTickerInput.value = (asset.ticker || "SPUS").toUpperCase();
+      updateStockPriceDisplayInAssetModal();
+    } else {
+      if (stockFieldsGroup) stockFieldsGroup.style.display = "none";
+      if (holdingsLabel) holdingsLabel.textContent = "Holdings / Amount";
+      if (stockTickerInput) stockTickerInput.value = "";
+    }
+
     // Highlight matching dot option if active
     const matchingDot = document.querySelector(`.color-dot-option[data-color="${asset.color}"]`);
     if (matchingDot) {
@@ -1212,6 +1402,10 @@ function openAssetModal(asset = null) {
     currencySelect.value = "USD";
     holdingsInput.value = "";
     colorPicker.value = "#22c55e";
+
+    if (stockFieldsGroup) stockFieldsGroup.style.display = "none";
+    if (holdingsLabel) holdingsLabel.textContent = "Holdings / Amount";
+    if (stockTickerInput) stockTickerInput.value = "";
 
     // Highlight green by default
     const greenDot = document.querySelector(`.color-dot-option[data-color="#22c55e"]`);
@@ -1496,6 +1690,47 @@ function setupModalListeners() {
     });
   }
 
+  // Handle asset currency changes for Stock / ETF mode
+  const assetCurrencySelect = document.getElementById("asset-currency-select");
+  const stockFieldsGroup = document.getElementById("stock-fields-group");
+  const assetHoldingsLabel = document.getElementById("asset-holdings-label");
+  const assetStockTickerInput = document.getElementById("asset-stock-ticker-input");
+  const stockTickerSuggestions = document.getElementById("stock-ticker-suggestions");
+
+  if (assetCurrencySelect) {
+    assetCurrencySelect.addEventListener("change", () => {
+      if (assetCurrencySelect.value === "Stock") {
+        if (stockFieldsGroup) stockFieldsGroup.style.display = "block";
+        if (assetHoldingsLabel) assetHoldingsLabel.textContent = "Number of Shares";
+        if (assetStockTickerInput && !assetStockTickerInput.value.trim()) {
+          assetStockTickerInput.value = "SPUS";
+        }
+        updateStockPriceDisplayInAssetModal();
+      } else {
+        if (stockFieldsGroup) stockFieldsGroup.style.display = "none";
+        if (assetHoldingsLabel) assetHoldingsLabel.textContent = "Holdings / Amount";
+      }
+    });
+  }
+
+  if (stockTickerSuggestions) {
+    stockTickerSuggestions.addEventListener("click", (e) => {
+      if (e.target.classList.contains("stock-chip")) {
+        const sym = e.target.textContent.trim().toUpperCase();
+        if (assetStockTickerInput) {
+          assetStockTickerInput.value = sym;
+          updateStockPriceDisplayInAssetModal();
+        }
+      }
+    });
+  }
+
+  if (assetStockTickerInput) {
+    assetStockTickerInput.addEventListener("input", () => {
+      updateStockPriceDisplayInAssetModal();
+    });
+  }
+
   if (assetForm) {
     assetForm.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -1507,12 +1742,32 @@ function setupModalListeners() {
       const holdings = parseFloat(document.getElementById("asset-holdings-input").value);
       const color = colorPicker ? colorPicker.value : "#22c55e";
 
+      let ticker = "";
+      let stockPrice = 0;
+      if (currency === "Stock") {
+        const tickerInput = document.getElementById("asset-stock-ticker-input");
+        ticker = (tickerInput ? tickerInput.value.trim() : "SPUS").toUpperCase() || "SPUS";
+        stockPrice = (State.stockPrices && State.stockPrices[ticker] !== undefined)
+          ? State.stockPrices[ticker]
+          : (DEFAULT_STOCK_PRICES[ticker] || 58.62);
+        // Trigger live price refresh in background
+        fetchStockPrice(ticker).then(() => updateDashboardUI());
+      }
+
       if (name && category && currency && !isNaN(holdings) && holdings >= 0) {
         if (id) {
           // Edit mode
           const idx = State.assets.findIndex(a => a.id === id);
           if (idx !== -1) {
-            State.assets[idx] = { id, name, category, currency, holdings, color };
+            State.assets[idx] = { 
+              id, 
+              name, 
+              category, 
+              currency, 
+              holdings, 
+              color,
+              ...(currency === "Stock" ? { ticker, stockPrice } : {})
+            };
           }
         } else {
           // Add mode
@@ -1522,7 +1777,8 @@ function setupModalListeners() {
             category,
             currency,
             holdings,
-            color
+            color,
+            ...(currency === "Stock" ? { ticker, stockPrice } : {})
           };
           State.assets.push(newAsset);
         }
@@ -1530,6 +1786,92 @@ function setupModalListeners() {
         State.save();
         hideAssetModal();
         updateDashboardUI();
+      }
+    });
+  }
+
+  // --- Follow Stock / ETF KPI Modal Handlers ---
+  const addStockKpiBtn = document.getElementById("add-stock-kpi-btn");
+  const stockKpiModal = document.getElementById("stock-kpi-modal");
+  const closeStockKpiModalBtn = document.getElementById("close-stock-kpi-modal");
+  const cancelStockKpiBtn = document.getElementById("cancel-stock-kpi-btn");
+  const stockKpiForm = document.getElementById("stock-kpi-form");
+  const kpiTickerInput = document.getElementById("kpi-ticker-input");
+  const kpiTickerSuggestions = document.getElementById("kpi-ticker-suggestions");
+  const kpiPreviewCard = document.getElementById("kpi-preview-card");
+  const kpiPreviewTicker = document.getElementById("kpi-preview-ticker");
+  const kpiPreviewPrice = document.getElementById("kpi-preview-price");
+
+  const openStockKpiModal = () => {
+    if (!stockKpiModal) return;
+    if (kpiTickerInput) kpiTickerInput.value = "";
+    if (kpiPreviewCard) kpiPreviewCard.style.display = "none";
+    stockKpiModal.style.display = "flex";
+    setTimeout(() => stockKpiModal.classList.add("active"), 10);
+    if (kpiTickerInput) kpiTickerInput.focus();
+  };
+
+  const hideStockKpiModal = () => {
+    if (!stockKpiModal) return;
+    stockKpiModal.classList.remove("active");
+    setTimeout(() => stockKpiModal.style.display = "none", 300);
+  };
+
+  if (addStockKpiBtn) addStockKpiBtn.addEventListener("click", openStockKpiModal);
+  if (closeStockKpiModalBtn) closeStockKpiModalBtn.addEventListener("click", hideStockKpiModal);
+  if (cancelStockKpiBtn) cancelStockKpiBtn.addEventListener("click", hideStockKpiModal);
+
+  const updateKpiPreview = async (sym) => {
+    if (!sym || !sym.trim()) {
+      if (kpiPreviewCard) kpiPreviewCard.style.display = "none";
+      return;
+    }
+    const cleanSym = sym.trim().toUpperCase();
+    if (kpiPreviewTicker) kpiPreviewTicker.textContent = cleanSym;
+    let price = State.stockPrices ? State.stockPrices[cleanSym] : null;
+    if (!price) {
+      price = DEFAULT_STOCK_PRICES[cleanSym] || 50.00;
+      fetchStockPrice(cleanSym).then(p => {
+        if (kpiPreviewPrice && p) kpiPreviewPrice.textContent = `$${p.toFixed(2)}`;
+      });
+    }
+    if (kpiPreviewPrice) {
+      kpiPreviewPrice.textContent = `$${(price || 0).toFixed(2)}`;
+    }
+    if (kpiPreviewCard) kpiPreviewCard.style.display = "block";
+  };
+
+  if (kpiTickerSuggestions) {
+    kpiTickerSuggestions.addEventListener("click", (e) => {
+      if (e.target.classList.contains("stock-kpi-chip")) {
+        const sym = e.target.textContent.trim().toUpperCase();
+        if (kpiTickerInput) {
+          kpiTickerInput.value = sym;
+          updateKpiPreview(sym);
+        }
+      }
+    });
+  }
+
+  if (kpiTickerInput) {
+    kpiTickerInput.addEventListener("input", (e) => {
+      updateKpiPreview(e.target.value);
+    });
+  }
+
+  if (stockKpiForm) {
+    stockKpiForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const sym = (kpiTickerInput ? kpiTickerInput.value : "").trim().toUpperCase();
+      if (sym) {
+        if (!State.followedStockKpis) State.followedStockKpis = [];
+        if (!State.followedStockKpis.includes(sym) && sym !== "SPUS") {
+          State.followedStockKpis.push(sym);
+          await fetchStockPrice(sym);
+          State.save();
+          updateDashboardUI();
+        }
+        hideStockKpiModal();
       }
     });
   }
@@ -2583,7 +2925,7 @@ function checkZakatStreak(totalNetWorthEgp, gold24kEgpPerGram, totalNetWorthUsd,
         dueUsdEl.textContent = `$${dueUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
       }
       if (dueEgpEl) {
-        dueEgpEl.textContent = `${dueEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP | $${dueAud.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} AUD`;
+        dueEgpEl.textContent = `${dueEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
       }
     } else {
       zakatBanner.style.display = "none";
@@ -2611,6 +2953,16 @@ function handleIncomingCloudState(data) {
     State.goals = data.goals;
   } else {
     State.goals = getDefaultGoals();
+  }
+  
+  if (data.stockPrices !== undefined) {
+    State.stockPrices = { ...State.stockPrices, ...data.stockPrices };
+  }
+  if (data.stockTrends !== undefined) {
+    State.stockTrends = data.stockTrends;
+  }
+  if (data.followedStockKpis !== undefined) {
+    State.followedStockKpis = data.followedStockKpis;
   }
   
   if (data.cachedUsdAud !== undefined) State.cachedUsdAud = Number(data.cachedUsdAud);

@@ -113,10 +113,14 @@
           <span class="rate-label">Gold 21k/g:</span>
           <span class="rate-value" id="rate-gold-21k">--.-- EGP</span>
         </div>
-        <div class="rate-pill">
-          <span class="rate-label">AUD/EGP:</span>
-          <span class="rate-value" id="rate-aud-egp">--.-- EGP</span>
+        <div class="rate-pill stock-rate-pill" id="pill-stock-spus" title="SP Funds S&P 500 Sharia Industry Exclusions ETF">
+          <span class="rate-label">SPUS:</span>
+          <span class="rate-value" id="rate-stock-spus">$58.62</span>
         </div>
+        <div id="followed-stocks-container" style="display: flex; gap: 0.5rem; align-items: center;"></div>
+        <button id="add-stock-kpi-btn" class="refresh-btn add-stock-btn" title="Follow Stock / ETF Price in Bar" type="button">
+          ➕
+        </button>
         <button id="edit-gold-rate-btn" class="refresh-btn edit-gold-btn" title="Manually Edit Gold & FX Rates" type="button">
           ✏️
         </button>
@@ -345,7 +349,6 @@
                     <th>Asset Category</th>
                     <th>Asset Holdings</th>
                     <th class="text-right">Valuation (USD)</th>
-                    <th class="text-right">Valuation (AUD)</th>
                     <th class="text-right">Valuation (EGP)</th>
                   </tr>
                 </thead>
@@ -419,11 +422,31 @@
           <div class="input-wrapper focus-glow">
             <select id="asset-currency-select" class="form-select" required>
               <option value="USD">USD ($)</option>
-              <option value="AUD">AUD (Australian Dollar)</option>
               <option value="EGP">EGP (Egyptian Pound)</option>
+              <option value="Stock">Stock / ETF Shares</option>
               <option value="Gold (Grams)">Gold (21k Grams)</option>
               <option value="Gold 24k (Grams)">Gold Ingots (24k Grams)</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Stock / ETF Specific Input Fields -->
+        <div class="form-group" id="stock-fields-group" style="display: none;">
+          <label for="asset-stock-ticker-input">Stock / ETF Ticker Symbol</label>
+          <div class="input-wrapper focus-glow">
+            <input type="text" id="asset-stock-ticker-input" placeholder="e.g. SPUS, AAPL, NVDA" autocomplete="off" style="text-transform: uppercase;">
+          </div>
+          <div class="category-suggestions" id="stock-ticker-suggestions" style="display: flex; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap;">
+            <span class="category-suggestion stock-chip">SPUS</span>
+            <span class="category-suggestion stock-chip">HLAL</span>
+            <span class="category-suggestion stock-chip">AAPL</span>
+            <span class="category-suggestion stock-chip">MSFT</span>
+            <span class="category-suggestion stock-chip">NVDA</span>
+            <span class="category-suggestion stock-chip">GOOGL</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.8rem;">
+            <span style="color: var(--text-secondary);">Market Price / Share:</span>
+            <span id="stock-market-price-display" style="font-weight: 700; color: var(--color-savings);">$58.62 USD</span>
           </div>
         </div>
 
@@ -679,6 +702,52 @@
           <button type="button" class="btn btn-outline" id="cancel-gold-btn" style="flex: 1;">Cancel</button>
           <button type="button" class="btn btn-outline" id="reset-gold-live-btn" style="flex: 1; color: var(--color-gold); border-color: rgba(234, 179, 8, 0.3);">Use Live Rate</button>
           <button type="submit" class="btn btn-primary" id="save-gold-btn" style="flex: 1.5; background: var(--color-gold); color: #000; font-weight: 700;">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Follow Stock / ETF KPI Modal -->
+  <div id="stock-kpi-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem;">📈</span>
+          <h3>Follow Stock / ETF Live Price</h3>
+        </div>
+        <button class="close-modal-btn" id="close-stock-kpi-modal" type="button">✕</button>
+      </div>
+      <form id="stock-kpi-form" class="modal-form">
+        <p class="input-help" style="margin-top: 0; margin-bottom: 1rem;">
+          Track any US stock or ETF ticker in your top KPI bar.
+        </p>
+        <div class="form-group">
+          <label for="kpi-ticker-input">Ticker Symbol</label>
+          <div class="input-wrapper focus-glow">
+            <input type="text" id="kpi-ticker-input" placeholder="e.g. AAPL, NVDA, HLAL" required autocomplete="off" style="text-transform: uppercase;">
+          </div>
+          <div class="category-suggestions" id="kpi-ticker-suggestions" style="display: flex; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap;">
+            <span class="category-suggestion stock-kpi-chip">SPUS</span>
+            <span class="category-suggestion stock-kpi-chip">HLAL</span>
+            <span class="category-suggestion stock-kpi-chip">AAPL</span>
+            <span class="category-suggestion stock-kpi-chip">MSFT</span>
+            <span class="category-suggestion stock-kpi-chip">NVDA</span>
+            <span class="category-suggestion stock-kpi-chip">AMZN</span>
+            <span class="category-suggestion stock-kpi-chip">GOOGL</span>
+            <span class="category-suggestion stock-kpi-chip">TSLA</span>
+          </div>
+        </div>
+        
+        <div id="kpi-preview-card" style="display: none; padding: 0.75rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 8px; margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="kpi-preview-ticker" style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">--</span>
+            <span id="kpi-preview-price" style="font-weight: 700; color: var(--color-savings); font-size: 1.1rem;">$--.--</span>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" id="cancel-stock-kpi-btn" style="flex: 1;">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="submit-stock-kpi-btn" style="flex: 1; background: var(--color-savings); color: #000; font-weight: 700;">Follow Stock</button>
         </div>
       </form>
     </div>

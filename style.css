@@ -2049,3 +2049,85 @@ body {
   letter-spacing: 0.03em;
   vertical-align: middle;
 }
+
+/* Stock Rates & KPI Elements */
+.stock-rate-pill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: var(--transition-fast);
+}
+
+.stock-rate-pill:hover {
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.followed-stock-pill {
+  position: relative;
+  border-radius: 6px;
+  padding-left: 0.5rem;
+  padding-right: 0.4rem;
+}
+
+.stock-pill-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0.15rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  margin-left: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.5;
+  transition: var(--transition-fast);
+  border-radius: 50%;
+}
+
+.stock-pill-remove-btn:hover {
+  color: var(--color-danger);
+  opacity: 1;
+  background: rgba(239, 68, 68, 0.15);
+  transform: scale(1.15);
+}
+
+.add-stock-btn {
+  font-size: 0.8rem;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  color: var(--color-savings);
+}
+
+.add-stock-btn:hover {
+  background: rgba(34, 197, 94, 0.25);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.stock-badge-tag {
+  display: inline-block;
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--color-savings);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  margin-right: 0.35rem;
+  vertical-align: middle;
+}
+
+.stock-chip, .stock-kpi-chip {
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.stock-chip:hover, .stock-kpi-chip:hover {
+  background: var(--color-savings-glow);
+  color: var(--color-savings);
+  border-color: rgba(34, 197, 94, 0.4);
+}
