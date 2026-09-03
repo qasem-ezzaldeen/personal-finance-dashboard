@@ -115,7 +115,7 @@
         </div>
         <div class="rate-pill stock-rate-pill" id="pill-stock-spus" title="SP Funds S&P 500 Sharia Industry Exclusions ETF">
           <span class="rate-label">SPUS:</span>
-          <span class="rate-value" id="rate-stock-spus">$58.62</span>
+          <span class="rate-value" id="rate-stock-spus">$59.09</span>
         </div>
         <div id="followed-stocks-container" style="display: flex; gap: 0.5rem; align-items: center;"></div>
         <button id="add-stock-kpi-btn" class="refresh-btn add-stock-btn" title="Follow Stock / ETF Price in Bar" type="button">
@@ -696,6 +696,32 @@
             <span class="input-suffix">%</span>
           </div>
           <p class="input-help">Additional local Egypt markup added over global spot rate (default: 2.5%).</p>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 1.25rem 0;">
+
+        <!-- Stock API Settings (Twelve Data) -->
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+            <label for="twelve-data-api-key-input" style="font-weight: 700;">📈 Stock Market Live API Key</label>
+            <span style="font-size: 0.72rem; color: var(--color-savings); font-weight: 700;">Free Lifetime</span>
+          </div>
+          <div class="input-wrapper focus-glow">
+            <input type="text" id="twelve-data-api-key-input" placeholder="Paste your Twelve Data API key here" autocomplete="off">
+          </div>
+          <p class="input-help" style="margin-top: 0.35rem;">
+            Enables 10-minute automated updates for SPUS and stocks. Get your free key instantly at <a href="https://twelvedata.com" target="_blank" rel="noopener noreferrer" style="color: var(--color-savings); text-decoration: underline; font-weight: 600;">twelvedata.com</a> (800 calls/day, no credit card required).
+          </p>
+        </div>
+
+        <!-- Manual SPUS Price Override -->
+        <div class="form-group">
+          <label for="manual-spus-price-input">Manual SPUS Price ($ USD / Share)</label>
+          <div class="input-wrapper focus-glow">
+            <input type="number" id="manual-spus-price-input" placeholder="e.g. 59.09" min="0" step="any">
+            <span class="input-suffix">USD</span>
+          </div>
+          <p class="input-help">Optional override to set a custom fixed price for SPUS.</p>
         </div>
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem; margin-top: 1rem;">

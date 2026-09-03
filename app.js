@@ -101,7 +101,9 @@ const State = {
   goals: [], // Dynamic goals
   
   // Stock market state
-  stockPrices: { "SPUS": 58.62 },
+  stockApiKey: localStorage.getItem("twelve_data_api_key") || "",
+  manualSpusPrice: null,
+  stockPrices: { "SPUS": 59.09 },
   stockTrends: { "SPUS": "neutral" },
   followedStockKpis: [],
 
@@ -141,6 +143,8 @@ const State = {
       upcomingIncome: this.upcomingIncome,
       transactions: this.transactions,
       goals: this.goals,
+      stockApiKey: this.stockApiKey,
+      manualSpusPrice: this.manualSpusPrice,
       stockPrices: this.stockPrices,
       stockTrends: this.stockTrends,
       followedStockKpis: this.followedStockKpis,
@@ -190,7 +194,7 @@ const GOLD_21K_RATIO = 0.875; // 21k gold is 21/24 = 87.5% purity
 
 // Stock benchmarks for instant zero-latency loading and offline fallback
 const DEFAULT_STOCK_PRICES = {
-  "SPUS": 58.62,
+  "SPUS": 59.09,
   "HLAL": 47.85,
   "AAPL": 224.23,
   "MSFT": 417.88,
@@ -211,21 +215,31 @@ async function fetchStockPrice(symbol) {
   const sym = symbol.trim().toUpperCase();
   let price = null;
 
-  // 1. Try Twelve Data CORS-friendly quote endpoint
-  try {
-    const res = await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(sym)}&apikey=demo`, { method: "GET" });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && data.price && !isNaN(parseFloat(data.price))) {
-        price = parseFloat(data.price);
-        console.log(`[Stock API] Successfully fetched ${sym} from TwelveData: $${price}`);
-      }
-    }
-  } catch (err) {
-    // Silently continue to fallback
+  // 1. Check if user configured a manual SPUS price override
+  if (sym === "SPUS" && State.manualSpusPrice && State.manualSpusPrice > 0) {
+    price = State.manualSpusPrice;
   }
 
-  // 2. Try Yahoo Finance chart endpoint
+  // 2. Try Twelve Data CORS-friendly quote endpoint (with user's API key if saved)
+  const apiKey = State.stockApiKey || localStorage.getItem("twelve_data_api_key") || "";
+  if (!price && apiKey) {
+    try {
+      const res = await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(sym)}&apikey=${apiKey}`, { method: "GET" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.price && !isNaN(parseFloat(data.price))) {
+          price = parseFloat(data.price);
+          console.log(`[Stock API] Successfully fetched ${sym} from TwelveData: $${price}`);
+        } else if (data && data.message) {
+          console.warn(`[Stock API] TwelveData message:`, data.message);
+        }
+      }
+    } catch (err) {
+      console.warn(`[Stock API] TwelveData fetch failed for ${sym}:`, err);
+    }
+  }
+
+  // 3. Try Yahoo Finance chart endpoint
   if (!price) {
     try {
       const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`);
@@ -242,7 +256,7 @@ async function fetchStockPrice(symbol) {
     }
   }
 
-  // 3. Fallback to cached or benchmark price
+  // 4. Fallback to cached or benchmark price
   if (!price) {
     if (State.stockPrices && State.stockPrices[sym]) {
       price = State.stockPrices[sym];
@@ -2480,6 +2494,17 @@ function setupGoldRateModal() {
     if (input24k) input24k.value = gold24kEgp ? gold24kEgp.toFixed(2) : "";
     if (input21k) input21k.value = gold24kEgp ? (gold24kEgp * GOLD_21K_RATIO).toFixed(2) : "";
 
+    const twelveDataInput = document.getElementById("twelve-data-api-key-input");
+    const manualSpusInput = document.getElementById("manual-spus-price-input");
+    if (twelveDataInput) {
+      twelveDataInput.value = State.stockApiKey || localStorage.getItem("twelve_data_api_key") || "";
+    }
+    if (manualSpusInput) {
+      manualSpusInput.value = (State.manualSpusPrice && State.manualSpusPrice > 0)
+        ? State.manualSpusPrice.toFixed(2)
+        : "";
+    }
+
     setModeUI(State.isManualGold ? "manual" : "auto");
 
     goldModal.style.display = "flex";
@@ -2545,9 +2570,32 @@ function setupGoldRateModal() {
         fetchLiveRates(true);
       }
 
+      // Handle Twelve Data API key
+      const twelveDataInput = document.getElementById("twelve-data-api-key-input");
+      if (twelveDataInput) {
+        const key = twelveDataInput.value.trim();
+        State.stockApiKey = key;
+        localStorage.setItem("twelve_data_api_key", key);
+      }
+
+      // Handle Manual SPUS Price Override
+      const manualSpusInput = document.getElementById("manual-spus-price-input");
+      if (manualSpusInput) {
+        const spusVal = parseFloat(manualSpusInput.value);
+        if (!isNaN(spusVal) && spusVal > 0) {
+          State.manualSpusPrice = spusVal;
+          State.stockPrices["SPUS"] = spusVal;
+        } else {
+          State.manualSpusPrice = null;
+        }
+      }
+
       State.save();
       updateDashboardUI();
       hideGoldModal();
+
+      // Refresh stocks immediately with new key / overrides
+      fetchAllTrackedStocks().then(() => updateDashboardUI());
     });
   }
 
@@ -2955,6 +3003,13 @@ function handleIncomingCloudState(data) {
     State.goals = getDefaultGoals();
   }
   
+  if (data.stockApiKey !== undefined) {
+    State.stockApiKey = data.stockApiKey;
+    if (data.stockApiKey) localStorage.setItem("twelve_data_api_key", data.stockApiKey);
+  }
+  if (data.manualSpusPrice !== undefined) {
+    State.manualSpusPrice = data.manualSpusPrice;
+  }
   if (data.stockPrices !== undefined) {
     State.stockPrices = { ...State.stockPrices, ...data.stockPrices };
   }
@@ -3075,6 +3130,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 4. Auto-fetch live rates every 8 hours (28800000 ms = 3 updates/day to preserve 100 req/month quota)
   setInterval(fetchLiveRates, 28800000);
+
+  // 4.5 Auto-fetch stock & ETF prices every 10 minutes (600,000 ms)
+  setInterval(async () => {
+    console.log("[Stock Engine] Running 10-minute automated stock price refresh...");
+    await fetchAllTrackedStocks();
+    updateDashboardUI();
+  }, 600000);
 
   // 5. Auto-update and sync cached rates and state to cloud every 2 hours (7200000 ms)
   setInterval(autoUpdateAndSync, 7200000);
