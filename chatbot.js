@@ -63,6 +63,92 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
     trigger.classList.remove("hidden");
   });
 
+  const keyStatusEl = document.getElementById("chatbot-key-status");
+
+  function showKeyStatus(message, isError = false) {
+    if (!keyStatusEl) return;
+    keyStatusEl.style.display = "block";
+    keyStatusEl.style.background = isError ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)";
+    keyStatusEl.style.color = isError ? "var(--color-danger)" : "var(--color-savings)";
+    keyStatusEl.style.border = `1px solid ${isError ? "rgba(239, 68, 68, 0.3)" : "rgba(34, 197, 94, 0.3)"}`;
+    keyStatusEl.innerHTML = message;
+  }
+
+  // Verification tester for API keys
+  async function verifyApiKey(key) {
+    const cleanKey = key.trim().replace(/^["']|["']$/g, "");
+    if (!cleanKey) {
+      return { success: false, message: "Please enter an API key." };
+    }
+
+    // Detect accidental Twelve Data key
+    const twelveDataKey = localStorage.getItem("twelve_data_api_key");
+    if ((twelveDataKey && cleanKey === twelveDataKey) || (!cleanKey.startsWith("AIza") && !cleanKey.startsWith("gsk_") && cleanKey.length === 32)) {
+      return {
+        success: false,
+        message: "⚠️ This looks like your Twelve Data stock API key! For the chatbot, get a free key from <a href='https://aistudio.google.com/app/apikey' target='_blank' style='color:var(--color-savings);text-decoration:underline;'>Google AI Studio</a> or <a href='https://console.groq.com/keys' target='_blank' style='color:#60a5fa;text-decoration:underline;'>Groq</a>."
+      };
+    }
+
+    if (cleanKey.startsWith("gsk_")) {
+      // Test Groq Cloud
+      try {
+        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${cleanKey}`
+          },
+          body: JSON.stringify({
+            model: "llama-3.1-8b-instant",
+            messages: [{ role: "user", content: "ping" }],
+            max_tokens: 2
+          })
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          return { success: false, message: `Groq Error: ${errData?.error?.message || res.statusText}` };
+        }
+        return { success: true, provider: "Groq Cloud (Llama 3.1)", key: cleanKey };
+      } catch (err) {
+        return { success: false, message: `Connection to Groq failed: ${err.message}` };
+      }
+    } else {
+      // Test Google Gemini (try 1.5-flash, fallback to 2.0-flash)
+      try {
+        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "ping" }] }],
+            generationConfig: { maxOutputTokens: 2 }
+          })
+        });
+
+        if (!res.ok && res.status === 404) {
+          res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cleanKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: "ping" }] }],
+              generationConfig: { maxOutputTokens: 2 }
+            })
+          });
+        }
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData?.error?.message || `HTTP ${res.status}`;
+          return { success: false, message: `Google Gemini: ${errMsg}` };
+        }
+
+        return { success: true, provider: "Google Gemini", key: cleanKey };
+      } catch (err) {
+        return { success: false, message: `Connection to Gemini failed: ${err.message}` };
+      }
+    }
+  }
+
   // Toggle API Key settings panel
   if (settingsToggle && apiPanel) {
     settingsToggle.addEventListener("click", () => {
@@ -73,20 +159,43 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
     });
   }
 
-  // Save API Key button
+  // Test & Save API Key button
   if (saveApiKeyBtn && apiKeyInput) {
-    saveApiKeyBtn.addEventListener("click", () => {
-      const key = apiKeyInput.value.trim();
-      aiApiKey = key;
-      if (key) {
-        localStorage.setItem("aura_ai_api_key", key);
-        appendMessage(`🔑 <strong>API Key Saved!</strong> Connected to ${key.startsWith("gsk_") ? "Groq Cloud" : "Google Gemini"}. You can now ask any question or command financial edits.`, "assistant");
-      } else {
+    saveApiKeyBtn.addEventListener("click", async () => {
+      const raw = apiKeyInput.value.trim();
+      if (!raw) {
+        aiApiKey = "";
         localStorage.removeItem("aura_ai_api_key");
-        appendMessage("ℹ️ API key cleared. Switched to Local Financial Engine mode.", "assistant");
+        showKeyStatus("ℹ️ API key cleared. Running in Local Financial Mode.");
+        updateStatusBadge();
+        setTimeout(() => {
+          if (keyStatusEl) keyStatusEl.style.display = "none";
+          if (apiPanel) apiPanel.style.display = "none";
+        }, 1500);
+        return;
       }
-      updateStatusBadge();
-      if (apiPanel) apiPanel.style.display = "none";
+
+      saveApiKeyBtn.disabled = true;
+      saveApiKeyBtn.textContent = "Testing...";
+      showKeyStatus("⏳ Testing API connection...");
+
+      const testResult = await verifyApiKey(raw);
+      saveApiKeyBtn.disabled = false;
+      saveApiKeyBtn.textContent = "Test & Save";
+
+      if (testResult.success) {
+        aiApiKey = testResult.key;
+        localStorage.setItem("aura_ai_api_key", aiApiKey);
+        showKeyStatus(`✅ Verified! Connected to ${testResult.provider}.`);
+        updateStatusBadge();
+        appendMessage(`🔑 <strong>Connected to ${testResult.provider}!</strong> You can now chat freely or command financial edits.`, "assistant");
+        setTimeout(() => {
+          if (keyStatusEl) keyStatusEl.style.display = "none";
+          if (apiPanel) apiPanel.style.display = "none";
+        }, 1600);
+      } else {
+        showKeyStatus(`❌ ${testResult.message}`, true);
+      }
     });
   }
 
@@ -288,9 +397,9 @@ Supported Actions:
         const data = await res.json();
         replyText = data.choices?.[0]?.message?.content || "";
       } else {
-        // Google Gemini API (gemini-1.5-flash)
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`;
-        const res = await fetch(geminiUrl, {
+        // Google Gemini API (gemini-1.5-flash with fallback to 2.0-flash)
+        let geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`;
+        let res = await fetch(geminiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -305,6 +414,24 @@ Supported Actions:
           })
         });
 
+        if (!res.ok && res.status === 404) {
+          geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${aiApiKey}`;
+          res = await fetch(geminiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{
+                role: "user",
+                parts: [{ text: systemPrompt }]
+              }],
+              generationConfig: {
+                temperature: 0.3,
+                maxOutputTokens: 800
+              }
+            })
+          });
+        }
+
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData?.error?.message || `Gemini HTTP ${res.status}`);
@@ -316,8 +443,11 @@ Supported Actions:
     } catch (apiErr) {
       console.warn("[Chatbot] Online LLM API failed. Falling back to local intelligence:", apiErr);
       return `
-        <div style="padding: 0.4rem 0.6rem; background: rgba(239, 68, 68, 0.1); border-left: 3px solid var(--color-danger); border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.78rem;">
-          <strong>AI API Notice:</strong> ${apiErr.message}. <em>Answered using local financial engine:</em>
+        <div style="padding: 0.5rem 0.75rem; background: rgba(239, 68, 68, 0.1); border-left: 3px solid var(--color-danger); border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.78rem;">
+          <strong style="color: var(--color-danger);">AI Notice:</strong> ${apiErr.message}
+          <div style="margin-top: 0.35rem;">
+            <button onclick="document.getElementById('chatbot-settings-toggle')?.click()" style="background: none; border: 1px solid rgba(239, 68, 68, 0.3); color: var(--text-primary); border-radius: 4px; padding: 2px 6px; font-size: 0.7rem; cursor: pointer;">⚙️ Open AI Key Settings</button>
+          </div>
         </div>
         ${processLocalQuery(rawQuery)}
       `;
