@@ -114,19 +114,13 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
         return { success: false, message: `Connection to Groq failed: ${err.message}` };
       }
     } else {
-      // Test Google Gemini (try 1.5-flash, fallback to 2.0-flash)
-      try {
-        let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "ping" }] }],
-            generationConfig: { maxOutputTokens: 2 }
-          })
-        });
+      // Test Google Gemini with auto-fallback to newest models (gemini-3.6-flash, etc.)
+      const models = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+      let lastErrMsg = "";
 
-        if (!res.ok && res.status === 404) {
-          res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${cleanKey}`, {
+      for (const m of models) {
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${cleanKey}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -134,18 +128,24 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
               generationConfig: { maxOutputTokens: 2 }
             })
           });
-        }
 
-        if (!res.ok) {
+          if (res.ok) {
+            return { success: true, provider: `Google Gemini (${m})`, key: cleanKey };
+          }
+
           const errData = await res.json().catch(() => ({}));
-          const errMsg = errData?.error?.message || `HTTP ${res.status}`;
-          return { success: false, message: `Google Gemini: ${errMsg}` };
-        }
+          lastErrMsg = errData?.error?.message || `HTTP ${res.status}`;
 
-        return { success: true, provider: "Google Gemini", key: cleanKey };
-      } catch (err) {
-        return { success: false, message: `Connection to Gemini failed: ${err.message}` };
+          // If invalid key, no need to cycle through other models
+          if (res.status === 400 && lastErrMsg.includes("API key not valid")) {
+            return { success: false, message: `Google Gemini: ${lastErrMsg}` };
+          }
+        } catch (err) {
+          lastErrMsg = err.message;
+        }
       }
+
+      return { success: false, message: `Google Gemini: ${lastErrMsg}` };
     }
   }
 
@@ -397,48 +397,54 @@ Supported Actions:
         const data = await res.json();
         replyText = data.choices?.[0]?.message?.content || "";
       } else {
-        // Google Gemini API (gemini-1.5-flash with fallback to 2.0-flash)
-        let geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${aiApiKey}`;
-        let res = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{
-              role: "user",
-              parts: [{ text: systemPrompt }]
-            }],
-            generationConfig: {
-              temperature: 0.3,
-              maxOutputTokens: 800
+        // Google Gemini API with resilient multi-model iteration
+        const models = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+        let lastErr = null;
+        let success = false;
+
+        for (const m of models) {
+          try {
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${aiApiKey}`;
+            const res = await fetch(geminiUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{
+                  role: "user",
+                  parts: [{ text: systemPrompt }]
+                }],
+                generationConfig: {
+                  temperature: 0.3,
+                  maxOutputTokens: 800
+                }
+              })
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              success = true;
+              break;
             }
-          })
-        });
 
-        if (!res.ok && res.status === 404) {
-          geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${aiApiKey}`;
-          res = await fetch(geminiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{
-                role: "user",
-                parts: [{ text: systemPrompt }]
-              }],
-              generationConfig: {
-                temperature: 0.3,
-                maxOutputTokens: 800
-              }
-            })
-          });
+            const errData = await res.json().catch(() => ({}));
+            lastErr = new Error(errData?.error?.message || `Gemini ${m} HTTP ${res.status}`);
+
+            // If error is invalid API key, stop trying
+            if (res.status === 400 && lastErr.message.includes("API key not valid")) {
+              throw lastErr;
+            }
+          } catch (err) {
+            lastErr = err;
+            if (err.message && err.message.includes("API key not valid")) {
+              throw err;
+            }
+          }
         }
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `Gemini HTTP ${res.status}`);
+        if (!success && lastErr) {
+          throw lastErr;
         }
-
-        const data = await res.json();
-        replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
       }
     } catch (apiErr) {
       console.warn("[Chatbot] Online LLM API failed. Falling back to local intelligence:", apiErr);
