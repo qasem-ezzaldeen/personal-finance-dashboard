@@ -30,60 +30,7 @@
     </div>
   </div>
 
-  <!-- Setup Wizard Modal Overlay (Shown for new users or if not logged in) -->
-  <div id="setup-wizard-overlay" class="modal-overlay active" style="display: none;">
-    <div class="modal-card setup-card">
-      <div class="setup-header">
-        <div class="logo-mark">⚡</div>
-        <h2>Welcome to AuraFinance</h2>
-        <p id="setup-wizard-desc">Connect to your database vault or create a new one.</p>
-      </div>
-      
-      <form id="setup-form" class="modal-form">
-        <!-- STEP 1: Enter Sync Code -->
-        <div id="wizard-step-sync-code">
-          <div class="form-group">
-            <label for="setup-sync-code">Dashboard Sync Code</label>
-            <div class="input-wrapper focus-glow">
-              <input type="text" id="setup-sync-code" placeholder="e.g. my-family-vault" required autocomplete="off">
-            </div>
-            <p class="input-help">Enter a unique code. If this code exists, your dashboard data will be retrieved. If it is new, you will configure initial holdings next.</p>
-          </div>
-          <button type="button" id="wizard-next-btn" class="btn btn-primary w-full" style="margin-top: 0.5rem; display: block; width: 100%;">Continue</button>
-        </div>
 
-        <!-- STEP 2: Configure Baselines (Initially Hidden) -->
-        <div id="wizard-step-baselines" style="display: none;">
-          <div class="form-group">
-            <label for="setup-cash-savings">Baseline Cash Savings (USD)</label>
-            <div class="input-wrapper">
-              <span class="input-prefix">$</span>
-              <input type="number" id="setup-cash-savings" placeholder="e.g. 5000" min="0" step="any">
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="setup-gold-grams">21k Physical Gold Owned (Grams)</label>
-            <div class="input-wrapper">
-              <input type="number" id="setup-gold-grams" placeholder="e.g. 50" min="0" step="any">
-              <span class="input-suffix">grams</span>
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="setup-gold-premium">Local Gold Price Premium (%)</label>
-            <div class="input-wrapper">
-              <input type="number" id="setup-gold-premium" value="2.5" min="0" max="100" step="0.1">
-              <span class="input-suffix">%</span>
-            </div>
-            <p class="input-help">Local markup added to the global spot rate to match local jewelry stores in Egypt (typically ~1.5% to 3.0%).</p>
-          </div>
-          <div class="modal-actions" style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-            <button type="button" id="wizard-back-btn" class="btn btn-outline" style="flex: 1;">Back</button>
-            <button type="submit" id="setup-submit-btn" class="btn btn-primary" style="flex: 2;">Initialize Vault</button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <!-- Main App Layout Container -->
   <div class="app-container">
@@ -124,28 +71,26 @@
         <button id="edit-gold-rate-btn" class="refresh-btn edit-gold-btn" title="Manually Edit Gold & FX Rates" type="button">
           ✏️
         </button>
-        <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
-          <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-1.19" stroke-linecap="round"
-              stroke-linejoin="round" />
-          </svg>
-        </button>
-        <button id="cloud-sync-btn" class="refresh-btn cloud-sync-btn offline" title="Supabase Cloud Sync Settings" type="button">
-          <svg class="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;">
-            <path d="M21.2 15c.6-1.1 1-2.5 1-4a8.2 8.2 0 0 0-6.8-8.1A6.5 6.5 0 0 0 3 7c0 .3 0 .7.1 1a5.2 5.2 0 0 0-.1 10.2M12 13v9M9 19l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-
-      </div>
-
-      <!-- Timestamp -->
-      <div class="header-controls">
-        <div class="sync-status">
-          <span class="time-label">Last Updated:</span>
-          <span class="time-value" id="last-updated-time">Never</span>
+          <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
+            <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-1.19" stroke-linecap="round"
+                stroke-linejoin="round" />
+            </svg>
+          </button>
         </div>
-      </div>
-    </header>
+
+        <!-- Timestamp & User Vault Controls -->
+        <div class="header-controls">
+          <div class="sync-status">
+            <span class="time-label">Last Updated:</span>
+            <span class="time-value" id="last-updated-time">Never</span>
+          </div>
+          <button id="user-auth-btn" class="user-auth-pill" type="button" title="Vault Account & Authentication">
+            <span class="auth-dot" id="auth-status-dot"></span>
+            <span class="auth-user-text" id="auth-user-display">🔐 Sign In</span>
+          </button>
+        </div>
+      </header>
 
     <!-- Monthly Reset Warning Banner (Shown on the 24th if reset is triggered) -->
     <div id="monthly-reset-banner" class="reset-alert-banner" style="display: none;">
@@ -315,6 +260,9 @@
             <div class="history-list-wrapper" id="history-list">
               <!-- Dynamically populated transaction entries -->
               <div class="empty-state">No transaction logs for this month.</div>
+            </div>
+            <div id="history-scroll-footer" class="history-scroll-footer" style="display: none;">
+              <span>↕ Scroll to view older logs</span>
             </div>
           </div>
         </section>
@@ -618,28 +566,101 @@
     </div>
   </div>
 
-  <!-- Cloud Sync Connection Settings Modal -->
-  <div id="sync-settings-modal" class="modal-overlay" style="display: none;">
-    <div class="modal-card">
+  <!-- Auth Modal (Sign In, Create Vault, Password Reset) -->
+  <div id="auth-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card auth-modal-card">
       <div class="modal-header">
-        <h3>Cloud Sync Settings (Supabase)</h3>
-        <button class="close-modal-btn" id="close-sync-modal">✕</button>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem;">🔐</span>
+          <h3 id="auth-modal-title">Access Private Vault</h3>
+        </div>
+        <button class="close-modal-btn" id="close-auth-modal" type="button">✕</button>
       </div>
-      <div class="modal-form">
-        <p class="input-help" style="margin-bottom: 0.5rem; color: var(--text-secondary);">
-          Your financial data is securely synced to Supabase database.
-        </p>
-        
+      
+      <!-- Auth Mode Tabs -->
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab-btn active" id="tab-btn-login">Sign In</button>
+        <button type="button" class="auth-tab-btn" id="tab-btn-register">Create Vault</button>
+        <button type="button" class="auth-tab-btn" id="tab-btn-forgot">Forgot Password</button>
+      </div>
+
+      <!-- Alert / Notice Box -->
+      <div id="auth-alert-box" class="auth-alert-box" style="display: none;"></div>
+
+      <!-- Main Auth Form -->
+      <form id="auth-form" class="modal-form" style="margin-top: 0.5rem;">
         <div class="form-group">
-          <label for="sync-code-input">Active Dashboard Sync Code</label>
+          <label for="auth-email-input">Email Address</label>
           <div class="input-wrapper focus-glow">
-            <input type="text" id="sync-code-input" readonly autocomplete="off" style="background: rgba(255, 255, 255, 0.02); color: var(--text-secondary); cursor: not-allowed;">
+            <input type="email" id="auth-email-input" placeholder="you@example.com" required autocomplete="email">
           </div>
         </div>
 
-        <div class="modal-actions" style="display: flex; gap: 0.5rem;">
-          <button type="button" class="btn btn-outline" id="close-sync-settings-btn" style="flex: 1;">Close</button>
-          <button type="button" class="btn btn-outline" id="disconnect-sync-btn" style="flex: 1; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Disconnect Vault</button>
+        <div class="form-group" id="auth-password-group">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label for="auth-password-input">Vault Password</label>
+            <span id="auth-forgot-link" class="auth-forgot-link" style="font-size: 0.72rem; color: var(--color-savings); cursor: pointer; text-decoration: underline;">Forgot?</span>
+          </div>
+          <div class="input-wrapper focus-glow">
+            <input type="password" id="auth-password-input" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+        </div>
+
+        <div class="form-group" id="auth-confirm-group" style="display: none;">
+          <label for="auth-confirm-input">Confirm Password</label>
+          <div class="input-wrapper focus-glow">
+            <input type="password" id="auth-confirm-input" placeholder="••••••••" autocomplete="new-password">
+          </div>
+        </div>
+
+        <p id="auth-terms-note" class="input-help" style="margin-top: 0.25rem; font-size: 0.72rem; color: var(--text-secondary);">
+          Protected with PostgreSQL Row-Level Security (RLS). Your vault is completely isolated from other users.
+        </p>
+
+        <div class="modal-actions" style="margin-top: 1rem;">
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn" style="width: 100%; font-weight: 700;">
+            Sign In to Vault
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- User Account & Vault Settings Modal -->
+  <div id="account-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.25rem;">👤</span>
+          <h3>Vault Account</h3>
+        </div>
+        <button class="close-modal-btn" id="close-account-modal" type="button">✕</button>
+      </div>
+      <div class="modal-form">
+        <div class="account-profile-box">
+          <div class="account-avatar">
+            <span id="account-avatar-char">U</span>
+          </div>
+          <div class="account-details">
+            <span id="account-email-display" class="account-email">user@example.com</span>
+            <span class="account-badge">🔒 RLS Protected Vault</span>
+          </div>
+        </div>
+
+        <div class="account-meta-list" style="margin-top: 1rem;">
+          <div class="account-meta-item">
+            <span class="meta-label">Cloud Sync Status:</span>
+            <span class="meta-val" style="color: var(--color-savings); font-weight: 600;">● Active (Supabase)</span>
+          </div>
+          <div class="account-meta-item">
+            <span class="meta-label">User ID:</span>
+            <span class="meta-val" id="account-uid-display" style="font-family: monospace; font-size: 0.75rem;">--</span>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-outline" id="close-account-btn" style="flex: 1;">Close</button>
+          <button type="button" class="btn btn-outline" id="logout-btn" style="flex: 1; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.3);">Log Out</button>
         </div>
       </div>
     </div>

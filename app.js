@@ -7,6 +7,8 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let supabase = null;
 let supabaseChannel = null;
+let currentUser = null; // Authenticated Supabase user object
+let currentAuthMode = "login"; // "login", "register", or "forgot"
 let isCloudSyncActive = false;
 let isPreventingSyncLoop = false;
 let isInitialLoadComplete = false;
@@ -176,12 +178,8 @@ const State = {
   save() {
     ensureZakatGoal();
     
-    // Save backup to Local Storage
-    const payload = this.getPayload();
-    payload.updated_at = new Date().toISOString();
-    localStorage.setItem("aurafinance_local_state", JSON.stringify(payload));
-
-    if (isCloudSyncActive && isInitialLoadComplete && !isPreventingSyncLoop) {
+    // Direct cloud-only persistence to Supabase
+    if (currentUser && isCloudSyncActive && isInitialLoadComplete && !isPreventingSyncLoop) {
       syncStateToSupabase();
     }
   }
@@ -1106,6 +1104,11 @@ function updateDashboardUI(force = false) {
   if (historyBadge) {
     historyBadge.textContent = `${State.transactions.length} log${State.transactions.length === 1 ? '' : 's'}`;
   }
+
+  const historyScrollFooter = document.getElementById("history-scroll-footer");
+  if (historyScrollFooter) {
+    historyScrollFooter.style.display = State.transactions.length > 5 ? "flex" : "none";
+  }
  
   // Render/update the interactive Donut Chart
   renderWealthChart();
@@ -1489,141 +1492,7 @@ function hideGoalModal() {
 
 // --- MODAL CONTROLLERS & EVENT ATTACHMENTS ---
 function setupModalListeners() {
-  // --- Setup Wizard Overlay Actions ---
-  const setupForm = document.getElementById("setup-form");
-  const wizardNextBtn = document.getElementById("wizard-next-btn");
-  const wizardBackBtn = document.getElementById("wizard-back-btn");
-  const setupSyncCodeInput = document.getElementById("setup-sync-code");
-  const setupOverlay = document.getElementById("setup-wizard-overlay");
 
-  if (wizardNextBtn) {
-    wizardNextBtn.addEventListener("click", async () => {
-      const syncCode = setupSyncCodeInput.value.trim();
-      if (!syncCode) {
-        setupSyncCodeInput.reportValidity();
-        return;
-      }
-      
-      wizardNextBtn.disabled = true;
-      wizardNextBtn.textContent = "Checking...";
-      
-      try {
-        // Connect temporary client to check code
-        const tempSupabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-        const { data, error } = await tempSupabase
-          .from('dashboards')
-          .select('data')
-          .eq('id', syncCode)
-          .maybeSingle();
-          
-        if (error) {
-          alert("Database error: " + error.message);
-          return;
-        }
-        
-        if (data && data.data) {
-          // Sync code exists! Set code and pull data.
-          localStorage.setItem("supabase_sync_code", syncCode);
-          handleIncomingCloudState(data.data);
-          
-          // Hide overlay
-          setupOverlay.style.display = "none";
-          setupOverlay.classList.remove("active");
-          
-          // Connect active listener
-          initSupabaseSync();
-          fetchLiveRates();
-        } else {
-          // Sync code is new! Transition to Step 2 (Baseline configuration)
-          document.getElementById("wizard-step-sync-code").style.display = "none";
-          document.getElementById("wizard-step-baselines").style.display = "block";
-          document.getElementById("setup-wizard-desc").textContent = "No record found for this code. Let's initialize your baselines.";
-          // Ensure inputs in step 2 have required attributes
-          document.getElementById("setup-cash-savings").setAttribute("required", "");
-          document.getElementById("setup-gold-grams").setAttribute("required", "");
-          document.getElementById("setup-gold-premium").setAttribute("required", "");
-        }
-      } catch (err) {
-        console.error("Setup wizard error:", err);
-        alert("Failed to connect: " + err.message);
-      } finally {
-        wizardNextBtn.disabled = false;
-        wizardNextBtn.textContent = "Continue";
-      }
-    });
-  }
-
-  if (wizardBackBtn) {
-    wizardBackBtn.addEventListener("click", () => {
-      document.getElementById("wizard-step-sync-code").style.display = "block";
-      document.getElementById("wizard-step-baselines").style.display = "none";
-      document.getElementById("setup-wizard-desc").textContent = "Connect to your database vault or create a new one.";
-      
-      // Remove required attributes on step 2 when going back
-      document.getElementById("setup-cash-savings").removeAttribute("required");
-      document.getElementById("setup-gold-grams").removeAttribute("required");
-      document.getElementById("setup-gold-premium").removeAttribute("required");
-    });
-  }
-
-  if (setupForm) {
-    setupForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      
-      const syncCode = setupSyncCodeInput.value.trim();
-      const cash = parseFloat(document.getElementById("setup-cash-savings").value);
-      const gold = parseFloat(document.getElementById("setup-gold-grams").value);
-      const premium = parseFloat(document.getElementById("setup-gold-premium").value);
-      
-      if (!isNaN(cash) && !isNaN(gold) && syncCode) {
-        const setupSubmitBtn = document.getElementById("setup-submit-btn");
-        if (setupSubmitBtn) {
-          setupSubmitBtn.disabled = true;
-          setupSubmitBtn.textContent = "Initializing...";
-        }
-
-        // Initialize state variables
-        State.assets = [
-          { id: 'qnb_bebasata', name: 'QNB Bebasata', category: 'Cash Savings', holdings: cash, currency: 'USD', color: '#0ea5e9' },
-          { id: 'gold', name: 'Gold Savings (21k)', category: 'Gold Savings', holdings: gold, currency: 'Gold (Grams)', color: '#eab308' }
-        ];
-        State.goldPremium = isNaN(premium) ? 2.5 : premium;
-        State.upcomingIncome = 0;
-        State.transactions = [];
-        State.goals = getDefaultGoals();
-        State.cachedUsdAud = 1.50;
-        State.usdAudTrend = "neutral";
-        State.usdEgpTrend = "neutral";
-        State.gold24kTrend = "neutral";
-        State.gold21kTrend = "neutral";
-        State.lastResetMonth = "";
-        State.resetPending = false;
-        State.resetRolledIncome = 0;
-        State.zakatConsecutiveDays = 0;
-        State.lastZakatCheckDate = "";
-        State.zakatSavedDueUsd = 0;
-        State.zakatSavedDueEgp = 0;
-        State.zakatSavedDueAud = 0;
-        
-        // Save syncCode to localStorage and establish connection
-        localStorage.setItem("supabase_sync_code", syncCode);
-        supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-        isCloudSyncActive = true;
-        isInitialLoadComplete = true;
-        
-        // Save initial state directly to database
-        await syncStateToSupabase();
-        
-        // Hide Wizard
-        setupOverlay.style.display = "none";
-        setupOverlay.classList.remove("active");
-        
-        // Initialize real-time streams
-        initSupabaseSync();
-        fetchLiveRates();
-      }
-    });
-  }
 
   // --- Dynamic Assets Modal Actions ---
   const addAssetBtn = document.getElementById("add-asset-btn");
@@ -2296,65 +2165,78 @@ function setupModalListeners() {
     refreshBtn.addEventListener("click", fetchLiveRates);
   }
 
-  // --- Cloud Sync Settings Modal ---
-  const cloudSyncBtn = document.getElementById("cloud-sync-btn");
-  const syncModal = document.getElementById("sync-settings-modal");
-  const closeSyncModal = document.getElementById("close-sync-modal");
-  const closeSyncSettingsBtn = document.getElementById("close-sync-settings-btn");
-  const syncCodeInput = document.getElementById("sync-code-input");
-  const disconnectSyncBtn = document.getElementById("disconnect-sync-btn");
+  // --- User Authentication & Vault Modal Event Listeners ---
+  const userAuthBtn = document.getElementById("user-auth-btn");
+  const closeAuthModal = document.getElementById("close-auth-modal");
+  const tabLogin = document.getElementById("tab-btn-login");
+  const tabRegister = document.getElementById("tab-btn-register");
+  const tabForgot = document.getElementById("tab-btn-forgot");
+  const forgotLink = document.getElementById("auth-forgot-link");
+  const authForm = document.getElementById("auth-form");
+  const emailInput = document.getElementById("auth-email-input");
+  const passwordInput = document.getElementById("auth-password-input");
+  const confirmInput = document.getElementById("auth-confirm-input");
+  const closeAccountModal = document.getElementById("close-account-modal");
+  const closeAccountBtn = document.getElementById("close-account-btn");
+  const logoutBtn = document.getElementById("logout-btn");
 
-  if (cloudSyncBtn && syncModal) {
-    cloudSyncBtn.addEventListener("click", () => {
-      syncCodeInput.value = localStorage.getItem("supabase_sync_code") || "";
-      syncModal.style.display = "flex";
-      setTimeout(() => syncModal.classList.add("active"), 10);
+  if (userAuthBtn) {
+    userAuthBtn.addEventListener("click", () => {
+      if (currentUser) {
+        showAccountModal();
+      } else {
+        showAuthModal("login");
+      }
     });
   }
 
-  const hideSyncModal = () => {
-    if (syncModal) {
-      syncModal.classList.remove("active");
-      setTimeout(() => syncModal.style.display = "none", 300);
-    }
-  };
+  if (closeAuthModal) closeAuthModal.addEventListener("click", hideAuthModal);
+  if (closeAccountModal) closeAccountModal.addEventListener("click", hideAccountModal);
+  if (closeAccountBtn) closeAccountBtn.addEventListener("click", hideAccountModal);
 
-  if (closeSyncModal) closeSyncModal.addEventListener("click", hideSyncModal);
-  if (closeSyncSettingsBtn) closeSyncSettingsBtn.addEventListener("click", hideSyncModal);
+  if (tabLogin) tabLogin.addEventListener("click", () => setAuthTab("login"));
+  if (tabRegister) tabRegister.addEventListener("click", () => setAuthTab("register"));
+  if (tabForgot) tabForgot.addEventListener("click", () => setAuthTab("forgot"));
+  if (forgotLink) forgotLink.addEventListener("click", () => setAuthTab("forgot"));
 
-  if (disconnectSyncBtn) {
-    disconnectSyncBtn.addEventListener("click", () => {
-      if (confirm("Are you sure you want to disconnect from this vault? Your local dashboard will reset.")) {
-        localStorage.removeItem("supabase_sync_code");
-        localStorage.removeItem("aurafinance_local_state");
-        disconnectSupabase();
-        hideSyncModal();
-        
-        // Reset local state to blank
-        State.assets = [];
-        State.goldPremium = 2.5;
-        State.upcomingIncome = 0;
-        State.transactions = [];
-        State.usdEgpTrend = "neutral";
-        State.gold24kTrend = "neutral";
-        State.gold21kTrend = "neutral";
-        State.lastResetMonth = "";
-        State.resetPending = false;
-        State.resetRolledIncome = 0;
-        
-        updateDashboardUI(true);
-        
-        // Clear setup inputs
-        setupSyncCodeInput.value = "";
-        document.getElementById("setup-cash-savings").value = "";
-        document.getElementById("setup-gold-grams").value = "";
-        document.getElementById("setup-gold-premium").value = "2.5";
-        document.getElementById("wizard-step-sync-code").style.display = "block";
-        document.getElementById("wizard-step-baselines").style.display = "none";
-        document.getElementById("setup-wizard-desc").textContent = "Connect to your database vault or create a new one.";
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      if (confirm("Log out of your private vault?")) {
+        signOutUser();
+      }
+    });
+  }
 
-        // Prompt for new sync code
-        showSyncCodePrompt();
+  if (authForm) {
+    authForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = (emailInput?.value || "").trim();
+      const password = passwordInput?.value || "";
+      const confirmPassword = confirmInput?.value || "";
+
+      if (!email) {
+        showAuthAlert("Please enter a valid email address.", "error");
+        return;
+      }
+
+      if (currentAuthMode === "forgot") {
+        await resetUserPassword(email);
+        return;
+      }
+
+      if (!password || password.length < 6) {
+        showAuthAlert("Password must be at least 6 characters.", "error");
+        return;
+      }
+
+      if (currentAuthMode === "register") {
+        if (password !== confirmPassword) {
+          showAuthAlert("Passwords do not match. Please verify.", "error");
+          return;
+        }
+        await signUpWithEmail(email, password);
+      } else {
+        await signInWithEmail(email, password);
       }
     });
   }
@@ -2629,26 +2511,124 @@ function hideLoader() {
   }
 }
 
-// --- SUPABASE CLOUD SYNC ENGINE WORKFLOWS ---
-function disconnectSupabase() {
-  if (supabaseChannel) {
-    supabase.removeChannel(supabaseChannel);
-    supabaseChannel = null;
-  }
-  supabase = null;
-  isCloudSyncActive = false;
-  isInitialLoadComplete = false;
-  
-  const syncBtn = document.getElementById("cloud-sync-btn");
-  if (syncBtn) {
-    syncBtn.className = "refresh-btn cloud-sync-btn offline";
-    syncBtn.title = "Supabase Cloud Sync Settings (Offline)";
+// --- SUPABASE AUTHENTICATION & ROW-LEVEL SECURITY (RLS) VAULT ENGINE ---
+
+function showAuthAlert(message, type = "error") {
+  const alertBox = document.getElementById("auth-alert-box");
+  if (!alertBox) return;
+  alertBox.className = `auth-alert-box ${type}`;
+  alertBox.textContent = message;
+  alertBox.style.display = "block";
+}
+
+function clearAuthAlert() {
+  const alertBox = document.getElementById("auth-alert-box");
+  if (alertBox) {
+    alertBox.style.display = "none";
+    alertBox.textContent = "";
   }
 }
 
+function updateAuthUI(user) {
+  const authBtn = document.getElementById("user-auth-btn");
+  const authDot = document.getElementById("auth-status-dot");
+  const authText = document.getElementById("auth-user-display");
+  const accountEmail = document.getElementById("account-email-display");
+  const accountUid = document.getElementById("account-uid-display");
+  const accountAvatar = document.getElementById("account-avatar-char");
+
+  if (user) {
+    if (authDot) authDot.className = "auth-dot online";
+    if (authText) {
+      const name = user.email ? user.email.split("@")[0] : "Vault User";
+      authText.textContent = name;
+    }
+    if (authBtn) authBtn.title = `Vault Owner: ${user.email} (Click for Account Details)`;
+    if (accountEmail) accountEmail.textContent = user.email;
+    if (accountUid) accountUid.textContent = user.id;
+    if (accountAvatar) {
+      accountAvatar.textContent = (user.email?.[0] || "U").toUpperCase();
+    }
+  } else {
+    if (authDot) authDot.className = "auth-dot offline";
+    if (authText) authText.textContent = "🔐 Sign In";
+    if (authBtn) authBtn.title = "Access Private Vault (Sign In / Register)";
+  }
+}
+
+function setAuthTab(mode) {
+  currentAuthMode = mode;
+  clearAuthAlert();
+  const tabLogin = document.getElementById("tab-btn-login");
+  const tabRegister = document.getElementById("tab-btn-register");
+  const tabForgot = document.getElementById("tab-btn-forgot");
+  const passwordGroup = document.getElementById("auth-password-group");
+  const confirmGroup = document.getElementById("auth-confirm-group");
+  const authSubmitBtn = document.getElementById("auth-submit-btn");
+  const authModalTitle = document.getElementById("auth-modal-title");
+  const authTermsNote = document.getElementById("auth-terms-note");
+
+  [tabLogin, tabRegister, tabForgot].forEach(t => t?.classList.remove("active"));
+
+  if (mode === "login") {
+    tabLogin?.classList.add("active");
+    if (authModalTitle) authModalTitle.textContent = "Sign In to Vault";
+    if (passwordGroup) passwordGroup.style.display = "block";
+    if (confirmGroup) confirmGroup.style.display = "none";
+    if (authSubmitBtn) authSubmitBtn.textContent = "Sign In to Vault";
+    if (authTermsNote) authTermsNote.textContent = "Protected with PostgreSQL Row-Level Security (RLS). Only you can view your data.";
+  } else if (mode === "register") {
+    tabRegister?.classList.add("active");
+    if (authModalTitle) authModalTitle.textContent = "Create Private Vault";
+    if (passwordGroup) passwordGroup.style.display = "block";
+    if (confirmGroup) confirmGroup.style.display = "block";
+    if (authSubmitBtn) authSubmitBtn.textContent = "Create Vault";
+    if (authTermsNote) authTermsNote.textContent = "Your vault is isolated with database-level security. Friends cannot see your numbers.";
+  } else if (mode === "forgot") {
+    tabForgot?.classList.add("active");
+    if (authModalTitle) authModalTitle.textContent = "Reset Vault Password";
+    if (passwordGroup) passwordGroup.style.display = "none";
+    if (confirmGroup) confirmGroup.style.display = "none";
+    if (authSubmitBtn) authSubmitBtn.textContent = "Send Recovery Email";
+    if (authTermsNote) authTermsNote.textContent = "Enter your registered email address to receive password reset instructions.";
+  }
+}
+
+function showAuthModal(mode = "login") {
+  const authModal = document.getElementById("auth-modal");
+  if (!authModal) return;
+  setAuthTab(mode);
+  authModal.style.display = "flex";
+  setTimeout(() => authModal.classList.add("active"), 10);
+  const emailInput = document.getElementById("auth-email-input");
+  if (emailInput) emailInput.focus();
+}
+
+function hideAuthModal() {
+  const authModal = document.getElementById("auth-modal");
+  if (!authModal) return;
+  authModal.classList.remove("active");
+  setTimeout(() => authModal.style.display = "none", 300);
+}
+
+function showAccountModal() {
+  const accountModal = document.getElementById("account-modal");
+  if (!accountModal) return;
+  accountModal.style.display = "flex";
+  setTimeout(() => accountModal.classList.add("active"), 10);
+}
+
+function hideAccountModal() {
+  const accountModal = document.getElementById("account-modal");
+  if (!accountModal) return;
+  accountModal.classList.remove("active");
+  setTimeout(() => accountModal.style.display = "none", 300);
+}
+
 async function syncStateToSupabase() {
-  const syncCode = localStorage.getItem("supabase_sync_code");
-  if (!syncCode) return;
+  if (!currentUser) {
+    return;
+  }
   
   if (!supabase) {
     supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2658,177 +2638,192 @@ async function syncStateToSupabase() {
     const payload = State.getPayload();
     payload.updated_at = new Date().toISOString();
     
-    // Mirror locally to keep timestamps and data aligned
-    localStorage.setItem("aurafinance_local_state", JSON.stringify(payload));
-    
     const { error } = await supabase
       .from('dashboards')
-      .upsert({ id: syncCode, data: payload, updated_at: payload.updated_at });
+      .upsert({ 
+        id: currentUser.id, 
+        user_id: currentUser.id, 
+        data: payload, 
+        updated_at: payload.updated_at 
+      });
       
     if (error) {
-      console.error("Failed to sync state to Supabase:", error);
+      console.error("[Vault] Failed to sync state to Supabase:", error);
     } else {
-      console.log("State synced to Supabase successfully!");
+      console.log("[Vault] Vault state synced to Supabase successfully!");
     }
   } catch (err) {
-    console.error("Failed to sync state to Supabase:", err);
+    console.error("[Vault] Failed to sync state to Supabase:", err);
   }
 }
 
-async function initSupabaseSync() {
-  const syncBtn = document.getElementById("cloud-sync-btn");
-  
+async function loadUserVault(user) {
+  showLoader("Opening secure vault...");
+  isCloudSyncActive = true;
+
   if (supabaseChannel) {
     supabase.removeChannel(supabaseChannel);
     supabaseChannel = null;
   }
-  
-  const syncCode = localStorage.getItem("supabase_sync_code");
-  
-  if (!syncCode) {
-    disconnectSupabase();
-    showSyncCodePrompt();
-    return;
-  }
-  
+
   try {
-    if (syncBtn) {
-      syncBtn.className = "refresh-btn cloud-sync-btn connecting";
-      syncBtn.title = "Connecting to Supabase...";
-    }
-    
-    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-    isCloudSyncActive = true;
-    
-    // 1. Fetch initial state
+    // 1. Fetch user's personal row strictly from Supabase (enforced by RLS)
     const { data: dbData, error } = await supabase
       .from('dashboards')
       .select('data')
-      .eq('id', syncCode)
+      .eq('user_id', user.id)
       .maybeSingle();
-      
+
     if (error) {
-      console.error("Failed to pull state from Supabase on init:", error);
-      isCloudSyncActive = true;
+      console.error("[Vault] Error pulling cloud vault state:", error);
+      hideLoader();
+    } else if (dbData && dbData.data) {
+      console.log("[Vault] Loaded user vault directly from Supabase cloud");
+      handleIncomingCloudState(dbData.data);
       isInitialLoadComplete = true;
       hideLoader();
-      if (syncBtn) {
-        syncBtn.className = "refresh-btn cloud-sync-btn offline";
-        syncBtn.title = `Offline (loaded locally). Supabase Error: ${error.message}`;
-      }
-    } else if (dbData && dbData.data) {
-      console.log("Initial state pulled from Supabase:", dbData.data);
-      const cloudData = dbData.data;
-      const localStateStr = localStorage.getItem("aurafinance_local_state");
-      let useCloud = true;
-
-      if (localStateStr) {
-        try {
-          const localState = JSON.parse(localStateStr);
-          if (localState.updated_at && cloudData.updated_at) {
-            const localTime = new Date(localState.updated_at).getTime();
-            const cloudTime = new Date(cloudData.updated_at).getTime();
-            if (localTime > cloudTime) {
-              // Local state is newer, push to cloud
-              console.log("Local state is newer than cloud. Syncing local state to cloud...");
-              useCloud = false;
-              isInitialLoadComplete = true;
-              syncStateToSupabase();
-            }
-          }
-        } catch (e) {
-          console.warn("Failed to parse local state during comparison:", e);
-        }
-      }
-
-      if (useCloud) {
-        handleIncomingCloudState(cloudData);
-        isInitialLoadComplete = true;
-        // Cache the cloud data locally
-        localStorage.setItem("aurafinance_local_state", JSON.stringify(cloudData));
-      }
-      
-      runClockAndResetCheck(); // Run system clock checks now that state is loaded
-      fetchLiveRates(); // Pull fresh rates once connected and loaded
-      hideLoader();
     } else {
-      console.log("No cloud data found for code. Checking if we have local state to upload...");
+      // Brand new account with no cloud record yet: initialize clean default vault
+      console.log("[Vault] New user account. Initializing fresh cloud vault...");
+      State.assets = [];
+      State.upcomingIncome = 0;
+      State.transactions = [];
+      State.goals = getDefaultGoals();
+      isInitialLoadComplete = true;
       hideLoader();
-      const localStateStr = localStorage.getItem("aurafinance_local_state");
-      if (localStateStr) {
-        console.log("Vault is empty in cloud, but has local state. Syncing local state to cloud...");
-        isInitialLoadComplete = true;
-        syncStateToSupabase();
-        runClockAndResetCheck();
-        fetchLiveRates();
-      } else {
-        showWizardStep2();
-      }
+      await syncStateToSupabase();
     }
-    
-    // 2. Real-time Subscription Channel
+
+    // 2. Real-time subscription filtered strictly by user_id
     supabaseChannel = supabase
-      .channel('schema-db-changes')
+      .channel(`vault-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'dashboards',
-          filter: `id=eq.${syncCode}`
+          filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log("Supabase real-time payload:", payload);
-          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
-            const newData = payload.new.data;
-            if (newData) {
-              const localStateStr = localStorage.getItem("aurafinance_local_state");
-              let useCloud = true;
-              if (localStateStr && newData.updated_at) {
-                try {
-                  const localState = JSON.parse(localStateStr);
-                  if (localState.updated_at) {
-                    const localTime = new Date(localState.updated_at).getTime();
-                    const cloudTime = new Date(newData.updated_at).getTime();
-                    if (localTime > cloudTime) {
-                      useCloud = false; // Keep newer local state
-                    }
-                  }
-                } catch (e) {}
-              }
-              if (useCloud) {
-                handleIncomingCloudState(newData);
-                localStorage.setItem("aurafinance_local_state", JSON.stringify(newData));
-              }
-            }
+          console.log("[Vault] Real-time cloud change received:", payload);
+          if (payload.new && payload.new.data) {
+            handleIncomingCloudState(payload.new.data);
           }
         }
       )
-      .subscribe((status) => {
-        console.log("Supabase subscription status:", status);
-        if (status === 'SUBSCRIBED') {
-          if (syncBtn) {
-            syncBtn.className = "refresh-btn cloud-sync-btn connected";
-            syncBtn.title = `Cloud Synced to code: ${syncCode}`;
-          }
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          if (syncBtn) {
-            syncBtn.className = "refresh-btn cloud-sync-btn offline";
-            syncBtn.title = "Supabase Subscription Disconnected";
-          }
-        }
-      });
-      
+      .subscribe();
+
+    runClockAndResetCheck();
+    fetchLiveRates();
   } catch (err) {
-    console.error("Failed to connect to Supabase:", err);
-    isCloudSyncActive = true;
-    isInitialLoadComplete = true;
+    console.error("[Vault] Vault initialization failed:", err);
     hideLoader();
-    if (syncBtn) {
-      syncBtn.className = "refresh-btn cloud-sync-btn offline";
-      syncBtn.title = `Supabase Connection Error: ${err.message}`;
-    }
   }
+}
+
+
+async function initAuthSystem() {
+  if (!supabase) {
+    supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+
+  // Auth state change listener
+  supabase.auth.onAuthStateChange(async (event, session) => {
+    console.log("[Auth] Event:", event, session?.user?.email);
+    if (session && session.user) {
+      currentUser = session.user;
+      updateAuthUI(currentUser);
+      await loadUserVault(currentUser);
+    } else {
+      currentUser = null;
+      updateAuthUI(null);
+      if (supabaseChannel) {
+        supabase.removeChannel(supabaseChannel);
+        supabaseChannel = null;
+      }
+    }
+  });
+
+  // Check existing session on boot
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (session && session.user) {
+      currentUser = session.user;
+      updateAuthUI(currentUser);
+      await loadUserVault(currentUser);
+    } else {
+      currentUser = null;
+      updateAuthUI(null);
+      hideLoader();
+      showAuthModal("login");
+    }
+  } catch (err) {
+    console.error("[Auth] Session check error:", err);
+    hideLoader();
+  }
+}
+
+async function signInWithEmail(email, password) {
+  if (!supabase) supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  showAuthAlert("Authenticating with private vault...", "info");
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) {
+    showAuthAlert(error.message, "error");
+    return false;
+  }
+  showAuthAlert("Access granted! Loading your vault...", "success");
+  setTimeout(hideAuthModal, 500);
+  return true;
+}
+
+async function signUpWithEmail(email, password) {
+  if (!supabase) supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  showAuthAlert("Creating isolated private vault...", "info");
+  const { data, error } = await supabase.auth.signUp({ email, password });
+  if (error) {
+    showAuthAlert(error.message, "error");
+    return false;
+  }
+  if (data.session) {
+    showAuthAlert("Vault created successfully! Loading dashboard...", "success");
+    setTimeout(hideAuthModal, 500);
+  } else {
+    showAuthAlert("Account created! If email confirmation is enabled, please check your inbox.", "success");
+  }
+  return true;
+}
+
+async function signOutUser() {
+  if (supabase) {
+    await supabase.auth.signOut();
+  }
+  currentUser = null;
+  updateAuthUI(null);
+  hideAccountModal();
+  
+  // Clear local mirror and reset UI
+  State.assets = [];
+  State.upcomingIncome = 0;
+  State.transactions = [];
+  updateDashboardUI(true);
+
+  // Prompt sign-in
+  showAuthModal("login");
+}
+
+async function resetUserPassword(email) {
+  if (!supabase) supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  showAuthAlert("Sending recovery instructions...", "info");
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+  if (error) {
+    showAuthAlert(error.message, "error");
+    return false;
+  }
+  showAuthAlert("Password reset link sent to your email!", "success");
+  return true;
 }
 
 function getDefaultGoals() {
@@ -3055,68 +3050,32 @@ function handleIncomingCloudState(data) {
   updateDashboardUI();
 }
 
-function showSyncCodePrompt() {
-  const setupOverlay = document.getElementById("setup-wizard-overlay");
-  const step1 = document.getElementById("wizard-step-sync-code");
-  const step2 = document.getElementById("wizard-step-baselines");
-  
-  if (setupOverlay && step1 && step2) {
-    step1.style.display = "block";
-    step2.style.display = "none";
-    setupOverlay.style.display = "flex";
-    setTimeout(() => setupOverlay.classList.add("active"), 10);
-  }
-}
-
-function showWizardStep2() {
-  const setupOverlay = document.getElementById("setup-wizard-overlay");
-  const step1 = document.getElementById("wizard-step-sync-code");
-  const step2 = document.getElementById("wizard-step-baselines");
-  
-  if (setupOverlay && step1 && step2) {
-    step1.style.display = "none";
-    step2.style.display = "block";
-    setupOverlay.style.display = "flex";
-    setTimeout(() => setupOverlay.classList.add("active"), 10);
-  }
-}
-
 // --- APP INITIALIZATION & BOOTSTRAP ---
 document.addEventListener("DOMContentLoaded", () => {
   // 0. Force dark theme and remove saved preference
   document.documentElement.classList.remove("light-theme");
   localStorage.removeItem("theme");
 
-  // 0.1 Clean up legacy Local Storage keys to ensure zero local storage persistence
+  // 0.1 Clean up ALL legacy local storage keys to enforce 100% PURE ONLINE STORAGE
   const localKeys = [
     "usdSavings", "goldGrams", "goldPremium", "upcomingIncome", "transactions",
     "cachedUsdEgp", "cachedGold24kUsd", "lastFetchedTime", "usdEgpTrend",
     "gold24kTrend", "gold21kTrend", "lastResetMonth", "resetPending",
     "resetRolledIncome", "supabase_url", "supabase_key",
-    "firebase_config", "firebase_sync_code"
+    "firebase_config", "firebase_sync_code", "supabase_sync_code",
+    "aurafinance_local_state"
   ];
   localKeys.forEach(k => localStorage.removeItem(k));
 
-  // 0.15 Load from local storage mirror if available for instant startup UX
-  const localStateStr = localStorage.getItem("aurafinance_local_state");
-  if (localStateStr) {
-    try {
-      const localState = JSON.parse(localStateStr);
-      handleIncomingCloudState(localState);
-      isInitialLoadComplete = true;
-    } catch (e) {
-      console.warn("Failed to parse local state backup:", e);
+  // Thoroughly purge any local state cache keys to prevent phone cache overrides
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith("aurafinance_local_state")) {
+      localStorage.removeItem(key);
     }
-  }
+  });
 
-  // 0.2 Initialize Supabase Cloud Sync Connection
-  const syncCode = localStorage.getItem("supabase_sync_code");
-  if (!syncCode) {
-    showSyncCodePrompt();
-  } else {
-    showLoader("Connecting to secure vault...");
-    initSupabaseSync();
-  }
+  // 0.2 Initialize Supabase Authentication & Pure Online Cloud Vault System
+  initAuthSystem();
 
   // 2. Setup Event Handlers
   setupModalListeners();
