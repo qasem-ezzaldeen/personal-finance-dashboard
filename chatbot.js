@@ -27,8 +27,11 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
     return;
   }
 
-  // Load saved AI API key from localStorage
-  let aiApiKey = localStorage.getItem("aura_ai_api_key") || "";
+  // Default Universal AI Model Key
+  const DEFAULT_AI_API_KEY = "AQ.Ab8RN6JPDRamqIYAu2MZR-dZ_KW0-8BVSMjdiKCT2o1IufuCCg";
+
+  // Load saved AI API key from localStorage or use default universal key
+  let aiApiKey = localStorage.getItem("aura_ai_api_key") || DEFAULT_AI_API_KEY;
   if (apiKeyInput && aiApiKey) {
     apiKeyInput.value = aiApiKey;
   }
@@ -37,7 +40,7 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
   function updateStatusBadge() {
     if (!statusText) return;
     if (aiApiKey) {
-      statusText.textContent = aiApiKey.startsWith("gsk_") ? "Groq Online" : "Gemini Online";
+      statusText.textContent = "Aura AI Online";
       statusText.style.color = "var(--color-savings)";
     } else {
       statusText.textContent = "Local Mode";
@@ -51,11 +54,6 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
     trigger.classList.add("hidden");
     scrollToBottom();
     input.focus();
-
-    // If first time opening and no key is set, open settings panel to guide user
-    if (!aiApiKey && apiPanel && apiPanel.style.display === "none") {
-      apiPanel.style.display = "block";
-    }
   });
 
   closeBtn.addEventListener("click", () => {
@@ -83,7 +81,7 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
 
     // Detect accidental Twelve Data key
     const twelveDataKey = localStorage.getItem("twelve_data_api_key");
-    if ((twelveDataKey && cleanKey === twelveDataKey) || (!cleanKey.startsWith("AIza") && !cleanKey.startsWith("gsk_") && cleanKey.length === 32)) {
+    if ((twelveDataKey && cleanKey === twelveDataKey) || (!cleanKey.startsWith("AIza") && !cleanKey.startsWith("gsk_") && !cleanKey.startsWith("AQ.") && cleanKey.length === 32)) {
       return {
         success: false,
         message: "⚠️ This looks like your Twelve Data stock API key! For the chatbot, get a free key from <a href='https://aistudio.google.com/app/apikey' target='_blank' style='color:var(--color-savings);text-decoration:underline;'>Google AI Studio</a> or <a href='https://console.groq.com/keys' target='_blank' style='color:#60a5fa;text-decoration:underline;'>Groq</a>."
@@ -337,8 +335,6 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
       <br>• <strong>Gold Holdings & Market Prices</strong>
       <br>• <strong>Stocks, ETFs & SPUS Shares</strong>
       <br>• <strong>Live FX & Exchange Rates</strong>
-      <br><br>
-      💡 <em>To enable full generative chat, smart reasoning, and active voice/text edits, click the <strong>⚙️</strong> button in the chat header to add your free <strong>Google Gemini API key</strong> (free in 1 click at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--color-gold); text-decoration: underline;">aistudio.google.com</a>).</em>
     `;
   }
 
@@ -398,7 +394,7 @@ Supported Actions:
         replyText = data.choices?.[0]?.message?.content || "";
       } else {
         // Google Gemini API with resilient multi-model iteration
-        const models = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
+        const models = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-1.5-flash"];
         let lastErr = null;
         let success = false;
 
@@ -415,7 +411,7 @@ Supported Actions:
                 }],
                 generationConfig: {
                   temperature: 0.3,
-                  maxOutputTokens: 800
+                  maxOutputTokens: 2048
                 }
               })
             });

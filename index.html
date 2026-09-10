@@ -45,39 +45,22 @@
         </div>
       </div>
 
-      <!-- API Live Rates Bar -->
+      <!-- API Live Rates Bar (Dynamic based on Wealth Distribution) -->
       <div class="api-rates-bar" id="rates-display-container">
-        <div class="rate-pill">
-          <span class="rate-dot live" id="api-status-dot"></span>
-          <span class="rate-label">USD/EGP:</span>
-          <span class="rate-value" id="rate-usd-egp">--.-- EGP</span>
-        </div>
-        <div class="rate-pill gold-rate-pill" id="pill-gold-24k" title="Click to manually edit gold price">
-          <span class="rate-label">Gold 24k/g:</span>
-          <span class="rate-value" id="rate-gold-24k">--.-- EGP</span>
-        </div>
-        <div class="rate-pill gold-rate-pill" id="pill-gold-21k" title="Click to manually edit gold price">
-          <span class="rate-label">Gold 21k/g:</span>
-          <span class="rate-value" id="rate-gold-21k">--.-- EGP</span>
-        </div>
-        <div class="rate-pill stock-rate-pill" id="pill-stock-spus" title="SP Funds S&P 500 Sharia Industry Exclusions ETF">
-          <span class="rate-label">SPUS:</span>
-          <span class="rate-value" id="rate-stock-spus">$59.09</span>
-        </div>
-        <div id="followed-stocks-container" style="display: flex; gap: 0.5rem; align-items: center;"></div>
+        <div id="dynamic-kpis-container" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;"></div>
         <button id="add-stock-kpi-btn" class="refresh-btn add-stock-btn" title="Follow Stock / ETF Price in Bar" type="button">
           ➕
         </button>
         <button id="edit-gold-rate-btn" class="refresh-btn edit-gold-btn" title="Manually Edit Gold & FX Rates" type="button">
           ✏️
         </button>
-          <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
-            <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-1.19" stroke-linecap="round"
-                stroke-linejoin="round" />
-            </svg>
-          </button>
-        </div>
+        <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
+          <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l.57-1.19" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
 
         <!-- Timestamp & User Vault Controls -->
         <div class="header-controls">
@@ -110,7 +93,10 @@
         <span class="banner-icon" style="font-size: 1.8rem; filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.5));">🕌</span>
         <div class="banner-text">
           <h3 style="color: #10b981; font-weight: 800;">Zakat is Due</h3>
-          <p style="color: var(--text-primary);">You have completed <strong id="zakat-streak-days" style="color: #facc15;">354</strong> consecutive days over the Zakat threshold (85g 24k Gold).</p>
+          <p style="color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+            <span>You have completed <strong id="zakat-streak-days" style="color: #facc15; cursor: pointer;" title="Click to edit streak">354</strong> consecutive days over the Zakat threshold (85g 24k Gold).</span>
+            <button type="button" id="edit-banner-streak-btn" class="btn-icon" title="Edit Zakat Streak" style="width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 4px; color: #facc15; cursor: pointer;">✏️</button>
+          </p>
         </div>
       </div>
       <div class="banner-wealth-box" style="margin-left: auto; text-align: right; display: flex; flex-direction: column; gap: 0.1rem; justify-content: center;">
@@ -566,6 +552,91 @@
     </div>
   </div>
 
+  <!-- Zakat Hawl & Streak Modal -->
+  <div id="zakat-streak-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.3rem;">🕌</span>
+          <h3 id="zakat-streak-modal-title">Edit Zakat Hawl & Streak</h3>
+        </div>
+        <button class="close-modal-btn" id="close-zakat-streak-modal" type="button">✕</button>
+      </div>
+      <form id="zakat-streak-form" class="modal-form">
+        <div class="zakat-hawl-info-box" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.15rem; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary);">
+          <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #10b981; margin-bottom: 0.25rem;">
+            <span>⚖️</span> <span>Islamic Hawl Tracking</span>
+          </div>
+          Zakat becomes due once your net worth reaches or exceeds the Nisab (85g 24k gold) and remains above it for one full lunar year (<strong>354 days</strong>). If your wealth reached Nisab prior to launching this vault, adjust your streak or choose your Hawl start date below.
+        </div>
+
+        <!-- Current Wealth vs Nisab Status -->
+        <div class="zakat-status-card" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+          <div>
+            <span style="display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Your Net Worth</span>
+            <span id="zakat-modal-current-grams" style="font-size: 1rem; font-weight: 700; color: var(--color-gold);">--.- g Gold</span>
+          </div>
+          <div style="text-align: right;">
+            <span style="display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Zakat Nisab</span>
+            <span style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">85.00 g (24k)</span>
+          </div>
+        </div>
+
+        <div id="zakat-modal-below-nisab-warning" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem; margin-bottom: 1rem; font-size: 0.75rem; color: #f87171;">
+          ⚠️ Your current wealth is below the 85g gold Nisab. In Islamic law, a Hawl streak begins only when wealth reaches the Nisab.
+        </div>
+
+        <!-- Days & Date Two-Way Sync -->
+        <div class="form-group">
+          <label for="zakat-streak-days-input">Consecutive Days Above Nisab</label>
+          <div class="input-wrapper focus-glow">
+            <input type="number" id="zakat-streak-days-input" min="1" max="10000" step="1" required autocomplete="off" placeholder="e.g. 150" style="font-weight: 700; font-size: 1.15rem; color: #facc15;">
+            <span class="input-suffix">Days</span>
+          </div>
+          <p class="input-help">Number of consecutive days your wealth has remained at or above the Nisab.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="zakat-streak-start-date">Or Hawl Start Date</label>
+          <div class="input-wrapper focus-glow">
+            <input type="date" id="zakat-streak-start-date" class="form-date-input" style="color-scheme: dark; font-size: 0.9rem;">
+          </div>
+          <p class="input-help">Pick the approximate calendar date when your wealth first crossed the Nisab.</p>
+        </div>
+
+        <!-- Presets -->
+        <div class="form-group">
+          <label style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.35rem; display: block;">Quick Presets</label>
+          <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="1">1 Day (Just Started)</button>
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="90">3 Months (90d)</button>
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="177">Half Year (177d)</button>
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="354" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">Full Hawl (354d - Due)</button>
+          </div>
+        </div>
+
+        <!-- Hawl Progress Visual Card -->
+        <div style="background: rgba(0, 0, 0, 0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; border: 1px solid rgba(255, 255, 255, 0.05);">
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.4rem;">
+            <span style="color: var(--text-secondary);">Lunar Year Completion (354 Days)</span>
+            <span id="zakat-modal-progress-text" style="font-weight: 700; color: #facc15;">0.3%</span>
+          </div>
+          <div style="height: 8px; background: rgba(255, 255, 255, 0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 0.5rem;">
+            <div id="zakat-modal-progress-bar" style="width: 0.3%; height: 100%; background: linear-gradient(90deg, #facc15, #10b981); border-radius: 9999px; transition: width 0.25s ease;"></div>
+          </div>
+          <div id="zakat-modal-status-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">
+            353 days remaining until Zakat becomes due.
+          </div>
+        </div>
+
+        <div class="modal-actions" style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-outline" id="cancel-zakat-streak-btn" style="flex: 1;">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="save-zakat-streak-btn" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: 700; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);">Save Streak</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Auth Modal (Sign In, Create Vault, Password Reset) -->
   <div id="auth-modal" class="modal-overlay" style="display: none;">
     <div class="modal-card auth-modal-card">
@@ -815,7 +886,7 @@
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 0.35rem;">
-        <button id="chatbot-settings-toggle" class="chatbot-icon-btn" title="AI API Key Settings" type="button">⚙️</button>
+        <button id="chatbot-settings-toggle" class="chatbot-icon-btn" title="AI API Key Settings" type="button" style="display: none;">⚙️</button>
         <button id="chatbot-close" class="chatbot-close-btn" title="Minimize Chat" type="button">✕</button>
       </div>
     </div>

@@ -1364,6 +1364,37 @@ body {
   font-weight: 700;
 }
 
+/* Zakat Hawl & Streak Interactive Styles */
+.zakat-streak-clickable {
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.zakat-streak-clickable:hover {
+  transform: translateY(-1px) scale(1.04);
+  background: rgba(234, 179, 8, 0.25) !important;
+  border-color: rgba(234, 179, 8, 0.5) !important;
+  box-shadow: 0 2px 8px rgba(234, 179, 8, 0.2);
+}
+
+.zakat-preset-btn {
+  font-size: 0.72rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.zakat-preset-btn:hover {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: rgba(234, 179, 8, 0.4);
+  color: #facc15;
+  transform: translateY(-1px);
+}
+
 /* Modal Overlay & Card System */
 .modal-overlay {
   position: fixed;

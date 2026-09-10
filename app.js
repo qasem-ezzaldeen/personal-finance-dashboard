@@ -210,7 +210,19 @@ const DEFAULT_STOCK_PRICES = {
  */
 async function fetchStockPrice(symbol) {
   if (!symbol) return 0;
-  const sym = symbol.trim().toUpperCase();
+  let sym = symbol.trim().toUpperCase();
+  const symbolAliases = {
+    "APPLE": "AAPL",
+    "MICROSOFT": "MSFT",
+    "GOOGLE": "GOOGL",
+    "ALPHABET": "GOOGL",
+    "TESLA": "TSLA",
+    "AMAZON": "AMZN",
+    "NVIDIA": "NVDA"
+  };
+  if (symbolAliases[sym]) {
+    sym = symbolAliases[sym];
+  }
   let price = null;
 
   // 1. Check if user configured a manual SPUS price override
@@ -283,16 +295,25 @@ async function fetchStockPrice(symbol) {
  * Fetches quotes for all tracked stocks: SPUS, followed top-bar KPIs, and stock assets.
  */
 async function fetchAllTrackedStocks() {
-  const tickers = new Set(["SPUS"]);
+  const tickers = new Set();
   if (Array.isArray(State.followedStockKpis)) {
-    State.followedStockKpis.forEach(t => tickers.add(t.toUpperCase()));
+    State.followedStockKpis.forEach(t => {
+      let s = t.trim().toUpperCase();
+      if (s === "APPLE") s = "AAPL";
+      tickers.add(s);
+    });
   }
   if (Array.isArray(State.assets)) {
     State.assets.forEach(a => {
       if (a.currency === "Stock" && a.ticker) {
-        tickers.add(a.ticker.toUpperCase());
+        let s = a.ticker.trim().toUpperCase();
+        if (s === "APPLE") s = "AAPL";
+        tickers.add(s);
       }
     });
+  }
+  if (tickers.size === 0) {
+    tickers.add("SPUS");
   }
 
   const fetchPromises = Array.from(tickers).map(t => fetchStockPrice(t));
@@ -845,63 +866,158 @@ function updateDashboardUI(force = false) {
   const gold24kArrow = getTrendArrowHTML(State.gold24kTrend);
   const gold21kArrow = getTrendArrowHTML(State.gold21kTrend);
 
-  // --- 1. Update Rates Bar & Sync Timestamps ---
-  document.getElementById("rate-usd-egp").innerHTML = `${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}`;
-  
-  // SPUS Live Stock Price in Top Rates Bar
-  const spusPrice = (State.stockPrices && State.stockPrices["SPUS"] !== undefined) ? State.stockPrices["SPUS"] : 58.62;
-  const spusTrend = (State.stockTrends && State.stockTrends["SPUS"]) ? State.stockTrends["SPUS"] : "neutral";
-  const spusArrow = getTrendArrowHTML(spusTrend);
-  const rateSpusEl = document.getElementById("rate-stock-spus");
-  if (rateSpusEl) {
-    rateSpusEl.innerHTML = `$${spusPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}${spusArrow}`;
-  }
+  // --- 1. Dynamic Wealth Distribution KPIs in Top Rates Bar ---
+  const kpisContainer = document.getElementById("dynamic-kpis-container");
+  if (kpisContainer) {
+    const activeAssets = (State.assets || []).filter(a => {
+      if ((a.id === "paypal" || (a.name && a.name.toLowerCase() === "paypal")) && a.holdings === 0) return false;
+      return true;
+    });
 
-  // Render Followed Stocks Pills in Top Rates Bar
-  const followedContainer = document.getElementById("followed-stocks-container");
-  if (followedContainer) {
-    const followedList = State.followedStockKpis || [];
-    followedContainer.innerHTML = followedList.map(ticker => {
-      const uTicker = ticker.toUpperCase();
-      const p = (State.stockPrices && State.stockPrices[uTicker] !== undefined) ? State.stockPrices[uTicker] : 0;
-      const t = (State.stockTrends && State.stockTrends[uTicker]) ? State.stockTrends[uTicker] : "neutral";
-      const arrow = getTrendArrowHTML(t);
-      const priceStr = p > 0 ? `$${p.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "--.--";
-      return `
-        <div class="rate-pill stock-rate-pill followed-stock-pill" data-ticker="${uTicker}" title="${uTicker} Live Stock Price">
-          <span class="rate-label">${uTicker}:</span>
-          <span class="rate-value">${priceStr}${arrow}</span>
-          <button class="stock-pill-remove-btn" title="Unfollow ${uTicker}" data-ticker="${uTicker}" type="button">×</button>
+    const hasUsd = activeAssets.some(a => a.currency === "USD") || (State.upcomingIncome > 0) || (State.usdSavings > 0);
+    const hasGold24k = activeAssets.some(a => a.currency === "Gold 24k (Grams)" || a.currency === "Gold") || (State.goldGrams > 0);
+    const hasGold21k = activeAssets.some(a => a.currency === "Gold (Grams)");
+    const hasAud = activeAssets.some(a => a.currency === "AUD");
+    
+    // Collect unique stock tickers held in assets
+    const heldStockTickers = new Set();
+    activeAssets.forEach(a => {
+      if (a.currency === "Stock" && a.ticker) {
+        let sym = a.ticker.trim().toUpperCase();
+        if (sym === "APPLE") sym = "AAPL";
+        heldStockTickers.add(sym);
+      }
+    });
+
+    const hasAnyAssets = hasUsd || hasGold24k || hasGold21k || hasAud || heldStockTickers.size > 0;
+
+    let kpisHtml = "";
+    let isFirstPill = true;
+
+    const renderDot = () => {
+      if (isFirstPill) {
+        isFirstPill = false;
+        return `<span class="rate-dot live" id="api-status-dot"></span>`;
+      }
+      return "";
+    };
+
+    if (!hasAnyAssets) {
+      // Default baseline when vault is empty
+      kpisHtml += `
+        <div class="rate-pill" title="US Dollar / Egyptian Pound Exchange Rate">
+          ${renderDot()}
+          <span class="rate-label">USD/EGP:</span>
+          <span class="rate-value" id="rate-usd-egp">${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}</span>
+        </div>
+        <div class="rate-pill gold-rate-pill" id="pill-gold-24k" title="Click to manually edit gold price">
+          <span class="rate-label">Gold 24k/g:</span>
+          <span class="rate-value" id="rate-gold-24k">${State.isManualGold ? `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP <span class="manual-badge" title="Manual Gold Price Override">Manual</span>` : `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`}</span>
+        </div>
+        <div class="rate-pill stock-rate-pill" id="pill-stock-spus" title="SP Funds S&P 500 Sharia Industry Exclusions ETF">
+          <span class="rate-label">SPUS:</span>
+          <span class="rate-value" id="rate-stock-spus">$${((State.stockPrices && State.stockPrices["SPUS"] !== undefined) ? State.stockPrices["SPUS"] : 58.62).toFixed(2)}${getTrendArrowHTML(State.stockTrends?.["SPUS"] || "neutral")}</span>
         </div>
       `;
-    }).join("");
+    } else {
+      // 1. USD/EGP
+      if (hasUsd) {
+        kpisHtml += `
+          <div class="rate-pill" title="US Dollar / Egyptian Pound Exchange Rate">
+            ${renderDot()}
+            <span class="rate-label">USD/EGP:</span>
+            <span class="rate-value" id="rate-usd-egp">${usdEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})} EGP${usdEgpArrow}</span>
+          </div>
+        `;
+      }
 
-    followedContainer.querySelectorAll(".stock-pill-remove-btn").forEach(btn => {
+      // 2. Gold 24k
+      if (hasGold24k) {
+        const manualBadgeHtml = State.isManualGold ? ` <span class="manual-badge" title="Manual Gold Price Override">Manual</span>` : "";
+        kpisHtml += `
+          <div class="rate-pill gold-rate-pill" id="pill-gold-24k" title="Click to manually edit gold price">
+            ${renderDot()}
+            <span class="rate-label">Gold 24k/g:</span>
+            <span class="rate-value" id="rate-gold-24k">${State.isManualGold ? `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${manualBadgeHtml}` : `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`}</span>
+          </div>
+        `;
+      }
+
+      // 3. Gold 21k
+      if (hasGold21k) {
+        const manualBadgeHtml = State.isManualGold ? ` <span class="manual-badge" title="Manual Gold Price Override">Manual</span>` : "";
+        kpisHtml += `
+          <div class="rate-pill gold-rate-pill" id="pill-gold-21k" title="Click to manually edit gold price">
+            ${renderDot()}
+            <span class="rate-label">Gold 21k/g:</span>
+            <span class="rate-value" id="rate-gold-21k">${State.isManualGold ? `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${manualBadgeHtml}` : `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold21kArrow}`}</span>
+          </div>
+        `;
+      }
+
+      // 4. AUD/EGP
+      if (hasAud) {
+        const audEgpRate = State.cachedAudEgp || (usdAudRate > 0 ? usdEgpRate / usdAudRate : 31.5);
+        const audEgpArrow = getTrendArrowHTML(State.audEgpTrend || "neutral");
+        kpisHtml += `
+          <div class="rate-pill" title="Australian Dollar / Egyptian Pound Exchange Rate">
+            ${renderDot()}
+            <span class="rate-label">AUD/EGP:</span>
+            <span class="rate-value">${audEgpRate.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${audEgpArrow}</span>
+          </div>
+        `;
+      }
+
+      // 5. Held Stocks (e.g. AAPL, SPUS, NVDA, etc.)
+      heldStockTickers.forEach(ticker => {
+        const p = (State.stockPrices && State.stockPrices[ticker] !== undefined)
+          ? State.stockPrices[ticker]
+          : (DEFAULT_STOCK_PRICES[ticker] || 0);
+        const t = (State.stockTrends && State.stockTrends[ticker]) ? State.stockTrends[ticker] : "neutral";
+        const arrow = getTrendArrowHTML(t);
+        const priceStr = p > 0 ? `$${p.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "--.--";
+        kpisHtml += `
+          <div class="rate-pill stock-rate-pill held-stock-pill" data-ticker="${ticker}" title="${ticker} Stock Price (Held in Portfolio)">
+            ${renderDot()}
+            <span class="rate-label">${ticker}:</span>
+            <span class="rate-value">${priceStr}${arrow}</span>
+          </div>
+        `;
+      });
+    }
+
+    // 6. Additional Followed Stocks (explicitly followed via ➕, not already held)
+    const followedList = State.followedStockKpis || [];
+    followedList.forEach(ticker => {
+      const uTicker = ticker.toUpperCase();
+      if (!heldStockTickers.has(uTicker)) {
+        const p = (State.stockPrices && State.stockPrices[uTicker] !== undefined) ? State.stockPrices[uTicker] : (DEFAULT_STOCK_PRICES[uTicker] || 0);
+        const t = (State.stockTrends && State.stockTrends[uTicker]) ? State.stockTrends[uTicker] : "neutral";
+        const arrow = getTrendArrowHTML(t);
+        const priceStr = p > 0 ? `$${p.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}` : "--.--";
+        kpisHtml += `
+          <div class="rate-pill stock-rate-pill followed-stock-pill" data-ticker="${uTicker}" title="${uTicker} Live Stock Price">
+            ${renderDot()}
+            <span class="rate-label">${uTicker}:</span>
+            <span class="rate-value">${priceStr}${arrow}</span>
+            <button class="stock-pill-remove-btn" title="Unfollow ${uTicker}" data-ticker="${uTicker}" type="button">×</button>
+          </div>
+        `;
+      }
+    });
+
+    kpisContainer.innerHTML = kpisHtml;
+
+    // Attach click listeners for followed stocks remove buttons
+    kpisContainer.querySelectorAll(".stock-pill-remove-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const t = btn.getAttribute("data-ticker");
-        if (t) {
-          unfollowStock(t);
-        }
+        if (t) unfollowStock(t);
       });
     });
   }
 
-  // Display Egyptian gold rates in EGP in the header
-  const manualBadgeHtml = State.isManualGold ? ` <span class="manual-badge" title="Manual Gold Price Override">Manual</span>` : "";
-  const el24k = document.getElementById("rate-gold-24k");
-  if (el24k) {
-    el24k.innerHTML = State.isManualGold 
-      ? `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${manualBadgeHtml}`
-      : `${gold24kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold24kArrow}`;
-  }
-
-  const el21k = document.getElementById("rate-gold-21k");
-  if (el21k) {
-    el21k.innerHTML = State.isManualGold 
-      ? `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${manualBadgeHtml}`
-      : `${gold21kEgpPerGram.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP${gold21kArrow}`;
-  }
   document.getElementById("last-updated-time").textContent = State.lastFetchedTime || "Never";
 
   // --- 3. Update Financial Goals Tracking Panel ---
@@ -1011,13 +1127,15 @@ function updateDashboardUI(force = false) {
               <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
                 <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
                 ${goal.name}
-                ${goal.id === "goal_zakat" && isMet ? `<span class="streak-badge" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.1rem;" title="Consecutive days over threshold">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
+                ${goal.id === "goal_zakat" && isMet ? `<span class="streak-badge zakat-streak-clickable" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid rgba(234, 179, 8, 0.25);" title="Consecutive days over threshold (Click to edit streak)">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
               </h3>
               <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
               <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
-              ${goal.id !== "goal_zakat" ? `<button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : ''}
+              ${goal.id !== "goal_zakat" 
+                ? `<button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` 
+                : (isMet ? `<button class="btn-icon edit-zakat-streak-btn" title="Edit Zakat Streak" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : '')}
             </div>
           </div>
           
@@ -1037,6 +1155,23 @@ function updateDashboardUI(force = false) {
           editBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             openGoalModal(goal);
+          });
+        }
+
+        // Attach click handler for Zakat streak edit button and streak badge
+        const editZakatBtn = goalItem.querySelector(".edit-zakat-streak-btn");
+        if (editZakatBtn) {
+          editZakatBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openZakatStreakModal();
+          });
+        }
+
+        const streakBadge = goalItem.querySelector(".zakat-streak-clickable");
+        if (streakBadge) {
+          streakBadge.addEventListener("click", (e) => {
+            e.stopPropagation();
+            openZakatStreakModal();
           });
         }
         
@@ -1447,6 +1582,11 @@ function hideAssetModal() {
 
 // --- DYNAMIC GOALS MODAL HELPERS ---
 function openGoalModal(goal = null) {
+  if (goal && goal.id === "goal_zakat") {
+    openZakatStreakModal();
+    return;
+  }
+
   const modal = document.getElementById("goal-modal");
   const title = document.getElementById("goal-modal-title");
   const idInput = document.getElementById("goal-id-input");
@@ -1484,6 +1624,146 @@ function openGoalModal(goal = null) {
 
 function hideGoalModal() {
   const modal = document.getElementById("goal-modal");
+  if (modal) {
+    modal.classList.remove("active");
+    setTimeout(() => modal.style.display = "none", 300);
+  }
+}
+
+// --- ZAKAT STREAK MODAL HELPERS ---
+function zakatDaysToStartDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - (Math.max(1, days) - 1));
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function zakatStartDateToDays(dateStr) {
+  if (!dateStr) return 1;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const picked = new Date(y, m - 1, d);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
+  const diffMs = today.getTime() - picked.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  return Math.max(1, diffDays);
+}
+
+function updateZakatModalPreview(days) {
+  const progressText = document.getElementById("zakat-modal-progress-text");
+  const progressBar = document.getElementById("zakat-modal-progress-bar");
+  const statusDesc = document.getElementById("zakat-modal-status-desc");
+  
+  const hawlDays = 354;
+  const pct = Math.min(100, (days / hawlDays) * 100);
+  
+  if (progressText) {
+    progressText.textContent = `${pct.toFixed(1)}% (${days} / ${hawlDays}d)`;
+    if (days >= hawlDays) {
+      progressText.style.color = "#10b981";
+    } else {
+      progressText.style.color = "#facc15";
+    }
+  }
+  
+  if (progressBar) {
+    progressBar.style.width = `${pct}%`;
+  }
+  
+  if (statusDesc) {
+    if (days >= hawlDays) {
+      statusDesc.innerHTML = `<span style="color: #10b981; font-weight: 700;">🎉 Full Hawl Completed! Zakat is due now (2.5% of total wealth).</span>`;
+    } else {
+      const remaining = hawlDays - days;
+      statusDesc.textContent = `${remaining} ${remaining === 1 ? 'day' : 'days'} remaining until Zakat becomes due.`;
+    }
+  }
+}
+
+function getNetWorthExcludingUpcoming() {
+  const usdEgpRate = State.cachedUsdEgp || 48.5;
+  const usdAudRate = State.cachedUsdAud || 1.54;
+  let gold24kEgpPerGram = 0;
+  if (State.isManualGold && State.manualGold24kEgp > 0) {
+    gold24kEgpPerGram = State.manualGold24kEgp;
+  } else {
+    gold24kEgpPerGram = (State.cachedGold24kUsd || 0) * usdEgpRate * (1 + (State.goldPremium || 2.5) / 100);
+  }
+
+  let totalNetWorthUsd = 0;
+  let totalNetWorthAud = 0;
+  let totalNetWorthEgp = 0;
+
+  if (State.assets && State.assets.length > 0) {
+    State.assets.forEach(asset => {
+      const { usd, aud, egp } = getAssetValuations(asset.holdings, asset.currency, asset);
+      totalNetWorthUsd += usd;
+      totalNetWorthAud += aud;
+      totalNetWorthEgp += egp;
+    });
+  } else {
+    const usdSavings = Number(State.usdSavings) || 0;
+    const goldGrams = Number(State.goldGrams) || 0;
+    totalNetWorthUsd = usdSavings + (gold24kEgpPerGram > 0 && usdEgpRate > 0 ? (goldGrams * gold24kEgpPerGram / usdEgpRate) : 0);
+    totalNetWorthAud = totalNetWorthUsd * usdAudRate;
+    totalNetWorthEgp = usdSavings * usdEgpRate + goldGrams * gold24kEgpPerGram;
+  }
+
+  const currentGrams = gold24kEgpPerGram > 0 ? (totalNetWorthEgp / gold24kEgpPerGram) : 0;
+  return {
+    totalNetWorthUsd,
+    totalNetWorthAud,
+    totalNetWorthEgp,
+    gold24kEgpPerGram,
+    currentGrams
+  };
+}
+
+function openZakatStreakModal() {
+  const modal = document.getElementById("zakat-streak-modal");
+  if (!modal) return;
+  
+  const daysInput = document.getElementById("zakat-streak-days-input");
+  const dateInput = document.getElementById("zakat-streak-start-date");
+  const gramsEl = document.getElementById("zakat-modal-current-grams");
+  const warningEl = document.getElementById("zakat-modal-below-nisab-warning");
+  
+  const { currentGrams } = getNetWorthExcludingUpcoming();
+  if (gramsEl) {
+    gramsEl.textContent = `${currentGrams.toLocaleString(undefined, {minimumFractionDigits: 1, maximumFractionDigits: 2})} g Gold`;
+  }
+  
+  const isBelowNisab = currentGrams < 85;
+  if (warningEl) {
+    warningEl.style.display = isBelowNisab ? "block" : "none";
+  }
+  
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (dateInput) {
+    dateInput.max = todayStr;
+  }
+  
+  const initialDays = Math.max(1, State.zakatConsecutiveDays || 1);
+  if (daysInput) {
+    daysInput.value = initialDays;
+  }
+  
+  if (dateInput) {
+    dateInput.value = zakatDaysToStartDate(initialDays);
+  }
+  
+  updateZakatModalPreview(initialDays);
+  
+  modal.style.display = "flex";
+  setTimeout(() => modal.classList.add("active"), 10);
+}
+
+function hideZakatStreakModal() {
+  const modal = document.getElementById("zakat-streak-modal");
   if (modal) {
     modal.classList.remove("active");
     setTimeout(() => modal.style.display = "none", 300);
@@ -2325,8 +2605,114 @@ function setupModalListeners() {
     });
   }
 
+  // --- Zakat Streak Modal Setup ---
+  setupZakatStreakModal();
+
   // --- Gold Rate Modal Setup ---
   setupGoldRateModal();
+}
+
+function setupZakatStreakModal() {
+  const modal = document.getElementById("zakat-streak-modal");
+  const cancelBtn = document.getElementById("cancel-zakat-streak-btn");
+  const closeBtn = document.getElementById("close-zakat-streak-modal");
+  const form = document.getElementById("zakat-streak-form");
+  const daysInput = document.getElementById("zakat-streak-days-input");
+  const dateInput = document.getElementById("zakat-streak-start-date");
+  const presetBtns = document.querySelectorAll(".zakat-preset-btn");
+  const editBannerStreakBtn = document.getElementById("edit-banner-streak-btn");
+  const bannerDaysEl = document.getElementById("zakat-streak-days");
+
+  if (cancelBtn) cancelBtn.addEventListener("click", hideZakatStreakModal);
+  if (closeBtn) closeBtn.addEventListener("click", hideZakatStreakModal);
+  if (modal) {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) hideZakatStreakModal();
+    });
+  }
+
+  if (editBannerStreakBtn) {
+    editBannerStreakBtn.addEventListener("click", () => {
+      openZakatStreakModal();
+    });
+  }
+
+  if (bannerDaysEl) {
+    bannerDaysEl.addEventListener("click", () => {
+      openZakatStreakModal();
+    });
+  }
+
+  // Two-way sync: Days Input -> Date & Progress
+  if (daysInput) {
+    daysInput.addEventListener("input", () => {
+      const days = parseInt(daysInput.value, 10);
+      if (!isNaN(days) && days >= 1) {
+        if (dateInput) {
+          dateInput.value = zakatDaysToStartDate(days);
+        }
+        updateZakatModalPreview(days);
+      }
+    });
+  }
+
+  // Two-way sync: Date Picker -> Days & Progress
+  if (dateInput) {
+    const handleDateChange = () => {
+      if (dateInput.value) {
+        const days = zakatStartDateToDays(dateInput.value);
+        if (daysInput) {
+          daysInput.value = days;
+        }
+        updateZakatModalPreview(days);
+      }
+    };
+    dateInput.addEventListener("input", handleDateChange);
+    dateInput.addEventListener("change", handleDateChange);
+  }
+
+  // Quick Preset Buttons
+  if (presetBtns) {
+    presetBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const days = parseInt(btn.dataset.days, 10);
+        if (!isNaN(days) && days >= 1) {
+          if (daysInput) daysInput.value = days;
+          if (dateInput) dateInput.value = zakatDaysToStartDate(days);
+          updateZakatModalPreview(days);
+        }
+      });
+    });
+  }
+
+  // Form Submission
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const days = parseInt(daysInput ? daysInput.value : 0, 10);
+      if (isNaN(days) || days < 1) {
+        alert("Please enter a valid number of consecutive days (minimum 1).");
+        return;
+      }
+
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+      State.zakatConsecutiveDays = days;
+      State.lastZakatCheckDate = todayStr;
+
+      // Recalculate 2.5% due amounts based on current wealth excluding upcoming income
+      const { totalNetWorthUsd, totalNetWorthAud, totalNetWorthEgp } = getNetWorthExcludingUpcoming();
+
+      State.zakatSavedDueUsd = totalNetWorthUsd * 0.025;
+      State.zakatSavedDueEgp = totalNetWorthEgp * 0.025;
+      State.zakatSavedDueAud = totalNetWorthAud * 0.025;
+
+      State.save();
+      hideZakatStreakModal();
+      updateDashboardUI();
+    });
+  }
 }
 
 function setupGoldRateModal() {
@@ -2402,6 +2788,16 @@ function setupGoldRateModal() {
   if (editGoldBtn) editGoldBtn.addEventListener("click", openGoldModal);
   if (pill24k) pill24k.addEventListener("click", openGoldModal);
   if (pill21k) pill21k.addEventListener("click", openGoldModal);
+
+  // Also delegate click on dynamic gold pills inside rates bar
+  const ratesContainer = document.getElementById("rates-display-container");
+  if (ratesContainer) {
+    ratesContainer.addEventListener("click", (e) => {
+      if (e.target.closest(".gold-rate-pill")) {
+        openGoldModal();
+      }
+    });
+  }
 
   if (closeGoldBtn) closeGoldBtn.addEventListener("click", hideGoldModal);
   if (cancelGoldBtn) cancelGoldBtn.addEventListener("click", hideGoldModal);
@@ -2834,13 +3230,6 @@ function getDefaultGoals() {
       currency: "Gold",
       target: 85,
       emoji: "🕌"
-    },
-    {
-      id: "goal_migration",
-      name: "Migration Goal",
-      currency: "AUD",
-      target: 20000,
-      emoji: "🇦🇺"
     }
   ];
 }
@@ -2849,6 +3238,9 @@ function ensureZakatGoal() {
   if (!State.goals) {
     State.goals = [];
   }
+  // Ensure migration goal is removed from defaults
+  State.goals = State.goals.filter(g => g.id !== "goal_migration");
+
   let zakatGoal = State.goals.find(g => g.id === "goal_zakat");
   if (!zakatGoal) {
     zakatGoal = {
@@ -2993,7 +3385,7 @@ function handleIncomingCloudState(data) {
   if (data.transactions !== undefined) State.transactions = data.transactions;
   
   if (data.goals !== undefined) {
-    State.goals = data.goals;
+    State.goals = (data.goals || []).filter(g => g.id !== "goal_migration");
   } else {
     State.goals = getDefaultGoals();
   }
