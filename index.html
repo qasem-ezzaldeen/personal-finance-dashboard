@@ -6,7 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Personal Financial Analytics</title>
   <!-- Favicon -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23eab308%22><path d=%22M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V19h-2.18v-.91c-1.32-.08-2.61-.79-3.05-1.92l1.65-.69c.23.67.93 1.14 1.76 1.16.89.02 1.62-.43 1.62-1.07 0-.74-.63-1.07-1.74-1.37-1.48-.4-3.15-.99-3.15-2.92 0-1.6 1.15-2.67 2.65-2.88V7.5h2.18v.91c1.17.09 2.18.68 2.62 1.65l-1.63.68c-.28-.53-.74-.86-1.35-.9-.67-.04-1.46.26-1.46.99 0 .62.53.91 1.57 1.22 1.77.53 3.33 1.14 3.33 3.09.01 1.7-1.12 2.76-2.63 2.95z%22/></svg>">
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%23eab308%22><path d=%22M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V19h-2.18v-.91c-1.32-.08-2.61-.79-3.05-1.92l1.65-.69c.23.67.93 1.14 1.76 1.16.89.02 1.62-.43 1.62-1.07 0-.74-.63-1.07-1.74-1.37-1.48-.4-3.15-.99-3.15-2.92 0-1.6 1.15-2.67 2.65-2.88V7.5h2.18v.91c1.17.09 2.18.68 2.62 1.65l-1.63.68c-.28-.53-.74-.86-1.35-.9-.67-.04-1.46.26-1.46.99 0 .62.53.91 1.57 1.22 1.77.53 3.33 1.14 3.33 3.09.01 1.7-1.12 2.76-2.63 2.95z%22/></svg>">
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,11 +48,14 @@
 
       <!-- API Live Rates Bar (Dynamic based on Wealth Distribution) -->
       <div class="api-rates-bar" id="rates-display-container">
-        <div id="dynamic-kpis-container" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;"></div>
-        <button id="add-stock-kpi-btn" class="refresh-btn add-stock-btn" title="Follow Stock / ETF Price in Bar" type="button">
+        <div id="dynamic-kpis-container" style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+        </div>
+        <button id="add-stock-kpi-btn" class="refresh-btn add-stock-btn" title="Follow Stock / ETF Price in Bar"
+          type="button">
           ➕
         </button>
-        <button id="edit-gold-rate-btn" class="refresh-btn edit-gold-btn" title="Manually Edit Gold & FX Rates" type="button">
+        <button id="edit-gold-rate-btn" class="refresh-btn edit-gold-btn" title="Manually Edit Gold & FX Rates"
+          type="button">
           ✏️
         </button>
         <button id="manual-refresh-btn" class="refresh-btn" title="Refresh Live Market Data">
@@ -62,18 +66,18 @@
         </button>
       </div>
 
-        <!-- Timestamp & User Vault Controls -->
-        <div class="header-controls">
-          <div class="sync-status">
-            <span class="time-label">Last Updated:</span>
-            <span class="time-value" id="last-updated-time">Never</span>
-          </div>
-          <button id="user-auth-btn" class="user-auth-pill" type="button" title="Vault Account & Authentication">
-            <span class="auth-dot" id="auth-status-dot"></span>
-            <span class="auth-user-text" id="auth-user-display">🔐 Sign In</span>
-          </button>
+      <!-- Timestamp & User Vault Controls -->
+      <div class="header-controls">
+        <div class="sync-status">
+          <span class="time-label">Last Updated:</span>
+          <span class="time-value" id="last-updated-time">Never</span>
         </div>
-      </header>
+        <button id="user-auth-btn" class="user-auth-pill" type="button" title="Vault Account & Authentication">
+          <span class="auth-dot" id="auth-status-dot"></span>
+          <span class="auth-user-text" id="auth-user-display">🔐 Sign In</span>
+        </button>
+      </div>
+    </header>
 
     <!-- Monthly Reset Warning Banner (Shown on the 24th if reset is triggered) -->
     <div id="monthly-reset-banner" class="reset-alert-banner" style="display: none;">
@@ -88,21 +92,32 @@
     </div>
 
     <!-- Zakat Due Warning Banner (Shown if consecutive days >= 354) -->
-    <div id="zakat-due-banner" class="reset-alert-banner" style="display: none; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(234, 179, 8, 0.15) 100%); border: 1px solid rgba(16, 185, 129, 0.3); box-shadow: 0 8px 32px 0 rgba(16, 185, 129, 0.08); margin-bottom: 1.5rem;">
+    <div id="zakat-due-banner" class="reset-alert-banner"
+      style="display: none; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(234, 179, 8, 0.15) 100%); border: 1px solid rgba(16, 185, 129, 0.3); box-shadow: 0 8px 32px 0 rgba(16, 185, 129, 0.08); margin-bottom: 1.5rem;">
       <div class="banner-content">
-        <span class="banner-icon" style="font-size: 1.8rem; filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.5));">🕌</span>
+        <span class="banner-icon"
+          style="font-size: 1.8rem; filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.5));">🕌</span>
         <div class="banner-text">
           <h3 style="color: #10b981; font-weight: 800;">Zakat is Due</h3>
           <p style="color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-            <span>You have completed <strong id="zakat-streak-days" style="color: #facc15; cursor: pointer;" title="Click to edit streak">354</strong> consecutive days over the Zakat threshold (85g 24k Gold).</span>
-            <button type="button" id="edit-banner-streak-btn" class="btn-icon" title="Edit Zakat Streak" style="width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 4px; color: #facc15; cursor: pointer;">✏️</button>
+            <span>You have completed <strong id="zakat-streak-days" style="color: #facc15; cursor: pointer;"
+                title="Click to edit streak">354</strong> consecutive days over the Zakat threshold (85g 24k
+              Gold).</span>
+            <button type="button" id="edit-banner-streak-btn" class="btn-icon" title="Edit Zakat Streak"
+              style="width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.3); border-radius: 4px; color: #facc15; cursor: pointer;">✏️</button>
           </p>
         </div>
       </div>
-      <div class="banner-wealth-box" style="margin-left: auto; text-align: right; display: flex; flex-direction: column; gap: 0.1rem; justify-content: center;">
-        <span style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">2.5% of Total Wealth</span>
-        <span id="zakat-due-amount-usd" style="font-size: 1.2rem; font-weight: 800; color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);">--.-- USD</span>
-        <span id="zakat-due-amount-egp" style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 500;">--.-- EGP</span>
+      <div class="banner-wealth-box"
+        style="margin-left: auto; text-align: right; display: flex; flex-direction: column; gap: 0.1rem; justify-content: center;">
+        <span
+          style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); font-weight: 600;">2.5%
+          of Total Wealth</span>
+        <span id="zakat-due-amount-usd"
+          style="font-size: 1.2rem; font-weight: 800; color: #10b981; text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);">--.--
+          USD</span>
+        <span id="zakat-due-amount-egp"
+          style="font-size: 0.72rem; color: var(--text-secondary); font-weight: 500;">--.-- EGP</span>
       </div>
     </div>
 
@@ -156,7 +171,8 @@
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                       <div class="input-wrapper focus-glow">
-                        <input type="number" id="hourly-minutes" placeholder="Mins" min="0" max="59" step="1" autocomplete="off">
+                        <input type="number" id="hourly-minutes" placeholder="Mins" min="0" max="59" step="1"
+                          autocomplete="off">
                         <span class="input-suffix">min</span>
                       </div>
                     </div>
@@ -194,13 +210,15 @@
                 </div>
 
                 <div class="form-group">
-                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                  <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
                     <label for="transfer-amount" style="margin-bottom: 0;">Transfer Amount (USD)</label>
                     <button type="button" id="btn-transfer-max" class="btn-max-transfer">Transfer All</button>
                   </div>
                   <div class="input-wrapper focus-glow">
                     <span class="input-prefix">$</span>
-                    <input type="number" id="transfer-amount" placeholder="0.00" min="0.01" step="any" autocomplete="off">
+                    <input type="number" id="transfer-amount" placeholder="0.00" min="0.01" step="any"
+                      autocomplete="off">
                   </div>
                   <p class="input-help" id="transfer-balance-help">Available balance: $0.00 USD</p>
                 </div>
@@ -262,13 +280,15 @@
 
         <!-- SECTION 2: Total Wealth Distribution Module -->
         <section class="card glass-card" id="wealth-distribution-panel">
-          <div class="card-header justify-between" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <div class="card-header justify-between"
+            style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
             <div class="header-title-group">
               <span class="card-icon distribution">📊</span>
               <h2>Total Wealth Distribution</h2>
             </div>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <button id="add-asset-btn" class="btn-icon" title="Add New Asset" style="width: 32px; height: 32px; font-size: 1rem;">➕</button>
+              <button id="add-asset-btn" class="btn-icon" title="Add New Asset"
+                style="width: 32px; height: 32px; font-size: 1rem;">➕</button>
               <div class="api-status-badge positive" id="api-status-indicator">Live API Active</div>
             </div>
           </div>
@@ -277,35 +297,37 @@
             <div class="wealth-dashboard-container">
               <div class="table-container">
                 <table class="wealth-table" id="wealth-distribution-table">
-                <thead>
-                  <tr>
-                    <th style="width: 40px; min-width: 40px;"></th>
-                    <th>Asset Category</th>
-                    <th>Asset Holdings</th>
-                    <th class="text-right">Valuation (USD)</th>
-                    <th class="text-right">Valuation (EGP)</th>
-                  </tr>
-                </thead>
-                <tbody id="wealth-distribution-tbody">
-                  <!-- Dynamic asset rows will be populated here -->
-                </tbody>
-              </table>
-            </div>
-            <div class="chart-container">
-              <canvas id="wealth-donut-chart"></canvas>
+                  <thead>
+                    <tr>
+                      <th style="width: 40px; min-width: 40px;"></th>
+                      <th>Asset Category</th>
+                      <th>Asset Holdings</th>
+                      <th class="text-right">Valuation (USD)</th>
+                      <th class="text-right">Valuation (EGP)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wealth-distribution-tbody">
+                    <!-- Dynamic asset rows will be populated here -->
+                  </tbody>
+                </table>
+              </div>
+              <div class="chart-container">
+                <canvas id="wealth-donut-chart"></canvas>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
         <!-- SECTION 3: Financial Goals Progress Panel -->
         <section class="card glass-card" id="goals-progress-panel">
-          <div class="card-header justify-between" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+          <div class="card-header justify-between"
+            style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
             <div class="header-title-group">
               <span class="card-icon goals">🎯</span>
               <h2>Financial Goals & Targets</h2>
             </div>
-            <button id="add-goal-btn" class="btn-icon" title="Add New Goal" style="width: 32px; height: 32px; font-size: 1rem;">➕</button>
+            <button id="add-goal-btn" class="btn-icon" title="Add New Goal"
+              style="width: 32px; height: 32px; font-size: 1rem;">➕</button>
           </div>
 
           <div class="card-body" id="goals-list-container" style="display: flex; flex-direction: column; gap: 1rem;">
@@ -329,7 +351,7 @@
       </div>
       <form id="asset-form" class="modal-form">
         <input type="hidden" id="asset-id-input">
-        
+
         <div class="form-group">
           <label for="asset-name-input">Asset Name</label>
           <div class="input-wrapper focus-glow">
@@ -342,7 +364,8 @@
           <div class="input-wrapper focus-glow">
             <input type="text" id="asset-category-input" placeholder="e.g. Cash Savings" required autocomplete="off">
           </div>
-          <div class="category-suggestions" id="category-suggestions-container" style="display: flex; gap: 0.35rem; margin-top: 0.25rem; flex-wrap: wrap;">
+          <div class="category-suggestions" id="category-suggestions-container"
+            style="display: flex; gap: 0.35rem; margin-top: 0.25rem; flex-wrap: wrap;">
             <span class="category-suggestion">Cash Savings</span>
             <span class="category-suggestion">Gold Savings</span>
             <span class="category-suggestion">Crypto</span>
@@ -368,9 +391,11 @@
         <div class="form-group" id="stock-fields-group" style="display: none;">
           <label for="asset-stock-ticker-input">Stock / ETF Ticker Symbol</label>
           <div class="input-wrapper focus-glow">
-            <input type="text" id="asset-stock-ticker-input" placeholder="e.g. SPUS, AAPL, NVDA" autocomplete="off" style="text-transform: uppercase;">
+            <input type="text" id="asset-stock-ticker-input" placeholder="e.g. SPUS, AAPL, NVDA" autocomplete="off"
+              style="text-transform: uppercase;">
           </div>
-          <div class="category-suggestions" id="stock-ticker-suggestions" style="display: flex; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap;">
+          <div class="category-suggestions" id="stock-ticker-suggestions"
+            style="display: flex; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap;">
             <span class="category-suggestion stock-chip">SPUS</span>
             <span class="category-suggestion stock-chip">HLAL</span>
             <span class="category-suggestion stock-chip">AAPL</span>
@@ -378,16 +403,19 @@
             <span class="category-suggestion stock-chip">NVDA</span>
             <span class="category-suggestion stock-chip">GOOGL</span>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.8rem;">
+          <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; font-size: 0.8rem;">
             <span style="color: var(--text-secondary);">Market Price / Share:</span>
-            <span id="stock-market-price-display" style="font-weight: 700; color: var(--color-savings);">$58.62 USD</span>
+            <span id="stock-market-price-display" style="font-weight: 700; color: var(--color-savings);">$58.62
+              USD</span>
           </div>
         </div>
 
         <div class="form-group">
           <label for="asset-holdings-input" id="asset-holdings-label">Holdings / Amount</label>
           <div class="input-wrapper focus-glow">
-            <input type="number" id="asset-holdings-input" placeholder="0.00" min="0" step="any" required autocomplete="off">
+            <input type="number" id="asset-holdings-input" placeholder="0.00" min="0" step="any" required
+              autocomplete="off">
           </div>
         </div>
 
@@ -395,25 +423,35 @@
           <label>Marker Color</label>
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
             <div id="color-palette" style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-              <span class="color-dot-option" data-color="#22c55e" style="background: #22c55e; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#eab308" style="background: #eab308; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#3b82f6" style="background: #3b82f6; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#a855f7" style="background: #a855f7; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#f97316" style="background: #f97316; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#ec4899" style="background: #ec4899; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#06b6d4" style="background: #06b6d4; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
-              <span class="color-dot-option" data-color="#14b8a6" style="background: #14b8a6; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#22c55e"
+                style="background: #22c55e; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#eab308"
+                style="background: #eab308; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#3b82f6"
+                style="background: #3b82f6; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#a855f7"
+                style="background: #a855f7; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#f97316"
+                style="background: #f97316; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#ec4899"
+                style="background: #ec4899; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#06b6d4"
+                style="background: #06b6d4; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
+              <span class="color-dot-option" data-color="#14b8a6"
+                style="background: #14b8a6; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent;"></span>
             </div>
             <div style="display: flex; align-items: center; gap: 0.35rem; margin-left: auto;">
               <span style="font-size: 0.72rem; color: var(--text-muted);">Custom:</span>
-              <input type="color" id="asset-color-picker" value="#22c55e" style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--card-border); cursor: pointer; padding: 0; background: transparent; overflow: hidden;">
+              <input type="color" id="asset-color-picker" value="#22c55e"
+                style="width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--card-border); cursor: pointer; padding: 0; background: transparent; overflow: hidden;">
             </div>
           </div>
         </div>
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem;">
           <button type="button" class="btn btn-outline" id="cancel-asset-btn" style="flex: 1;">Cancel</button>
-          <button type="button" class="btn btn-outline" id="delete-asset-btn" style="flex: 1; display: none; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Delete</button>
+          <button type="button" class="btn btn-outline" id="delete-asset-btn"
+            style="flex: 1; display: none; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Delete</button>
           <button type="submit" class="btn btn-primary" id="save-asset-btn" style="flex: 2;">Save Asset</button>
         </div>
       </form>
@@ -497,7 +535,7 @@
       </div>
       <form id="goal-form" class="modal-form">
         <input type="hidden" id="goal-id-input">
-        
+
         <div class="form-group">
           <label for="goal-name-input">Goal Name</label>
           <div class="input-wrapper focus-glow">
@@ -508,19 +546,31 @@
         <div class="form-group">
           <label for="goal-emoji-input">Emoji Icon</label>
           <div class="input-wrapper focus-glow">
-            <input type="text" id="goal-emoji-input" placeholder="e.g. 🎯" required autocomplete="off" style="font-size: 1.25rem;">
+            <input type="text" id="goal-emoji-input" placeholder="e.g. 🎯" required autocomplete="off"
+              style="font-size: 1.25rem;">
           </div>
-          <div class="emoji-suggestions" id="emoji-suggestions-container" style="display: flex; gap: 0.35rem; margin-top: 0.25rem; flex-wrap: wrap;">
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🎯</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🕌</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🇦🇺</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🚗</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🏠</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">💻</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">✈️</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">💰</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">📈</span>
-            <span class="emoji-suggestion" style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🪙</span>
+          <div class="emoji-suggestions" id="emoji-suggestions-container"
+            style="display: flex; gap: 0.35rem; margin-top: 0.25rem; flex-wrap: wrap;">
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🎯</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🕌</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🇦🇺</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🚗</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🏠</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">💻</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">✈️</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">💰</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">📈</span>
+            <span class="emoji-suggestion"
+              style="cursor: pointer; font-size: 1.25rem; padding: 0.2rem; background: var(--color-primary-glow); border-radius: 4px;">🪙</span>
           </div>
         </div>
 
@@ -539,13 +589,15 @@
         <div class="form-group">
           <label for="goal-target-input">Target Amount / Grams</label>
           <div class="input-wrapper focus-glow">
-            <input type="number" id="goal-target-input" placeholder="0.00" min="0.0001" step="any" required autocomplete="off">
+            <input type="number" id="goal-target-input" placeholder="0.00" min="0.0001" step="any" required
+              autocomplete="off">
           </div>
         </div>
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem;">
           <button type="button" class="btn btn-outline" id="cancel-goal-btn" style="flex: 1;">Cancel</button>
-          <button type="button" class="btn btn-outline" id="delete-goal-btn" style="flex: 1; display: none; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Delete</button>
+          <button type="button" class="btn btn-outline" id="delete-goal-btn"
+            style="flex: 1; display: none; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.25);">Delete</button>
           <button type="submit" class="btn btn-primary" id="save-goal-btn" style="flex: 2;">Save Goal</button>
         </div>
       </form>
@@ -563,34 +615,47 @@
         <button class="close-modal-btn" id="close-zakat-streak-modal" type="button">✕</button>
       </div>
       <form id="zakat-streak-form" class="modal-form">
-        <div class="zakat-hawl-info-box" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.15rem; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary);">
-          <div style="display: flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #10b981; margin-bottom: 0.25rem;">
+        <div class="zakat-hawl-info-box"
+          style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.15rem; font-size: 0.78rem; line-height: 1.5; color: var(--text-secondary);">
+          <div
+            style="display: flex; align-items: center; gap: 0.4rem; font-weight: 700; color: #10b981; margin-bottom: 0.25rem;">
             <span>⚖️</span> <span>Islamic Hawl Tracking</span>
           </div>
-          Zakat becomes due once your net worth reaches or exceeds the Nisab (85g 24k gold) and remains above it for one full lunar year (<strong>354 days</strong>). If your wealth reached Nisab prior to launching this vault, adjust your streak or choose your Hawl start date below.
+          Zakat becomes due once your net worth reaches or exceeds the Nisab (85g 24k gold) and remains above it for one
+          full lunar year (<strong>354 days</strong>). If your wealth reached Nisab prior to launching this vault,
+          adjust your streak or choose your Hawl start date below.
         </div>
 
         <!-- Current Wealth vs Nisab Status -->
-        <div class="zakat-status-card" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+        <div class="zakat-status-card"
+          style="display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1rem;">
           <div>
-            <span style="display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Your Net Worth</span>
-            <span id="zakat-modal-current-grams" style="font-size: 1rem; font-weight: 700; color: var(--color-gold);">--.- g Gold</span>
+            <span
+              style="display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Your
+              Net Worth</span>
+            <span id="zakat-modal-current-grams"
+              style="font-size: 1rem; font-weight: 700; color: var(--color-gold);">--.- g Gold</span>
           </div>
           <div style="text-align: right;">
-            <span style="display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Zakat Nisab</span>
+            <span
+              style="display: block; font-size: 0.68rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Zakat
+              Nisab</span>
             <span style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">85.00 g (24k)</span>
           </div>
         </div>
 
-        <div id="zakat-modal-below-nisab-warning" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem; margin-bottom: 1rem; font-size: 0.75rem; color: #f87171;">
-          ⚠️ Your current wealth is below the 85g gold Nisab. In Islamic law, a Hawl streak begins only when wealth reaches the Nisab.
+        <div id="zakat-modal-below-nisab-warning"
+          style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 0.65rem 0.85rem; margin-bottom: 1rem; font-size: 0.75rem; color: #f87171;">
+          ⚠️ Your current wealth is below the 85g gold Nisab. In Islamic law, a Hawl streak begins only when wealth
+          reaches the Nisab.
         </div>
 
         <!-- Days & Date Two-Way Sync -->
         <div class="form-group">
           <label for="zakat-streak-days-input">Consecutive Days Above Nisab</label>
           <div class="input-wrapper focus-glow">
-            <input type="number" id="zakat-streak-days-input" min="1" max="10000" step="1" required autocomplete="off" placeholder="e.g. 150" style="font-weight: 700; font-size: 1.15rem; color: #facc15;">
+            <input type="number" id="zakat-streak-days-input" min="1" max="10000" step="1" required autocomplete="off"
+              placeholder="e.g. 150" style="font-weight: 700; font-size: 1.15rem; color: #facc15;">
             <span class="input-suffix">Days</span>
           </div>
           <p class="input-help">Number of consecutive days your wealth has remained at or above the Nisab.</p>
@@ -599,30 +664,39 @@
         <div class="form-group">
           <label for="zakat-streak-start-date">Or Hawl Start Date</label>
           <div class="input-wrapper focus-glow">
-            <input type="date" id="zakat-streak-start-date" class="form-date-input" style="color-scheme: dark; font-size: 0.9rem;">
+            <input type="date" id="zakat-streak-start-date" class="form-date-input"
+              style="color-scheme: dark; font-size: 0.9rem;">
           </div>
           <p class="input-help">Pick the approximate calendar date when your wealth first crossed the Nisab.</p>
         </div>
 
         <!-- Presets -->
         <div class="form-group">
-          <label style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.35rem; display: block;">Quick Presets</label>
+          <label style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.35rem; display: block;">Quick
+            Presets</label>
           <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
-            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="1">1 Day (Just Started)</button>
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="1">1 Day (Just
+              Started)</button>
             <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="90">3 Months (90d)</button>
-            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="177">Half Year (177d)</button>
-            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="354" style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">Full Hawl (354d - Due)</button>
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="177">Half Year
+              (177d)</button>
+            <button type="button" class="btn btn-sm btn-outline zakat-preset-btn" data-days="354"
+              style="color: #10b981; border-color: rgba(16, 185, 129, 0.4);">Full Hawl (354d - Due)</button>
           </div>
         </div>
 
         <!-- Hawl Progress Visual Card -->
-        <div style="background: rgba(0, 0, 0, 0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; border: 1px solid rgba(255, 255, 255, 0.05);">
+        <div
+          style="background: rgba(0, 0, 0, 0.25); border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.25rem; border: 1px solid rgba(255, 255, 255, 0.05);">
           <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.4rem;">
             <span style="color: var(--text-secondary);">Lunar Year Completion (354 Days)</span>
             <span id="zakat-modal-progress-text" style="font-weight: 700; color: #facc15;">0.3%</span>
           </div>
-          <div style="height: 8px; background: rgba(255, 255, 255, 0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 0.5rem;">
-            <div id="zakat-modal-progress-bar" style="width: 0.3%; height: 100%; background: linear-gradient(90deg, #facc15, #10b981); border-radius: 9999px; transition: width 0.25s ease;"></div>
+          <div
+            style="height: 8px; background: rgba(255, 255, 255, 0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 0.5rem;">
+            <div id="zakat-modal-progress-bar"
+              style="width: 0.3%; height: 100%; background: linear-gradient(90deg, #facc15, #10b981); border-radius: 9999px; transition: width 0.25s ease;">
+            </div>
           </div>
           <div id="zakat-modal-status-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">
             353 days remaining until Zakat becomes due.
@@ -631,7 +705,9 @@
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem;">
           <button type="button" class="btn btn-outline" id="cancel-zakat-streak-btn" style="flex: 1;">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="save-zakat-streak-btn" style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: 700; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);">Save Streak</button>
+          <button type="submit" class="btn btn-primary" id="save-zakat-streak-btn"
+            style="flex: 2; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: 700; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);">Save
+            Streak</button>
         </div>
       </form>
     </div>
@@ -647,7 +723,7 @@
         </div>
         <button class="close-modal-btn" id="close-auth-modal" type="button">✕</button>
       </div>
-      
+
       <!-- Auth Mode Tabs -->
       <div class="auth-tabs">
         <button type="button" class="auth-tab-btn active" id="tab-btn-login">Sign In</button>
@@ -670,10 +746,12 @@
         <div class="form-group" id="auth-password-group">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <label for="auth-password-input">Vault Password</label>
-            <span id="auth-forgot-link" class="auth-forgot-link" style="font-size: 0.72rem; color: var(--color-savings); cursor: pointer; text-decoration: underline;">Forgot?</span>
+            <span id="auth-forgot-link" class="auth-forgot-link"
+              style="font-size: 0.72rem; color: var(--color-savings); cursor: pointer; text-decoration: underline;">Forgot?</span>
           </div>
           <div class="input-wrapper focus-glow">
-            <input type="password" id="auth-password-input" placeholder="••••••••" required autocomplete="current-password">
+            <input type="password" id="auth-password-input" placeholder="••••••••" required
+              autocomplete="current-password">
           </div>
         </div>
 
@@ -684,7 +762,8 @@
           </div>
         </div>
 
-        <p id="auth-terms-note" class="input-help" style="margin-top: 0.25rem; font-size: 0.72rem; color: var(--text-secondary);">
+        <p id="auth-terms-note" class="input-help"
+          style="margin-top: 0.25rem; font-size: 0.72rem; color: var(--text-secondary);">
           Protected with PostgreSQL Row-Level Security (RLS). Your vault is completely isolated from other users.
         </p>
 
@@ -725,13 +804,15 @@
           </div>
           <div class="account-meta-item">
             <span class="meta-label">User ID:</span>
-            <span class="meta-val" id="account-uid-display" style="font-family: monospace; font-size: 0.75rem;">--</span>
+            <span class="meta-val" id="account-uid-display"
+              style="font-family: monospace; font-size: 0.75rem;">--</span>
           </div>
         </div>
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
           <button type="button" class="btn btn-outline" id="close-account-btn" style="flex: 1;">Close</button>
-          <button type="button" class="btn btn-outline" id="logout-btn" style="flex: 1; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.3);">Log Out</button>
+          <button type="button" class="btn btn-outline" id="logout-btn"
+            style="flex: 1; color: var(--color-danger); border-color: rgba(239, 68, 68, 0.3);">Log Out</button>
         </div>
       </div>
     </div>
@@ -756,7 +837,8 @@
             <button type="button" id="gold-mode-manual" class="tab-btn">✏️ Manual Override</button>
           </div>
           <p class="input-help" id="gold-mode-help">
-            Auto mode fetches live spot gold prices automatically. Switch to Manual Override to set custom market prices.
+            Auto mode fetches live spot gold prices automatically. Switch to Manual Override to set custom market
+            prices.
           </p>
         </div>
 
@@ -799,10 +881,14 @@
             <span style="font-size: 0.72rem; color: var(--color-savings); font-weight: 700;">Free Lifetime</span>
           </div>
           <div class="input-wrapper focus-glow">
-            <input type="text" id="twelve-data-api-key-input" placeholder="Paste your Twelve Data API key here" autocomplete="off">
+            <input type="text" id="twelve-data-api-key-input" placeholder="Paste your Twelve Data API key here"
+              autocomplete="off">
           </div>
           <p class="input-help" style="margin-top: 0.35rem;">
-            Enables 10-minute automated updates for SPUS and stocks. Get your free key instantly at <a href="https://twelvedata.com" target="_blank" rel="noopener noreferrer" style="color: var(--color-savings); text-decoration: underline; font-weight: 600;">twelvedata.com</a> (800 calls/day, no credit card required).
+            Enables 10-minute automated updates for SPUS and stocks. Get your free key instantly at <a
+              href="https://twelvedata.com" target="_blank" rel="noopener noreferrer"
+              style="color: var(--color-savings); text-decoration: underline; font-weight: 600;">twelvedata.com</a> (800
+            calls/day, no credit card required).
           </p>
         </div>
 
@@ -818,8 +904,10 @@
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem; margin-top: 1rem;">
           <button type="button" class="btn btn-outline" id="cancel-gold-btn" style="flex: 1;">Cancel</button>
-          <button type="button" class="btn btn-outline" id="reset-gold-live-btn" style="flex: 1; color: var(--color-gold); border-color: rgba(234, 179, 8, 0.3);">Use Live Rate</button>
-          <button type="submit" class="btn btn-primary" id="save-gold-btn" style="flex: 1.5; background: var(--color-gold); color: #000; font-weight: 700;">Save Changes</button>
+          <button type="button" class="btn btn-outline" id="reset-gold-live-btn"
+            style="flex: 1; color: var(--color-gold); border-color: rgba(234, 179, 8, 0.3);">Use Live Rate</button>
+          <button type="submit" class="btn btn-primary" id="save-gold-btn"
+            style="flex: 1.5; background: var(--color-gold); color: #000; font-weight: 700;">Save Changes</button>
         </div>
       </form>
     </div>
@@ -842,9 +930,11 @@
         <div class="form-group">
           <label for="kpi-ticker-input">Ticker Symbol</label>
           <div class="input-wrapper focus-glow">
-            <input type="text" id="kpi-ticker-input" placeholder="e.g. AAPL, NVDA, HLAL" required autocomplete="off" style="text-transform: uppercase;">
+            <input type="text" id="kpi-ticker-input" placeholder="e.g. AAPL, NVDA, HLAL" required autocomplete="off"
+              style="text-transform: uppercase;">
           </div>
-          <div class="category-suggestions" id="kpi-ticker-suggestions" style="display: flex; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap;">
+          <div class="category-suggestions" id="kpi-ticker-suggestions"
+            style="display: flex; gap: 0.35rem; margin-top: 0.35rem; flex-wrap: wrap;">
             <span class="category-suggestion stock-kpi-chip">SPUS</span>
             <span class="category-suggestion stock-kpi-chip">HLAL</span>
             <span class="category-suggestion stock-kpi-chip">AAPL</span>
@@ -855,17 +945,21 @@
             <span class="category-suggestion stock-kpi-chip">TSLA</span>
           </div>
         </div>
-        
-        <div id="kpi-preview-card" style="display: none; padding: 0.75rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 8px; margin-bottom: 1rem;">
+
+        <div id="kpi-preview-card"
+          style="display: none; padding: 0.75rem; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--card-border); border-radius: 8px; margin-bottom: 1rem;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
-            <span id="kpi-preview-ticker" style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">--</span>
-            <span id="kpi-preview-price" style="font-weight: 700; color: var(--color-savings); font-size: 1.1rem;">$--.--</span>
+            <span id="kpi-preview-ticker"
+              style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">--</span>
+            <span id="kpi-preview-price"
+              style="font-weight: 700; color: var(--color-savings); font-size: 1.1rem;">$--.--</span>
           </div>
         </div>
 
         <div class="modal-actions" style="display: flex; gap: 0.5rem;">
           <button type="button" class="btn btn-outline" id="cancel-stock-kpi-btn" style="flex: 1;">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="submit-stock-kpi-btn" style="flex: 1; background: var(--color-savings); color: #000; font-weight: 700;">Follow Stock</button>
+          <button type="submit" class="btn btn-primary" id="submit-stock-kpi-btn"
+            style="flex: 1; background: var(--color-savings); color: #000; font-weight: 700;">Follow Stock</button>
         </div>
       </form>
     </div>
@@ -886,7 +980,8 @@
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 0.35rem;">
-        <button id="chatbot-settings-toggle" class="chatbot-icon-btn" title="AI API Key Settings" type="button" style="display: none;">⚙️</button>
+        <button id="chatbot-settings-toggle" class="chatbot-icon-btn" title="AI API Key Settings"
+          type="button">⚙️</button>
         <button id="chatbot-close" class="chatbot-close-btn" title="Minimize Chat" type="button">✕</button>
       </div>
     </div>
@@ -896,24 +991,37 @@
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
         <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-gold);">🔑 AI Chatbot Key</span>
         <div style="display: flex; gap: 0.4rem; font-size: 0.7rem;">
-          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--color-savings); text-decoration: underline; font-weight: 600;">Gemini Key ↗</a>
+          <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
+            style="color: var(--color-savings); text-decoration: underline; font-weight: 600;">Gemini Key ↗</a>
           <span style="color: var(--text-muted);">|</span>
-          <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline; font-weight: 600;">Groq Key ↗</a>
+          <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+            style="color: #60a5fa; text-decoration: underline; font-weight: 600;">Groq Key ↗</a>
         </div>
       </div>
       <div style="display: flex; gap: 0.35rem;">
-        <input type="text" id="chatbot-api-key-input" placeholder="Paste key (Gemini AIza... or Groq gsk_...)" autocomplete="off" style="flex: 1; padding: 0.4rem 0.6rem; font-size: 0.75rem; border-radius: 6px; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); outline: none;">
-        <button type="button" id="chatbot-save-api-key-btn" style="padding: 0.4rem 0.8rem; font-size: 0.75rem; font-weight: 700; background: var(--color-gold); color: #000; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;">Test & Save</button>
+        <input type="text" id="chatbot-api-key-input" placeholder="Paste key (Gemini AIza... or Groq gsk_...)"
+          autocomplete="off"
+          style="flex: 1; padding: 0.4rem 0.6rem; font-size: 0.75rem; border-radius: 6px; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-primary); outline: none;">
+        <button type="button" id="chatbot-save-api-key-btn"
+          style="padding: 0.4rem 0.8rem; font-size: 0.75rem; font-weight: 700; background: var(--color-gold); color: #000; border: none; border-radius: 6px; cursor: pointer; white-space: nowrap;">Test
+          & Save</button>
       </div>
-      <div id="chatbot-key-status" style="display: none; font-size: 0.72rem; margin-top: 0.4rem; padding: 0.35rem 0.5rem; border-radius: 4px;"></div>
+      <div id="chatbot-key-status"
+        style="display: none; font-size: 0.72rem; margin-top: 0.4rem; padding: 0.35rem 0.5rem; border-radius: 4px;">
+      </div>
       <p style="font-size: 0.68rem; color: var(--text-muted); margin-top: 0.35rem; margin-bottom: 0; line-height: 1.3;">
-        Note: Do not paste your Twelve Data stock key here. Use a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--color-savings); text-decoration: underline;">Google AI Studio</a> or <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" style="color: #60a5fa; text-decoration: underline;">Groq</a>.
+        Note: Do not paste your Twelve Data stock key here. Use a free key from <a
+          href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
+          style="color: var(--color-savings); text-decoration: underline;">Google AI Studio</a> or <a
+          href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+          style="color: #60a5fa; text-decoration: underline;">Groq</a>.
       </p>
     </div>
-    
+
     <div id="chatbot-messages" class="chatbot-messages">
       <div class="chat-bubble chat-bubble-assistant">
-        Hello! I'm Aura, your personal finance AI assistant. Ask me anything about your incoming income, net worth, gold holdings, or transactions!
+        Hello! I'm Aura, your personal finance AI assistant. Ask me anything about your incoming income, net worth, gold
+        holdings, or transactions!
       </div>
       <!-- Suggestion Pills -->
       <div id="chatbot-suggestions" class="chatbot-suggestions">
@@ -927,7 +1035,8 @@
     <form id="chatbot-form" class="chatbot-input-container">
       <input type="text" id="chatbot-input" placeholder="Ask Aura..." autocomplete="off">
       <button type="submit" class="chatbot-send-btn" title="Send message">
-        <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width: 16px; height: 16px;">
+        <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+          style="width: 16px; height: 16px;">
           <line x1="22" y1="2" x2="11" y2="13"></line>
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
         </svg>

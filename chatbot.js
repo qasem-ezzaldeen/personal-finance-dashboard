@@ -8,7 +8,7 @@
  * 4. Full agentic dashboard mutations (LOG_INCOME, TRANSFER_FUNDS, SET_BASELINE, UPDATE_GOLD_PREMIUM).
  */
 
-export function initChatbot(State, getAssetValuations, updateDashboardUI) {
+export function initChatbot(State, getAssetValuations, updateDashboardUI, getSupabaseClient = null) {
   const trigger = document.getElementById("chatbot-trigger");
   const windowEl = document.getElementById("chatbot-window");
   const closeBtn = document.getElementById("chatbot-close");
@@ -27,19 +27,45 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI) {
     return;
   }
 
-  // Default Universal AI Model Key
-  const DEFAULT_AI_API_KEY = "AQ.Ab8RN6JPDRamqIYAu2MZR-dZ_KW0-8BVSMjdiKCT2o1IufuCCg";
+  // Default Universal AI Model Key (Never commit real API keys to client-side code / Git)
+  const DEFAULT_AI_API_KEY = "";
+
+  // One-time private link setup: allow passing #ai_key=... in the URL.
+  // It saves the key to localStorage and immediately cleans the URL hash so it isn't saved in history or exposed.
+  try {
+    if (window.location.hash && window.location.hash.includes("ai_key=")) {
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const urlKey = hashParams.get("ai_key");
+      if (urlKey && urlKey.trim()) {
+        const cleanedKey = urlKey.trim().replace(/^["']|["']$/g, "");
+        localStorage.setItem("aura_ai_api_key", cleanedKey);
+        history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+    }
+  } catch (e) {
+    console.warn("[Chatbot] Hash parameter parsing error:", e);
+  }
+
+  // Automatically purge the old revoked key if it is cached in the browser's localStorage
+  const OLD_REVOKED_KEY = "AQ.Ab8RN6JPDRamqIYAu2MZR-dZ_KW0-8BVSMjdiKCT2o1IufuCCg";
+  if (localStorage.getItem("aura_ai_api_key") === OLD_REVOKED_KEY) {
+    localStorage.removeItem("aura_ai_api_key");
+  }
 
   // Load saved AI API key from localStorage or use default universal key
   let aiApiKey = localStorage.getItem("aura_ai_api_key") || DEFAULT_AI_API_KEY;
-  if (apiKeyInput && aiApiKey) {
-    apiKeyInput.value = aiApiKey;
+  if (apiKeyInput) {
+    if (aiApiKey) {
+      apiKeyInput.value = aiApiKey;
+    } else if (getSupabaseClient) {
+      apiKeyInput.placeholder = "Supabase Edge Proxy Active (No local key needed)";
+    }
   }
   updateStatusBadge();
 
   function updateStatusBadge() {
     if (!statusText) return;
-    if (aiApiKey) {
+    if (aiApiKey || getSupabaseClient) {
       statusText.textContent = "Aura AI Online";
       statusText.style.color = "var(--color-savings)";
     } else {
@@ -369,74 +395,103 @@ Supported Actions:
     let replyText = "";
 
     try {
-      if (aiApiKey.startsWith("gsk_")) {
-        // Groq Cloud API
-        const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${aiApiKey}`
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: systemPrompt }],
-            temperature: 0.3,
-            max_tokens: 800
-          })
-        });
-
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData?.error?.message || `Groq HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        replyText = data.choices?.[0]?.message?.content || "";
-      } else {
-        // Google Gemini API with resilient multi-model iteration
-        const models = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-1.5-flash"];
-        let lastErr = null;
-        let success = false;
-
-        for (const m of models) {
-          try {
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${aiApiKey}`;
-            const res = await fetch(geminiUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: [{
-                  role: "user",
-                  parts: [{ text: systemPrompt }]
-                }],
-                generationConfig: {
-                  temperature: 0.3,
-                  maxOutputTokens: 2048
-                }
-              })
+      // 1. Try secure Supabase Edge Function 'aura-ai' (Keeps Gemini API key 100% private)
+      if (getSupabaseClient) {
+        try {
+          const sb = getSupabaseClient();
+          if (sb && sb.functions) {
+            const { data, error } = await sb.functions.invoke("aura-ai", {
+              body: { prompt: rawQuery, context: systemPrompt }
             });
-
-            if (res.ok) {
-              const data = await res.json();
-              replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-              success = true;
-              break;
-            }
-
-            const errData = await res.json().catch(() => ({}));
-            lastErr = new Error(errData?.error?.message || `Gemini ${m} HTTP ${res.status}`);
-
-            // If error is invalid API key, stop trying
-            if (res.status === 400 && lastErr.message.includes("API key not valid")) {
-              throw lastErr;
-            }
-          } catch (err) {
-            lastErr = err;
-            if (err.message && err.message.includes("API key not valid")) {
-              throw err;
+            if (!error && data && data.replyText) {
+              replyText = data.replyText;
             }
           }
+        } catch (edgeErr) {
+          console.warn("[Chatbot] Supabase Edge Function invoke attempt:", edgeErr);
         }
+      }
+
+      // 2. Fall back to client-side API key if Supabase function not yet deployed or returned empty
+      if (!replyText) {
+        if (!aiApiKey) {
+          return processLocalQuery(rawQuery);
+        }
+
+        if (aiApiKey.startsWith("gsk_")) {
+          // Groq Cloud API
+          const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${aiApiKey}`
+            },
+            body: JSON.stringify({
+              model: "llama-3.1-8b-instant",
+              messages: [{ role: "user", content: systemPrompt }],
+              temperature: 0.3,
+              max_tokens: 800
+            })
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData?.error?.message || `Groq HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          replyText = data.choices?.[0]?.message?.content || "";
+        } else {
+          // Google Gemini API with resilient multi-model iteration
+          const models = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash", "gemini-1.5-flash"];
+          let lastErr = null;
+          let success = false;
+
+          for (const m of models) {
+            try {
+              const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${aiApiKey}`;
+              const res = await fetch(geminiUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{
+                    role: "user",
+                    parts: [{ text: systemPrompt }]
+                  }],
+                  generationConfig: {
+                    temperature: 0.3,
+                    maxOutputTokens: 2048
+                  }
+                })
+              });
+
+              if (res.ok) {
+                const data = await res.json();
+                replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                success = true;
+                break;
+              }
+
+              const errData = await res.json().catch(() => ({}));
+              lastErr = new Error(errData?.error?.message || `Gemini ${m} HTTP ${res.status}`);
+
+              // If error is invalid API key, stop trying
+              if (res.status === 400 && lastErr.message.includes("API key not valid")) {
+                throw lastErr;
+              }
+            } catch (err) {
+              lastErr = err;
+              if (err.message && err.message.includes("API key not valid")) {
+                throw err;
+              }
+            }
+          }
+
+          if (!success && lastErr) {
+            throw lastErr;
+          }
+        }
+      }
 
         if (!success && lastErr) {
           throw lastErr;

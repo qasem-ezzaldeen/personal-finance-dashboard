@@ -1106,17 +1106,28 @@ function updateDashboardUI(force = false) {
           }
         }
         
+        const isZakat = goal.id === "goal_zakat";
+        const isFirstCustom = goalIdx === 1;
+        const isLastCustom = goalIdx === State.goals.length - 1;
+
         const goalItem = document.createElement("div");
-        goalItem.className = `goal-item ${borderClass}`;
+        goalItem.className = `goal-item ${borderClass} ${!isZakat ? 'goal-draggable' : ''}`;
         goalItem.style.position = "relative";
-        goalItem.style.transition = "transform var(--transition-fast), border-color var(--transition-fast)";
+        goalItem.dataset.goalId = goal.id;
+        if (!isZakat) {
+          goalItem.setAttribute("draggable", "true");
+        }
         
         // Add hover micro-interaction
         goalItem.addEventListener("mouseenter", () => {
-          goalItem.style.transform = "translateY(-2px)";
+          if (!goalItem.classList.contains("goal-dragging")) {
+            goalItem.style.transform = "translateY(-2px)";
+          }
         });
         goalItem.addEventListener("mouseleave", () => {
-          goalItem.style.transform = "none";
+          if (!goalItem.classList.contains("goal-dragging")) {
+            goalItem.style.transform = "none";
+          }
         });
  
         const isMet = currentVal >= targetVal;
@@ -1127,15 +1138,24 @@ function updateDashboardUI(force = false) {
               <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
                 <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
                 ${goal.name}
-                ${goal.id === "goal_zakat" && isMet ? `<span class="streak-badge zakat-streak-clickable" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid rgba(234, 179, 8, 0.25);" title="Consecutive days over threshold (Click to edit streak)">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
+                ${isZakat && isMet ? `<span class="streak-badge zakat-streak-clickable" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid rgba(234, 179, 8, 0.25);" title="Consecutive days over threshold (Click to edit streak)">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
               </h3>
               <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
             </div>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
-              ${goal.id !== "goal_zakat" 
-                ? `<button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` 
-                : (isMet ? `<button class="btn-icon edit-zakat-streak-btn" title="Edit Zakat Streak" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : '')}
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              ${isZakat ? `
+                <span class="zakat-fixed-pill" title="Zakat Threshold is fixed at the top">📌 Fixed Top</span>
+                <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
+                ${isMet ? `<button class="btn-icon edit-zakat-streak-btn" title="Edit Zakat Streak" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : ''}
+              ` : `
+                <div class="goal-reorder-group" title="Reorder goal">
+                  <button type="button" class="btn-icon btn-goal-reorder move-goal-up-btn" data-goal-id="${goal.id}" title="Move Goal Up" ${isFirstCustom ? 'disabled' : ''}>▲</button>
+                  <button type="button" class="btn-icon btn-goal-reorder move-goal-down-btn" data-goal-id="${goal.id}" title="Move Goal Down" ${isLastCustom ? 'disabled' : ''}>▼</button>
+                  <span class="goal-drag-handle" title="Drag to reorder">⠿</span>
+                </div>
+                <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
+                <button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>
+              `}
             </div>
           </div>
           
@@ -1174,6 +1194,58 @@ function updateDashboardUI(force = false) {
             openZakatStreakModal();
           });
         }
+
+        // Attach reorder and drag-drop handlers for non-zakat goals
+        if (!isZakat) {
+          const upBtn = goalItem.querySelector(".move-goal-up-btn");
+          if (upBtn) {
+            upBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              moveGoalUp(goal.id);
+            });
+          }
+
+          const downBtn = goalItem.querySelector(".move-goal-down-btn");
+          if (downBtn) {
+            downBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              moveGoalDown(goal.id);
+            });
+          }
+
+          goalItem.addEventListener("dragstart", (e) => {
+            e.dataTransfer.setData("text/plain", goal.id);
+            e.dataTransfer.effectAllowed = "move";
+            goalItem.classList.add("goal-dragging");
+          });
+
+          goalItem.addEventListener("dragend", () => {
+            goalItem.classList.remove("goal-dragging");
+            document.querySelectorAll(".goal-item").forEach(el => el.classList.remove("goal-drag-over"));
+          });
+        }
+
+        // Allow goal cards to act as drop targets
+        goalItem.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (!goalItem.classList.contains("goal-dragging")) {
+            goalItem.classList.add("goal-drag-over");
+          }
+        });
+
+        goalItem.addEventListener("dragleave", () => {
+          goalItem.classList.remove("goal-drag-over");
+        });
+
+        goalItem.addEventListener("drop", (e) => {
+          e.preventDefault();
+          goalItem.classList.remove("goal-drag-over");
+          const sourceGoalId = e.dataTransfer.getData("text/plain");
+          if (sourceGoalId && sourceGoalId !== goal.id) {
+            reorderGoal(sourceGoalId, goal.id);
+          }
+        });
         
         goalsContainer.appendChild(goalItem);
       });
@@ -3259,6 +3331,51 @@ function ensureZakatGoal() {
   State.goals = [zakatGoal, ...State.goals.filter(g => g.id !== "goal_zakat")];
 }
 
+function moveGoalUp(goalId) {
+  if (!State.goals || goalId === "goal_zakat") return;
+  const idx = State.goals.findIndex(g => g.id === goalId);
+  if (idx > 1) { // Index 0 is Zakat (fixed at top), so lowest index custom goal can move to is 1
+    const temp = State.goals[idx];
+    State.goals[idx] = State.goals[idx - 1];
+    State.goals[idx - 1] = temp;
+    ensureZakatGoal();
+    State.save();
+    updateDashboardUI();
+  }
+}
+
+function moveGoalDown(goalId) {
+  if (!State.goals || goalId === "goal_zakat") return;
+  const idx = State.goals.findIndex(g => g.id === goalId);
+  if (idx >= 1 && idx < State.goals.length - 1) {
+    const temp = State.goals[idx];
+    State.goals[idx] = State.goals[idx + 1];
+    State.goals[idx + 1] = temp;
+    ensureZakatGoal();
+    State.save();
+    updateDashboardUI();
+  }
+}
+
+function reorderGoal(sourceGoalId, targetGoalId) {
+  if (!State.goals || sourceGoalId === "goal_zakat") return;
+  const srcIdx = State.goals.findIndex(g => g.id === sourceGoalId);
+  if (srcIdx < 1) return;
+
+  let targetIdx = State.goals.findIndex(g => g.id === targetGoalId);
+  if (targetIdx === -1) return;
+  // If dropped on Zakat (index 0), anchor right below Zakat (index 1)
+  if (targetIdx === 0) targetIdx = 1;
+
+  if (srcIdx === targetIdx) return;
+
+  const [movedGoal] = State.goals.splice(srcIdx, 1);
+  State.goals.splice(targetIdx, 0, movedGoal);
+  ensureZakatGoal();
+  State.save();
+  updateDashboardUI();
+}
+
 function checkZakatStreak(totalNetWorthEgp, gold24kEgpPerGram, totalNetWorthUsd, totalNetWorthAud) {
   const currentVal = gold24kEgpPerGram > 0 ? (totalNetWorthEgp / gold24kEgpPerGram) : 0;
   
@@ -3498,8 +3615,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // 6.5 Initialize drag and drop for wealth distribution rows
   initWealthTableDragAndDrop();
 
-  // 7. Initialize Aura AI Chatbot Assistant
-  initChatbot(State, getAssetValuations, updateDashboardUI);
+  // 7. Initialize Aura AI Chatbot Assistant with Supabase client provider
+  initChatbot(State, getAssetValuations, updateDashboardUI, () => {
+    if (!supabase) {
+      supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+    return supabase;
+  });
 });
 
 async function autoUpdateAndSync() {

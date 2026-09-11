@@ -1233,6 +1233,88 @@ body {
   padding: 1.25rem;
 }
 
+/* Goal Reordering Controls & Drag-Drop */
+.goal-reorder-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.btn-goal-reorder {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 0.65rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.btn-goal-reorder:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-goal-reorder:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.goal-drag-handle {
+  cursor: grab;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0 0.2rem;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.goal-drag-handle:hover {
+  color: var(--color-gold);
+}
+
+.goal-item.goal-draggable {
+  transition: transform var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.goal-item.goal-dragging {
+  opacity: 0.45;
+  border: 1px dashed var(--color-gold) !important;
+  transform: scale(0.98);
+}
+
+.goal-item.goal-drag-over {
+  border-color: var(--color-savings) !important;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
+  transform: translateY(-2px);
+}
+
+.zakat-fixed-pill {
+  font-size: 0.65rem;
+  color: #facc15;
+  background: rgba(234, 179, 8, 0.1);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  user-select: none;
+}
+
 #goal-zakat-box {
   border-color: rgba(234, 179, 8, 0.25);
 }
