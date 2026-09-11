@@ -2069,33 +2069,42 @@ body {
 
 .chatbot-window {
   position: fixed;
-  bottom: 6rem;
+  bottom: 5.5rem;
   right: 2rem;
-  width: 380px;
-  height: 480px;
-  max-height: calc(100vh - 8rem);
-  background: rgba(9, 9, 11, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  width: 480px;
+  max-width: calc(100vw - 2.5rem);
+  height: 620px;
+  max-height: calc(100vh - 7.5rem);
+  background: rgba(13, 15, 20, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  border-radius: 18px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
   z-index: 1000;
   opacity: 0;
   pointer-events: none;
   transform: translateY(20px) scale(0.95);
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  transition: opacity var(--transition-normal), transform var(--transition-normal), width 0.25s cubic-bezier(0.4, 0, 0.2, 1), height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
-
-
 
 .chatbot-window.active {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
+}
+
+.chatbot-window.maximized {
+  width: 740px;
+  max-width: calc(100vw - 2rem);
+  height: 82vh;
+  max-height: calc(100vh - 4.5rem);
+  bottom: 2rem;
+  right: 1.25rem;
+  border-radius: 20px;
 }
 
 .chatbot-header {
@@ -2153,14 +2162,19 @@ body {
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   cursor: pointer;
-  padding: 0.2rem;
-  transition: color var(--transition-fast), transform var(--transition-fast);
+  padding: 0.25rem 0.35rem;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
 }
 
 .chatbot-icon-btn:hover {
   color: var(--color-gold);
+  background: rgba(255, 255, 255, 0.08);
   transform: scale(1.1);
 }
 
@@ -2181,11 +2195,11 @@ body {
 }
 
 .chat-bubble {
-  max-width: 85%;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  line-height: 1.45;
+  max-width: 92%;
+  padding: 0.85rem 1.1rem;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  line-height: 1.55;
   word-wrap: break-word;
 }
 
@@ -2196,7 +2210,6 @@ body {
   border: 1px solid var(--card-border);
   border-bottom-left-radius: 4px;
 }
-
 
 .chat-bubble-user {
   align-self: flex-end;
@@ -2209,6 +2222,161 @@ body {
 .chat-bubble strong {
   font-weight: 700;
   color: inherit;
+}
+
+/* Markdown Typography & Elements inside Assistant Bubbles */
+.chat-bubble-assistant p {
+  margin: 0 0 0.65rem 0;
+}
+.chat-bubble-assistant p:last-child {
+  margin-bottom: 0;
+}
+
+.chat-bubble-assistant h1,
+.chat-bubble-assistant h2,
+.chat-bubble-assistant h3,
+.chat-bubble-assistant h4 {
+  color: var(--text-primary);
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0.9rem 0 0.4rem 0;
+}
+.chat-bubble-assistant h1:first-child,
+.chat-bubble-assistant h2:first-child,
+.chat-bubble-assistant h3:first-child,
+.chat-bubble-assistant h4:first-child {
+  margin-top: 0;
+}
+.chat-bubble-assistant h1 {
+  font-size: 1.15rem;
+  color: var(--color-gold);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.3rem;
+}
+.chat-bubble-assistant h2 {
+  font-size: 1.05rem;
+  color: var(--color-savings);
+}
+.chat-bubble-assistant h3 {
+  font-size: 0.96rem;
+}
+.chat-bubble-assistant h4 {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.chat-bubble-assistant ul,
+.chat-bubble-assistant ol {
+  margin: 0.4rem 0 0.75rem 1.25rem;
+  padding: 0;
+}
+.chat-bubble-assistant li {
+  margin-bottom: 0.3rem;
+  line-height: 1.45;
+}
+.chat-bubble-assistant li:last-child {
+  margin-bottom: 0;
+}
+.chat-bubble-assistant ul li::marker {
+  color: var(--color-gold);
+}
+.chat-bubble-assistant ol li::marker {
+  color: var(--color-savings);
+  font-weight: 600;
+}
+
+/* Markdown Tables */
+.chat-bubble-assistant .markdown-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+}
+.chat-bubble-assistant table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  text-align: left;
+  background: rgba(0, 0, 0, 0.25);
+}
+.chat-bubble-assistant th {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
+  font-weight: 700;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+.chat-bubble-assistant td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+}
+.chat-bubble-assistant tr:last-child td {
+  border-bottom: none;
+}
+.chat-bubble-assistant tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Markdown Code & Pre */
+.chat-bubble-assistant code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.82em;
+  background: rgba(255, 255, 255, 0.09);
+  color: #facc15;
+  padding: 0.15em 0.38em;
+  border-radius: 4px;
+}
+.chat-bubble-assistant pre {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.chat-bubble-assistant pre code {
+  background: none;
+  padding: 0;
+  color: #e2e8f0;
+  font-size: inherit;
+}
+
+/* Blockquote */
+.chat-bubble-assistant blockquote {
+  margin: 0.6rem 0;
+  padding: 0.5rem 0.85rem;
+  background: rgba(234, 179, 8, 0.06);
+  border-left: 3px solid var(--color-gold);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.chat-bubble-assistant blockquote p {
+  margin: 0;
+}
+
+/* Horizontal Rule */
+.chat-bubble-assistant hr {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 0.85rem 0;
+}
+
+/* Links */
+.chat-bubble-assistant a {
+  color: var(--color-savings);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color var(--transition-fast);
+}
+.chat-bubble-assistant a:hover {
+  color: #4ade80;
 }
 
 .chatbot-suggestions {

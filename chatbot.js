@@ -87,6 +87,17 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI, getSup
     trigger.classList.remove("hidden");
   });
 
+  const expandToggle = document.getElementById("chatbot-expand-toggle");
+  if (expandToggle) {
+    expandToggle.addEventListener("click", () => {
+      windowEl.classList.toggle("maximized");
+      const isMax = windowEl.classList.contains("maximized");
+      expandToggle.title = isMax ? "Restore Chat Window" : "Expand / Maximize Chat Window";
+      expandToggle.textContent = isMax ? "❐" : "⛶";
+      scrollToBottom();
+    });
+  }
+
   const keyStatusEl = document.getElementById("chatbot-key-status");
 
   function showKeyStatus(message, isError = false) {
@@ -270,7 +281,11 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI, getSup
   function appendMessage(text, sender) {
     const bubble = document.createElement("div");
     bubble.className = `chat-bubble chat-bubble-${sender}`;
-    bubble.innerHTML = text;
+    if (sender === "user") {
+      bubble.textContent = text;
+    } else {
+      bubble.innerHTML = text;
+    }
     messageContainer.appendChild(bubble);
     scrollToBottom();
   }
@@ -299,47 +314,44 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI, getSup
     const state = serializeDashboardState();
 
     if (q.includes("net worth") || q.includes("wealth") || q.includes("how much do i have") || q.includes("total money")) {
-      return `
-        <strong>Your Total Net Worth:</strong><br>
-        • <strong>$${state.netWorth.totalUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD</strong><br>
-        • <strong>${state.netWorth.totalEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</strong><br><br>
-        <strong>Breakdown:</strong><br>
-        • Cash Savings: $${state.cashSavings.reduce((s, a) => s + a.holdings, 0).toLocaleString(undefined, {minimumFractionDigits: 2})} USD<br>
-        • Gold: ${state.gold.grams21k.toFixed(1)}g (21k) + ${state.gold.grams24k.toFixed(1)}g (24k) = ${state.gold.egpValue.toLocaleString(undefined, {minimumFractionDigits: 0})} EGP<br>
-        • Stocks / ETFs: ${state.stocks.map(s => `${s.name}: ${s.shares} sh ($${s.usdValue.toFixed(2)})`).join(", ") || "None"}<br>
-        • Upcoming Income: $${state.upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2})} USD
-      `;
+      return `### 💰 Total Net Worth
+- **USD Total:** **$${state.netWorth.totalUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD**
+- **EGP Total:** **${state.netWorth.totalEgp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP**
+
+| Asset Category | Holdings / Valuation |
+| :--- | :--- |
+| **Cash Savings** | $${state.cashSavings.reduce((s, a) => s + a.holdings, 0).toLocaleString(undefined, {minimumFractionDigits: 2})} USD |
+| **Gold (21k + 24k)** | ${state.gold.grams21k.toFixed(1)}g (21k) + ${state.gold.grams24k.toFixed(1)}g (24k) ≈ ${state.gold.egpValue.toLocaleString(undefined, {minimumFractionDigits: 0})} EGP |
+| **Stocks & ETFs** | ${state.stocks.map(s => `${s.name}: ${s.shares} sh ($${s.usdValue.toFixed(2)})`).join(", ") || "None"} |
+| **Upcoming Income** | $${state.upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2})} USD |`;
     }
 
     if (q.includes("incoming") || q.includes("next month") || q.includes("upcoming") || q.includes("salary")) {
       const egpVal = state.upcomingIncomeUsd * (State.cachedUsdEgp || 49.93);
-      return `
-        <strong>Upcoming Income:</strong><br>
-        • <strong>$${state.upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD</strong><br>
-        • ≈ <strong>${egpVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP</strong> (at ${State.cachedUsdEgp.toFixed(2)} EGP/USD)<br><br>
-        <em>Upcoming income automatically resets on the 24th of every month.</em>
-      `;
+      return `### 📅 Upcoming Income
+- **USD Amount:** **$${state.upcomingIncomeUsd.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD**
+- **EGP Equivalent:** **${egpVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP** (at ${State.cachedUsdEgp.toFixed(2)} EGP/USD)
+
+> *Upcoming income automatically resets on the 24th of every month.*`;
     }
 
     if (q.includes("gold") || q.includes("gram") || q.includes("karat") || q.includes("21k") || q.includes("24k")) {
-      return `
-        <strong>Your Gold Holdings:</strong><br>
-        • <strong>21k Gold:</strong> ${state.gold.grams21k.toFixed(2)} grams<br>
-        • <strong>24k Gold Ingots:</strong> ${state.gold.grams24k.toFixed(2)} grams<br>
-        • <strong>Total Gold Valuation:</strong> ${state.gold.egpValue.toLocaleString(undefined, {minimumFractionDigits: 2})} EGP ($${state.gold.usdValue.toLocaleString(undefined, {minimumFractionDigits: 2})} USD)<br>
-        • <strong>Current 24k Spot Rate:</strong> $${(State.cachedGold24kUsd || 0).toFixed(2)} USD/g (+${State.goldPremium}% markup)
-      `;
+      return `### 🥇 Gold Holdings & Valuation
+- **21k Gold:** ${state.gold.grams21k.toFixed(2)} grams
+- **24k Gold Ingots:** ${state.gold.grams24k.toFixed(2)} grams
+- **Total Gold Valuation:** **${state.gold.egpValue.toLocaleString(undefined, {minimumFractionDigits: 2})} EGP** ($${state.gold.usdValue.toLocaleString(undefined, {minimumFractionDigits: 2})} USD)
+- **Current 24k Spot Rate:** $${(State.cachedGold24kUsd || 0).toFixed(2)} USD/g (+${State.goldPremium}% markup)`;
     }
 
     if (q.includes("rate") || q.includes("exchange") || q.includes("dollar") || q.includes("egp") || q.includes("currency") || q.includes("spus") || q.includes("stock price")) {
       const spus = State.stockPrices?.["SPUS"] || 59.09;
-      return `
-        <strong>Live Market Rates:</strong><br>
-        • <strong>USD / EGP:</strong> ${State.cachedUsdEgp.toFixed(2)} EGP<br>
-        • <strong>SPUS ETF:</strong> $${spus.toFixed(2)} USD<br>
-        • <strong>24k Gold / Gram:</strong> ${(State.cachedGold24kUsd * State.cachedUsdEgp * (1 + State.goldPremium / 100)).toFixed(2)} EGP<br>
-        • <strong>21k Gold / Gram:</strong> ${(State.cachedGold24kUsd * State.cachedUsdEgp * (1 + State.goldPremium / 100) * 0.875).toFixed(2)} EGP
-      `;
+      return `### 📈 Live Market Rates
+| Instrument | Current Market Rate |
+| :--- | :--- |
+| **USD / EGP** | ${State.cachedUsdEgp.toFixed(2)} EGP |
+| **SPUS ETF** | $${spus.toFixed(2)} USD |
+| **24k Gold / Gram** | ${(State.cachedGold24kUsd * State.cachedUsdEgp * (1 + State.goldPremium / 100)).toFixed(2)} EGP |
+| **21k Gold / Gram** | ${(State.cachedGold24kUsd * State.cachedUsdEgp * (1 + State.goldPremium / 100) * 0.875).toFixed(2)} EGP |`;
     }
 
     if (q.includes("stock") || q.includes("etf") || q.includes("shares") || q.includes("spus") || q.includes("holding")) {
@@ -347,27 +359,28 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI, getSup
       if (stockList.length === 0) {
         return "You currently don't hold any stock shares in your Wealth Distribution table. You can add shares anytime by clicking **➕ Add Asset** in the table!";
       }
-      return `
-        <strong>Your Stock & ETF Portfolio:</strong><br>
-        ${stockList.map(s => `• <strong>${s.ticker}:</strong> ${s.shares} shares @ $${s.price.toFixed(2)} = <strong>$${s.usdValue.toLocaleString(undefined, {minimumFractionDigits: 2})} USD</strong> (${s.egpValue.toLocaleString(undefined, {minimumFractionDigits: 2})} EGP)`).join("<br>")}
-      `;
+      return `### 📊 Stock & ETF Portfolio
+| Ticker / ETF | Shares | Price | Total Value (USD) |
+| :--- | :--- | :--- | :--- |
+${stockList.map(s => `| **${s.ticker}** | ${s.shares} | $${s.price.toFixed(2)} | $${s.usdValue.toLocaleString(undefined, {minimumFractionDigits: 2})} |`).join("\n")}`;
     }
 
     // Default friendly response inviting the user to provide an API key for general chat
-    return `
-      I'm currently running in <strong>Local Financial Mode</strong>! I can instantly answer questions about your:
-      <br>• <strong>Net Worth & Wealth Breakdown</strong>
-      <br>• <strong>Upcoming Income & Savings</strong>
-      <br>• <strong>Gold Holdings & Market Prices</strong>
-      <br>• <strong>Stocks, ETFs & SPUS Shares</strong>
-      <br>• <strong>Live FX & Exchange Rates</strong>
-    `;
+    return `I'm currently running in **Local Financial Mode**! I can instantly answer questions about your:
+
+- **Net Worth & Wealth Breakdown**
+- **Upcoming Income & Savings**
+- **Gold Holdings & Market Prices**
+- **Stocks, ETFs & SPUS Shares**
+- **Live FX & Exchange Rates**
+
+*Tip: Connect your free Gemini or Groq API key in ⚙️ settings for full conversational AI and financial command actions!*`;
   }
 
   // --- QUERY PROCESSOR (ONLINE LLM + AGENTIC ACTIONS) ---
   async function processQuery(rawQuery) {
     if (!aiApiKey && !getSupabaseClient) {
-      return processLocalQuery(rawQuery);
+      return parseMarkdown(processLocalQuery(rawQuery));
     }
 
     const dashboardJson = serializeDashboardState();
@@ -383,7 +396,8 @@ User Question: "${rawQuery}"
 Rules:
 1. Base facts strictly on the live dashboard values provided in the JSON state.
 2. Clearly mention currencies (USD, EGP) and format figures with commas (e.g. $1,250.00).
-3. If the user commands an action (e.g. logging income, transferring money, setting baselines), perform it by appending a single action tag at the VERY END of your reply:
+3. Format your answers with rich Markdown: use bolding for emphasis, headings (###), clean bulleted lists, and tables (| Col | Col |) when comparing multiple assets or values.
+4. If the user commands an action (e.g. logging income, transferring money, setting baselines), perform it by appending a single action tag at the VERY END of your reply:
    [ACTION: {"type": "ACTION_NAME", "payload": { ... }}]
 
 Supported Actions:
@@ -501,12 +515,12 @@ Supported Actions:
             <button onclick="document.getElementById('chatbot-settings-toggle')?.click()" style="background: none; border: 1px solid rgba(239, 68, 68, 0.3); color: var(--text-primary); border-radius: 4px; padding: 2px 6px; font-size: 0.7rem; cursor: pointer;">⚙️ Open AI Key Settings</button>
           </div>
         </div>
-        ${processLocalQuery(rawQuery)}
+        ${parseMarkdown(processLocalQuery(rawQuery))}
       `;
     }
 
     if (!replyText) {
-      return processLocalQuery(rawQuery);
+      return parseMarkdown(processLocalQuery(rawQuery));
     }
 
     // Intercept agentic action tag if present
@@ -713,30 +727,127 @@ Supported Actions:
     };
   }
 
-  // Safe Markdown to HTML parser
+  // Safe & Comprehensive Markdown to HTML parser
   function parseMarkdown(text) {
     if (!text) return "";
+
+    // 1. If marked.js is available in window, use it for complete CommonMark & GFM support
+    if (typeof window !== "undefined" && window.marked && typeof window.marked.parse === "function") {
+      try {
+        window.marked.setOptions({
+          gfm: true,
+          breaks: true
+        });
+        const rawHtml = window.marked.parse(text);
+        // Wrap tables in responsive container for smooth horizontal scrolling
+        const wrappedHtml = rawHtml.replace(/<table>([\s\S]*?)<\/table>/gi, '<div class="markdown-table-wrapper"><table>$1</table></div>');
+        
+        if (window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
+          return window.DOMPurify.sanitize(wrappedHtml, {
+            ADD_ATTR: ["target", "class", "style"]
+          });
+        }
+        return wrappedHtml;
+      } catch (e) {
+        console.warn("[Chatbot] Marked parser error:", e);
+      }
+    }
+
+    // 2. High-quality Standalone Fallback Markdown Parser
     let html = text
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
 
-    // Bold
-    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-    // Italic
-    html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
-    // Code
-    html = html.replace(/`(.*?)`/g, "<code>$1</code>");
+    // Fenced code blocks ```lang ... ```
+    html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (m, lang, code) => {
+      return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+    });
 
-    // Line breaks and list bullets
-    html = html.split("\n").map(line => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("• ") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-        return `• ${trimmed.substring(2)}`;
+    // Headers
+    html = html.replace(/^#### (.*$)/gim, "<h4>$1</h4>");
+    html = html.replace(/^### (.*$)/gim, "<h3>$1</h3>");
+    html = html.replace(/^## (.*$)/gim, "<h2>$1</h2>");
+    html = html.replace(/^# (.*$)/gim, "<h1>$1</h1>");
+
+    // Blockquotes
+    html = html.replace(/^> (.*$)/gim, "<blockquote><p>$1</p></blockquote>");
+
+    // Tables: | h1 | h2 | \n | --- | --- | \n | d1 | d2 |
+    html = html.replace(/((?:\|[^\n]+\|\n?)+)/g, (match) => {
+      const rows = match.trim().split("\n").map(r => r.trim()).filter(Boolean);
+      if (rows.length < 2) return match;
+      const isDelimiter = (r) => /^\|(\s*:?-+:?\s*\|)+$/.test(r);
+      if (!isDelimiter(rows[1])) return match;
+
+      const headerCols = rows[0].split("|").slice(1, -1).map(c => c.trim());
+      const ths = headerCols.map(c => `<th>${c}</th>`).join("");
+      let tbody = "";
+
+      for (let i = 2; i < rows.length; i++) {
+        const cols = rows[i].split("|").slice(1, -1).map(c => c.trim());
+        const tds = cols.map(c => `<td>${c}</td>`).join("");
+        tbody += `<tr>${tds}</tr>`;
       }
-      return line;
-    }).join("<br>");
 
-    return html;
+      return `<div class="markdown-table-wrapper"><table><thead><tr>${ths}</tr></thead><tbody>${tbody}</tbody></table></div>`;
+    });
+
+    // Bold, italic, strikethrough
+    html = html.replace(/\*\*\*(.*?)\*\*\*/g, "<strong><em>$1</em></strong>");
+    html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/__(.*?)__/g, "<strong>$1</strong>");
+    html = html.replace(/\*(.*?)\*/g, "<em>$1</em>");
+    html = html.replace(/_(.*?)_/g, "<em>$1</em>");
+    html = html.replace(/~~(.*?)~~/g, "<del>$1</del>");
+
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    // Links [text](url)
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    // Horizontal rules
+    html = html.replace(/^---$/gim, "<hr>");
+
+    // Lists (unordered & ordered)
+    const lines = html.split("\n");
+    let inUl = false;
+    let inOl = false;
+    let out = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      const ulMatch = trimmed.match(/^[•\-\*]\s+(.*)/);
+      const olMatch = trimmed.match(/^(\d+)\.\s+(.*)/);
+
+      if (ulMatch) {
+        if (inOl) { out.push("</ol>"); inOl = false; }
+        if (!inUl) { out.push("<ul>"); inUl = true; }
+        out.push(`<li>${ulMatch[1]}</li>`);
+      } else if (olMatch) {
+        if (inUl) { out.push("</ul>"); inUl = false; }
+        if (!inOl) { out.push("<ol>"); inOl = true; }
+        out.push(`<li>${olMatch[2]}</li>`);
+      } else {
+        if (inUl) { out.push("</ul>"); inUl = false; }
+        if (inOl) { out.push("</ol>"); inOl = false; }
+        out.push(line);
+      }
+    }
+    if (inUl) out.push("</ul>");
+    if (inOl) out.push("</ol>");
+
+    html = out.join("\n");
+    // Preserve paragraphs
+    html = html.replace(/\n\n+/g, "</p><p>");
+    html = html.replace(/\n/g, "<br>");
+
+    return `<p>${html}</p>`
+      .replace(/<p><\/p>/g, "")
+      .replace(/<p>\s*<(div|table|thead|tbody|tr|th|td|ul|ol|li|pre|h1|h2|h3|h4|blockquote|hr)/gi, "<$1")
+      .replace(/<\/(div|table|thead|tbody|tr|th|td|ul|ol|li|pre|h1|h2|h3|h4|blockquote|hr)>\s*<\/p>/gi, "</$1>");
   }
 }
