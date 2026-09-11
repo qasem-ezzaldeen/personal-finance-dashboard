@@ -35,8 +35,14 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Try gemini-3.6-flash first, then gemini-flash-latest and gemini-3.7-flash
-    const models = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-3.7-flash", "gemini-3.5-flash"];
+    // Try newest models first with robust fallback to stable versions (gemini-2.5-flash, gemini-1.5-flash)
+    const models = [
+      "gemini-3.6-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash"
+    ];
     let replyText = "";
     let lastError = "";
 

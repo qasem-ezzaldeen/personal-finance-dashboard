@@ -366,7 +366,7 @@ export function initChatbot(State, getAssetValuations, updateDashboardUI, getSup
 
   // --- QUERY PROCESSOR (ONLINE LLM + AGENTIC ACTIONS) ---
   async function processQuery(rawQuery) {
-    if (!aiApiKey) {
+    if (!aiApiKey && !getSupabaseClient) {
       return processLocalQuery(rawQuery);
     }
 
@@ -492,11 +492,6 @@ Supported Actions:
           }
         }
       }
-
-        if (!success && lastErr) {
-          throw lastErr;
-        }
-      }
     } catch (apiErr) {
       console.warn("[Chatbot] Online LLM API failed. Falling back to local intelligence:", apiErr);
       return `
@@ -577,26 +572,40 @@ Supported Actions:
         const fromVal = (payload.from || "").toLowerCase();
         const toVal = (payload.to || "").toLowerCase();
 
+        let fromAsset = null;
         if (fromVal === "upcoming") {
           if (amountUsd > State.upcomingIncome) {
             return { success: false, message: `Insufficient upcoming income (available: $${State.upcomingIncome.toFixed(2)}).` };
           }
+        } else {
+          fromAsset = State.assets.find(a => a.id === fromVal || a.name.toLowerCase().includes(fromVal));
+          if (!fromAsset) {
+            return { success: false, message: `Source asset "${fromVal}" not found.` };
+          }
+          if (fromAsset.holdings < amountUsd) {
+            return { success: false, message: `Insufficient balance in ${fromAsset.name} (available: $${fromAsset.holdings.toFixed(2)}).` };
+          }
+        }
+
+        let toAsset = null;
+        if (toVal !== "upcoming") {
+          toAsset = State.assets.find(a => a.id === toVal || a.name.toLowerCase().includes(toVal));
+          if (!toAsset) {
+            return { success: false, message: `Destination asset "${toVal}" not found.` };
+          }
+        }
+
+        // Apply mutation only after both source and destination are fully validated
+        if (fromVal === "upcoming") {
           State.upcomingIncome -= amountUsd;
         } else {
-          const fromAsset = State.assets.find(a => a.id === fromVal || a.name.toLowerCase().includes(fromVal));
-          if (!fromAsset || fromAsset.holdings < amountUsd) {
-            return { success: false, message: `Insufficient balance in ${fromVal}.` };
-          }
           fromAsset.holdings -= amountUsd;
         }
 
-        if (toVal !== "upcoming") {
-          let toAsset = State.assets.find(a => a.id === toVal || a.name.toLowerCase().includes(toVal));
-          if (toAsset) {
-            toAsset.holdings += amountUsd;
-          }
-        } else {
+        if (toVal === "upcoming") {
           State.upcomingIncome += amountUsd;
+        } else {
+          toAsset.holdings += amountUsd;
         }
 
         State.save();
@@ -631,7 +640,7 @@ Supported Actions:
       }
 
       default:
-        return { success: false, message: `Action ${type} completed.` };
+        return { success: false, message: `Unsupported action "${type}".` };
     }
   }
 

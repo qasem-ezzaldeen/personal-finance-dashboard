@@ -1227,78 +1227,96 @@ body {
 
 /* Goals Tracking Panel styling */
 .goal-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  position: relative;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.goal-item-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  flex-shrink: 0;
+}
+
+.goal-card {
+  flex: 1;
+  min-width: 0;
   background: var(--input-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   padding: 1.25rem;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 
-/* Goal Reordering Controls & Drag-Drop */
-.goal-reorder-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 2px 4px;
+.goal-card:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Goal Reordering Controls & Drag-Drop (Unified with Wealth Distribution Table) */
+.goal-drag-handle {
+  cursor: grab;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 1.15rem;
+  user-select: none;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.btn-goal-reorder {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  font-size: 0.65rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--card-border);
-  border-radius: 4px;
-  color: var(--text-secondary);
-  cursor: pointer;
+  line-height: 1;
+  letter-spacing: -1px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
-}
-
-.btn-goal-reorder:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-1px);
-}
-
-.btn-goal-reorder:disabled {
-  opacity: 0.25;
-  cursor: not-allowed;
-}
-
-.goal-drag-handle {
-  cursor: grab;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  padding: 0 0.2rem;
-  user-select: none;
-  transition: color var(--transition-fast);
+  flex-shrink: 0;
+  transition: color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
 }
 
 .goal-drag-handle:hover {
-  color: var(--color-gold);
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.15);
 }
 
-.goal-item.goal-draggable {
-  transition: transform var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast), box-shadow var(--transition-fast);
+.goal-drag-handle:active {
+  cursor: grabbing;
 }
 
-.goal-item.goal-dragging {
-  opacity: 0.45;
+.zakat-fixed-pin {
+  font-size: 1.05rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  user-select: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.25);
+  flex-shrink: 0;
+  transition: transform var(--transition-fast), background var(--transition-fast);
+}
+
+.zakat-fixed-pin:hover {
+  background: rgba(234, 179, 8, 0.22);
+  transform: scale(1.1);
+}
+
+.goal-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.99);
+}
+
+.goal-item.dragging .goal-card {
+  background: var(--border-subtle) !important;
   border: 1px dashed var(--color-gold) !important;
-  transform: scale(0.98);
-}
-
-.goal-item.goal-drag-over {
-  border-color: var(--color-savings) !important;
-  box-shadow: 0 0 12px rgba(34, 197, 94, 0.35);
-  transform: translateY(-2px);
 }
 
 .zakat-fixed-pill {
@@ -1953,6 +1971,22 @@ body {
     min-width: 26px !important;
     padding: 0.2rem !important;
     font-size: 0.85rem !important;
+  }
+
+  .goal-item {
+    gap: 0.45rem;
+  }
+
+  .goal-item-left {
+    width: 24px;
+    min-width: 24px;
+  }
+
+  .goal-drag-handle,
+  .zakat-fixed-pin {
+    width: 24px;
+    height: 24px;
+    font-size: 0.95rem;
   }
 
   .modal-card {

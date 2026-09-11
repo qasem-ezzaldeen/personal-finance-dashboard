@@ -1029,7 +1029,7 @@ function updateDashboardUI(force = false) {
     if (!State.goals || State.goals.length === 0) {
       goalsContainer.innerHTML = `<div class="empty-state">No financial goals set. Click ➕ to add one.</div>`;
     } else {
-      State.goals.forEach(goal => {
+      State.goals.forEach((goal, goalIdx) => {
         let currentVal = 0;
         let targetVal = goal.target;
         let remainingVal = 0;
@@ -1105,67 +1105,60 @@ function updateDashboardUI(force = false) {
             remainingText = `Remaining: ${remainingVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} EGP`;
           }
         }
-        
+
         const isZakat = goal.id === "goal_zakat";
-        const isFirstCustom = goalIdx === 1;
-        const isLastCustom = goalIdx === State.goals.length - 1;
 
         const goalItem = document.createElement("div");
-        goalItem.className = `goal-item ${borderClass} ${!isZakat ? 'goal-draggable' : ''}`;
+        goalItem.className = "goal-item";
         goalItem.style.position = "relative";
         goalItem.dataset.goalId = goal.id;
-        if (!isZakat) {
-          goalItem.setAttribute("draggable", "true");
-        }
         
         // Add hover micro-interaction
         goalItem.addEventListener("mouseenter", () => {
-          if (!goalItem.classList.contains("goal-dragging")) {
+          if (!goalItem.classList.contains("dragging")) {
             goalItem.style.transform = "translateY(-2px)";
           }
         });
         goalItem.addEventListener("mouseleave", () => {
-          if (!goalItem.classList.contains("goal-dragging")) {
+          if (!goalItem.classList.contains("dragging")) {
             goalItem.style.transform = "none";
           }
         });
- 
+
         const isMet = currentVal >= targetVal;
         
         goalItem.innerHTML = `
-          <div class="goal-header" style="margin-bottom: 0.75rem;">
-            <div class="goal-info">
-              <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
-                <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
-                ${goal.name}
-                ${isZakat && isMet ? `<span class="streak-badge zakat-streak-clickable" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid rgba(234, 179, 8, 0.25);" title="Consecutive days over threshold (Click to edit streak)">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
-              </h3>
-              <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
-            </div>
-            <div style="display: flex; gap: 0.4rem; align-items: center;">
-              ${isZakat ? `
-                <span class="zakat-fixed-pill" title="Zakat Threshold is fixed at the top">📌 Fixed Top</span>
-                <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
-                ${isMet ? `<button class="btn-icon edit-zakat-streak-btn" title="Edit Zakat Streak" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : ''}
-              ` : `
-                <div class="goal-reorder-group" title="Reorder goal">
-                  <button type="button" class="btn-icon btn-goal-reorder move-goal-up-btn" data-goal-id="${goal.id}" title="Move Goal Up" ${isFirstCustom ? 'disabled' : ''}>▲</button>
-                  <button type="button" class="btn-icon btn-goal-reorder move-goal-down-btn" data-goal-id="${goal.id}" title="Move Goal Down" ${isLastCustom ? 'disabled' : ''}>▼</button>
-                  <span class="goal-drag-handle" title="Drag to reorder">⠿</span>
-                </div>
-                <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
-                <button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>
-              `}
-            </div>
+          <div class="goal-item-left">
+            ${isZakat ? `
+              <span class="zakat-fixed-pin" title="Zakat Threshold is fixed at the top">📌</span>
+            ` : `
+              <span class="drag-handle goal-drag-handle" title="Drag to reorder">⋮⋮</span>
+            `}
           </div>
-          
-          <div class="progress-bar-track" style="height: 8px; background: var(--track-bg); border-radius: 9999px; overflow: hidden; margin-bottom: 0.75rem;">
-            <div class="progress-bar-fill ${gradientClass}" style="width: ${Math.min(100, percent)}%; height: 100%; border-radius: 9999px;"></div>
-          </div>
-          
-          <div class="goal-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; font-weight: 500;">
-             <span class="goal-current-val" style="color: var(--text-secondary);">${currentText}</span>
-             <span class="goal-remaining ${isMet ? 'met' : ''}" style="${isMet ? 'color: var(--color-savings); font-weight: 700;' : 'color: var(--text-muted);'}">${remainingText}</span>
+          <div class="goal-card ${borderClass}">
+            <div class="goal-header" style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+              <div class="goal-info">
+                <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
+                  <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
+                  ${goal.name}
+                  ${isZakat && isMet ? `<span class="streak-badge zakat-streak-clickable" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid rgba(234, 179, 8, 0.25);" title="Consecutive days over threshold (Click to edit streak)">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
+                </h3>
+                <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
+              </div>
+              <div style="display: flex; gap: 0.4rem; align-items: center;">
+                <span class="goal-percent" style="font-size: 1.1rem; font-weight: 800;">${percent.toFixed(1)}%</span>
+                ${isZakat ? (isMet ? `<button class="btn-icon edit-zakat-streak-btn" title="Edit Zakat Streak" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>` : '') : `<button class="btn-icon edit-goal-item-btn" data-goal-id="${goal.id}" title="Edit Goal" style="width: 24px; height: 24px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem;">✏️</button>`}
+              </div>
+            </div>
+            
+            <div class="progress-bar-track" style="height: 8px; background: var(--track-bg); border-radius: 9999px; overflow: hidden; margin-bottom: 0.75rem;">
+              <div class="progress-bar-fill ${gradientClass}" style="width: ${Math.min(100, percent)}%; height: 100%; border-radius: 9999px;"></div>
+            </div>
+            
+            <div class="goal-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; font-weight: 500;">
+               <span class="goal-current-val" style="color: var(--text-secondary);">${currentText}</span>
+               <span class="goal-remaining ${isMet ? 'met' : ''}" style="${isMet ? 'color: var(--color-savings); font-weight: 700;' : 'color: var(--text-muted);'}">${remainingText}</span>
+            </div>
           </div>
         `;
         
@@ -1195,58 +1188,6 @@ function updateDashboardUI(force = false) {
           });
         }
 
-        // Attach reorder and drag-drop handlers for non-zakat goals
-        if (!isZakat) {
-          const upBtn = goalItem.querySelector(".move-goal-up-btn");
-          if (upBtn) {
-            upBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              moveGoalUp(goal.id);
-            });
-          }
-
-          const downBtn = goalItem.querySelector(".move-goal-down-btn");
-          if (downBtn) {
-            downBtn.addEventListener("click", (e) => {
-              e.stopPropagation();
-              moveGoalDown(goal.id);
-            });
-          }
-
-          goalItem.addEventListener("dragstart", (e) => {
-            e.dataTransfer.setData("text/plain", goal.id);
-            e.dataTransfer.effectAllowed = "move";
-            goalItem.classList.add("goal-dragging");
-          });
-
-          goalItem.addEventListener("dragend", () => {
-            goalItem.classList.remove("goal-dragging");
-            document.querySelectorAll(".goal-item").forEach(el => el.classList.remove("goal-drag-over"));
-          });
-        }
-
-        // Allow goal cards to act as drop targets
-        goalItem.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          if (!goalItem.classList.contains("goal-dragging")) {
-            goalItem.classList.add("goal-drag-over");
-          }
-        });
-
-        goalItem.addEventListener("dragleave", () => {
-          goalItem.classList.remove("goal-drag-over");
-        });
-
-        goalItem.addEventListener("drop", (e) => {
-          e.preventDefault();
-          goalItem.classList.remove("goal-drag-over");
-          const sourceGoalId = e.dataTransfer.getData("text/plain");
-          if (sourceGoalId && sourceGoalId !== goal.id) {
-            reorderGoal(sourceGoalId, goal.id);
-          }
-        });
-        
         goalsContainer.appendChild(goalItem);
       });
     }
@@ -3125,69 +3066,104 @@ async function syncStateToSupabase() {
   }
 }
 
-async function loadUserVault(user) {
-  showLoader("Opening secure vault...");
-  isCloudSyncActive = true;
+let vaultLoadingPromise = null;
+let currentVaultUserId = null;
 
-  if (supabaseChannel) {
-    supabase.removeChannel(supabaseChannel);
-    supabaseChannel = null;
+async function loadUserVault(user, force = false) {
+  if (!user || !user.id) return;
+
+  // If already loaded for this user and not forcing a reload, skip redundant execution
+  if (!force && currentVaultUserId === user.id && isInitialLoadComplete && supabaseChannel) {
+    return;
   }
 
-  try {
-    // 1. Fetch user's personal row strictly from Supabase (enforced by RLS)
-    const { data: dbData, error } = await supabase
-      .from('dashboards')
-      .select('data')
-      .eq('user_id', user.id)
-      .maybeSingle();
+  // If a vault load is already in progress, join the in-flight promise to prevent concurrent race conditions
+  if (vaultLoadingPromise) {
+    return vaultLoadingPromise;
+  }
 
-    if (error) {
-      console.error("[Vault] Error pulling cloud vault state:", error);
-      hideLoader();
-    } else if (dbData && dbData.data) {
-      console.log("[Vault] Loaded user vault directly from Supabase cloud");
-      handleIncomingCloudState(dbData.data);
-      isInitialLoadComplete = true;
-      hideLoader();
-    } else {
-      // Brand new account with no cloud record yet: initialize clean default vault
-      console.log("[Vault] New user account. Initializing fresh cloud vault...");
-      State.assets = [];
-      State.upcomingIncome = 0;
-      State.transactions = [];
-      State.goals = getDefaultGoals();
-      isInitialLoadComplete = true;
-      hideLoader();
-      await syncStateToSupabase();
+  vaultLoadingPromise = (async () => {
+    showLoader("Opening secure vault...");
+    isCloudSyncActive = true;
+
+    if (supabaseChannel) {
+      try {
+        await supabase.removeChannel(supabaseChannel);
+      } catch (e) {
+        console.warn("[Vault] Error removing previous channel:", e);
+      }
+      supabaseChannel = null;
     }
 
-    // 2. Real-time subscription filtered strictly by user_id
-    supabaseChannel = supabase
-      .channel(`vault-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'dashboards',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log("[Vault] Real-time cloud change received:", payload);
-          if (payload.new && payload.new.data) {
-            handleIncomingCloudState(payload.new.data);
-          }
-        }
-      )
-      .subscribe();
+    try {
+      // 1. Fetch user's personal row strictly from Supabase (enforced by RLS)
+      const { data: dbData, error } = await supabase
+        .from('dashboards')
+        .select('data')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-    runClockAndResetCheck();
-    fetchLiveRates();
-  } catch (err) {
-    console.error("[Vault] Vault initialization failed:", err);
-    hideLoader();
-  }
+      if (error) {
+        console.error("[Vault] Error pulling cloud vault state:", error);
+        hideLoader();
+      } else if (dbData && dbData.data) {
+        console.log("[Vault] Loaded user vault directly from Supabase cloud");
+        handleIncomingCloudState(dbData.data);
+        isInitialLoadComplete = true;
+        hideLoader();
+      } else {
+        // Brand new account with no cloud record yet: initialize clean default vault
+        console.log("[Vault] New user account. Initializing fresh cloud vault...");
+        State.assets = [];
+        State.upcomingIncome = 0;
+        State.transactions = [];
+        State.goals = getDefaultGoals();
+        isInitialLoadComplete = true;
+        hideLoader();
+        await syncStateToSupabase();
+      }
+
+      currentVaultUserId = user.id;
+
+      // 2. Real-time subscription filtered strictly by user_id
+      const channelName = `vault-${user.id}`;
+      if (supabase && typeof supabase.getChannels === "function") {
+        const existing = supabase.getChannels().find(ch => ch.topic === `realtime:${channelName}` || ch.subTopic === channelName);
+        if (existing) {
+          await supabase.removeChannel(existing);
+        }
+      }
+
+      supabaseChannel = supabase
+        .channel(channelName)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'dashboards',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log("[Vault] Real-time cloud change received:", payload);
+            if (payload.new && payload.new.data) {
+              handleIncomingCloudState(payload.new.data);
+            }
+          }
+        )
+        .subscribe();
+
+      runClockAndResetCheck();
+      fetchLiveRates();
+    } catch (err) {
+      console.error("[Vault] Vault initialization failed:", err);
+      hideLoader();
+    } finally {
+      vaultLoadingPromise = null;
+    }
+  })();
+
+  return vaultLoadingPromise;
 }
 
 
@@ -3205,9 +3181,13 @@ async function initAuthSystem() {
       await loadUserVault(currentUser);
     } else {
       currentUser = null;
+      currentVaultUserId = null;
+      isInitialLoadComplete = false;
       updateAuthUI(null);
       if (supabaseChannel) {
-        supabase.removeChannel(supabaseChannel);
+        try {
+          supabase.removeChannel(supabaseChannel);
+        } catch (e) {}
         supabaseChannel = null;
       }
     }
@@ -3220,8 +3200,9 @@ async function initAuthSystem() {
       currentUser = session.user;
       updateAuthUI(currentUser);
       await loadUserVault(currentUser);
-    } else {
+    } else if (!currentUser) {
       currentUser = null;
+      currentVaultUserId = null;
       updateAuthUI(null);
       hideLoader();
       showAuthModal("login");
@@ -3267,6 +3248,14 @@ async function signOutUser() {
     await supabase.auth.signOut();
   }
   currentUser = null;
+  currentVaultUserId = null;
+  isInitialLoadComplete = false;
+  if (supabaseChannel) {
+    try {
+      supabase.removeChannel(supabaseChannel);
+    } catch (e) {}
+    supabaseChannel = null;
+  }
   updateAuthUI(null);
   hideAccountModal();
   
@@ -3331,50 +3320,7 @@ function ensureZakatGoal() {
   State.goals = [zakatGoal, ...State.goals.filter(g => g.id !== "goal_zakat")];
 }
 
-function moveGoalUp(goalId) {
-  if (!State.goals || goalId === "goal_zakat") return;
-  const idx = State.goals.findIndex(g => g.id === goalId);
-  if (idx > 1) { // Index 0 is Zakat (fixed at top), so lowest index custom goal can move to is 1
-    const temp = State.goals[idx];
-    State.goals[idx] = State.goals[idx - 1];
-    State.goals[idx - 1] = temp;
-    ensureZakatGoal();
-    State.save();
-    updateDashboardUI();
-  }
-}
 
-function moveGoalDown(goalId) {
-  if (!State.goals || goalId === "goal_zakat") return;
-  const idx = State.goals.findIndex(g => g.id === goalId);
-  if (idx >= 1 && idx < State.goals.length - 1) {
-    const temp = State.goals[idx];
-    State.goals[idx] = State.goals[idx + 1];
-    State.goals[idx + 1] = temp;
-    ensureZakatGoal();
-    State.save();
-    updateDashboardUI();
-  }
-}
-
-function reorderGoal(sourceGoalId, targetGoalId) {
-  if (!State.goals || sourceGoalId === "goal_zakat") return;
-  const srcIdx = State.goals.findIndex(g => g.id === sourceGoalId);
-  if (srcIdx < 1) return;
-
-  let targetIdx = State.goals.findIndex(g => g.id === targetGoalId);
-  if (targetIdx === -1) return;
-  // If dropped on Zakat (index 0), anchor right below Zakat (index 1)
-  if (targetIdx === 0) targetIdx = 1;
-
-  if (srcIdx === targetIdx) return;
-
-  const [movedGoal] = State.goals.splice(srcIdx, 1);
-  State.goals.splice(targetIdx, 0, movedGoal);
-  ensureZakatGoal();
-  State.save();
-  updateDashboardUI();
-}
 
 function checkZakatStreak(totalNetWorthEgp, gold24kEgpPerGram, totalNetWorthUsd, totalNetWorthAud) {
   const currentVal = gold24kEgpPerGram > 0 ? (totalNetWorthEgp / gold24kEgpPerGram) : 0;
@@ -3612,8 +3558,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // 6. Initialize Grid Resizer for dashboard columns
   initGridResizer();
 
-  // 6.5 Initialize drag and drop for wealth distribution rows
+  // 6.5 Initialize drag and drop for wealth distribution rows and goals
   initWealthTableDragAndDrop();
+  initGoalsDragAndDrop();
 
   // 7. Initialize Aura AI Chatbot Assistant with Supabase client provider
   initChatbot(State, getAssetValuations, updateDashboardUI, () => {
@@ -3822,6 +3769,158 @@ function saveNewAssetOrder() {
   });
 
   State.assets = newAssets;
+  State.save();
+  updateDashboardUI(true);
+}
+
+/**
+ * Initializes drag-and-drop reordering for the financial goals list
+ * matching the wealth distribution table reordering method (desktop mouse & mobile touch).
+ */
+function initGoalsDragAndDrop() {
+  const container = document.getElementById("goals-list-container");
+  if (!container) return;
+
+  // --- DESKTOP MOUSE EVENTS ---
+  container.addEventListener("mousedown", (e) => {
+    const handle = e.target.closest(".drag-handle");
+    if (handle) {
+      const goalItem = handle.closest(".goal-item");
+      if (goalItem && goalItem.getAttribute("data-goal-id") !== "goal_zakat") {
+        goalItem.setAttribute("draggable", "true");
+      }
+    }
+  });
+
+  container.addEventListener("mouseup", () => {
+    container.querySelectorAll(".goal-item").forEach(item => {
+      item.removeAttribute("draggable");
+    });
+  });
+
+  container.addEventListener("dragstart", (e) => {
+    const goalItem = e.target.closest(".goal-item");
+    if (goalItem && goalItem.getAttribute("draggable") === "true" && goalItem.getAttribute("data-goal-id") !== "goal_zakat") {
+      goalItem.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", goalItem.getAttribute("data-goal-id"));
+      e.dataTransfer.effectAllowed = "move";
+    } else {
+      e.preventDefault();
+    }
+  });
+
+  container.addEventListener("dragend", (e) => {
+    const goalItem = e.target.closest(".goal-item");
+    if (goalItem) {
+      goalItem.classList.remove("dragging");
+      goalItem.removeAttribute("draggable");
+    }
+    // Safety cleanup
+    container.querySelectorAll(".goal-item").forEach(r => {
+      r.removeAttribute("draggable");
+      r.classList.remove("dragging");
+    });
+    saveNewGoalOrder();
+  });
+
+  container.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const draggingItem = container.querySelector(".dragging");
+    if (!draggingItem) return;
+
+    const targetItem = e.target.closest(".goal-item");
+    if (targetItem && targetItem !== draggingItem) {
+      // Zakat goal is fixed at top (index 0). Dragged goal must anchor right below Zakat
+      if (targetItem.getAttribute("data-goal-id") === "goal_zakat") {
+        container.insertBefore(draggingItem, targetItem.nextSibling);
+      } else {
+        const rect = targetItem.getBoundingClientRect();
+        const next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+        container.insertBefore(draggingItem, next ? targetItem.nextSibling : targetItem);
+      }
+    }
+  });
+
+  // --- MOBILE TOUCH EVENTS ---
+  let touchStartGoal = null;
+
+  container.addEventListener("touchstart", (e) => {
+    const handle = e.target.closest(".drag-handle");
+    if (handle) {
+      const goalItem = handle.closest(".goal-item");
+      if (goalItem && goalItem.getAttribute("data-goal-id") !== "goal_zakat") {
+        touchStartGoal = goalItem;
+        goalItem.classList.add("dragging");
+      }
+    }
+  }, { passive: true });
+
+  container.addEventListener("touchmove", (e) => {
+    if (!touchStartGoal) return;
+    e.preventDefault(); // Stop page scrolling when dragging a goal card
+
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (!element) return;
+
+    const targetItem = element.closest(".goal-item");
+    if (targetItem && targetItem !== touchStartGoal) {
+      if (targetItem.getAttribute("data-goal-id") === "goal_zakat") {
+        container.insertBefore(touchStartGoal, targetItem.nextSibling);
+      } else {
+        const rect = targetItem.getBoundingClientRect();
+        const nextBoolean = (touch.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+        container.insertBefore(touchStartGoal, nextBoolean ? targetItem.nextSibling : targetItem);
+      }
+    }
+  }, { passive: false });
+
+  container.addEventListener("touchend", () => {
+    if (touchStartGoal) {
+      touchStartGoal.classList.remove("dragging");
+      touchStartGoal = null;
+      saveNewGoalOrder();
+    }
+  });
+}
+
+/**
+ * Syncs the visual order of goals from the DOM to State.goals,
+ * keeping Zakat fixed at index 0, and saves to database.
+ */
+function saveNewGoalOrder() {
+  const container = document.getElementById("goals-list-container");
+  if (!container) return;
+
+  const newOrderIds = Array.from(container.querySelectorAll(".goal-item"))
+                           .map(item => item.getAttribute("data-goal-id"))
+                           .filter(id => id && id !== "goal_zakat");
+
+  if (newOrderIds.length === 0) return;
+
+  const zakatGoal = State.goals.find(g => g.id === "goal_zakat") || {
+    id: "goal_zakat",
+    name: "Zakat Threshold",
+    emoji: "🕌",
+    currency: "Gold",
+    target: 85
+  };
+
+  const newGoals = [zakatGoal];
+  newOrderIds.forEach(id => {
+    const goal = State.goals.find(g => g.id === id);
+    if (goal) newGoals.push(goal);
+  });
+
+  // Preserve any remaining goals
+  State.goals.forEach(goal => {
+    if (goal.id !== "goal_zakat" && !newOrderIds.includes(goal.id)) {
+      newGoals.push(goal);
+    }
+  });
+
+  State.goals = newGoals;
+  ensureZakatGoal();
   State.save();
   updateDashboardUI(true);
 }
