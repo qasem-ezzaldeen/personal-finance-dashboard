@@ -1023,6 +1023,8 @@ function updateDashboardUI(force = false) {
   // --- 3. Update Financial Goals Tracking Panel ---
   const goalsContainer = document.getElementById("goals-list-container");
   if (goalsContainer) {
+    // Ensure Zakat streak is up to date before rendering goals
+    checkZakatStreak(netWorthEgpExcludingUpcoming, gold24kEgpPerGram, netWorthUsdExcludingUpcoming, netWorthAudExcludingUpcoming);
     ensureZakatGoal();
     goalsContainer.innerHTML = "";
     
@@ -1039,6 +1041,7 @@ function updateDashboardUI(force = false) {
         let remainingText = "";
         let gradientClass = "usd-gradient";
         let borderClass = "goal-border-usd";
+        const isZakat = goal.id === "goal_zakat";
         
         if (goal.currency === "Gold") {
           currentVal = gold24kEgpPerGram > 0 ? (netWorthEgpExcludingUpcoming / gold24kEgpPerGram) : 0;
@@ -1052,7 +1055,18 @@ function updateDashboardUI(force = false) {
           currentText = `Net Worth: ${currentVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           
           if (currentVal >= targetVal) {
-            remainingText = "Threshold Met (Zakat Due) ✓";
+            if (isZakat) {
+              const hawlDays = 354;
+              const currentStreak = Math.max(1, State.zakatConsecutiveDays || 1);
+              const daysRemaining = Math.max(0, hawlDays - currentStreak);
+              if (daysRemaining <= 0) {
+                remainingText = "Threshold met (Zakat Due) ✓";
+              } else {
+                remainingText = `Threshold met (Zakat Due in: ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'})`;
+              }
+            } else {
+              remainingText = "Goal Reached ✓";
+            }
           } else {
             remainingText = `Remaining: ${remainingVal.toLocaleString(undefined, {maximumFractionDigits: 2})} g`;
           }
@@ -1106,8 +1120,6 @@ function updateDashboardUI(force = false) {
           }
         }
 
-        const isZakat = goal.id === "goal_zakat";
-
         const goalItem = document.createElement("div");
         goalItem.className = "goal-item";
         goalItem.style.position = "relative";
@@ -1141,7 +1153,6 @@ function updateDashboardUI(force = false) {
                 <h3 style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem;">
                   <span style="font-size: 1.2rem; line-height: 1;">${goal.emoji || '🎯'}</span>
                   ${goal.name}
-                  ${isZakat && isMet ? `<span class="streak-badge zakat-streak-clickable" style="font-size: 0.7rem; color: #facc15; font-weight: 700; background: rgba(234, 179, 8, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem; border: 1px solid rgba(234, 179, 8, 0.25);" title="Consecutive days over threshold (Click to edit streak)">🔥 ${State.zakatConsecutiveDays || 1}d</span>` : ''}
                 </h3>
                 <span class="goal-target-desc" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 500;">${targetText}</span>
               </div>
@@ -1157,7 +1168,9 @@ function updateDashboardUI(force = false) {
             
             <div class="goal-footer" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; font-weight: 500;">
                <span class="goal-current-val" style="color: var(--text-secondary);">${currentText}</span>
-               <span class="goal-remaining ${isMet ? 'met' : ''}" style="${isMet ? 'color: var(--color-savings); font-weight: 700;' : 'color: var(--text-muted);'}">${remainingText}</span>
+               <span class="goal-remaining ${isMet ? 'met' : ''} ${isZakat && isMet ? 'zakat-streak-clickable' : ''}" 
+                     ${isZakat && isMet ? 'title="Click to edit Zakat Hawl & streak"' : ''}
+                     style="${isMet ? 'color: var(--color-savings); font-weight: 700;' : 'color: var(--text-muted);'}">${remainingText}</span>
             </div>
           </div>
         `;
@@ -1261,9 +1274,6 @@ function updateDashboardUI(force = false) {
   // Render/update the interactive Donut Chart
   renderWealthChart();
  
-  // Calculate and monitor Zakat streak based on current net worth (excluding upcoming income)
-  checkZakatStreak(netWorthEgpExcludingUpcoming, gold24kEgpPerGram, netWorthUsdExcludingUpcoming, netWorthAudExcludingUpcoming);
-
   // Reset the inputs preview fields to clean defaults
   updateTransactionPreview();
 }
