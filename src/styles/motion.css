@@ -1,0 +1,93 @@
+/*
+ * Motion: every animation and transition in the app scales with --motion-scale,
+ * set from Profile › Appearance (data-motion on <html>):
+ *   off 0 · fast 0.55 · normal 1 · slow 1.6 · system = normal, or off if the device asks for reduced motion
+ */
+
+:root {
+  --motion-scale: 1;
+}
+:root[data-motion="fast"] {
+  --motion-scale: 0.55;
+}
+:root[data-motion="slow"] {
+  --motion-scale: 1.6;
+}
+:root[data-motion="off"] {
+  --motion-scale: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-motion="system"] {
+    --motion-scale: 0;
+  }
+}
+
+@theme static {
+  --duration-quick: calc(140ms * var(--motion-scale));
+  --duration-base: calc(240ms * var(--motion-scale));
+  --duration-slow: calc(380ms * var(--motion-scale));
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-soft: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Tailwind's `transition` utilities use this duration */
+  --default-transition-duration: calc(160ms * var(--motion-scale));
+  --default-transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --animate-fade-in: fade-in var(--duration-quick) var(--ease-out-soft) both;
+  --animate-fade-out: fade-out var(--duration-quick) var(--ease-in-soft) both;
+  --animate-sheet-up: sheet-up var(--duration-base) var(--ease-out-soft) both;
+  --animate-sheet-down: sheet-down var(--duration-quick) var(--ease-in-soft) both;
+  --animate-pop-in: pop-in var(--duration-base) var(--ease-out-soft) both;
+  --animate-pop-out: pop-out var(--duration-quick) var(--ease-in-soft) both;
+  --animate-page-in: page-in var(--duration-slow) var(--ease-out-soft) both;
+  --animate-marquee: marquee linear infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes sheet-down {
+    from { transform: translateY(0); }
+    to { transform: translateY(100%); }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pop-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(6px) scale(0.98); }
+  }
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+}
+
+/* Animations off: nothing moves, and closing dialogs don't wait for exit animations */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-motion="system"] *,
+  :root[data-motion="system"] *::before,
+  :root[data-motion="system"] *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

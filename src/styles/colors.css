@@ -1,0 +1,145 @@
+/*
+ * ============================================================================
+ *  AuraFinance color palette: THE ONLY PLACE COLORS ARE DEFINED
+ * ============================================================================
+ *
+ *  Change any value below and the whole site updates. Nothing else in the code
+ *  uses a raw color value.
+ *
+ *  How it works: each `--color-NAME` becomes a Tailwind class (bg-NAME,
+ *  text-NAME, border-NAME, ...) and a CSS variable var(--color-NAME).
+ *
+ *  Pairs: most colors come as a soft "fill" (backgrounds) and a darker "ink"
+ *  (text/icons on that fill). Keep inks dark enough to stay readable
+ *  (4.5:1 contrast with their fill; `npm test` checks every pair in colors.test.ts).
+ *
+ *  A few files can't read CSS variables and repeat a color. If you change
+ *  canvas, brand, brand-strong or swatch-butter, also update:
+ *    - index.html            <meta name="theme-color">   (canvas)
+ *    - vite.config.ts        theme_color / background_color (canvas)
+ *    - public/favicon.svg    logo colors
+ *    - scripts/generate-icons.mjs, then run `npm run icons` for the app icons
+ */
+
+/* `static` makes every variable available at runtime, even ones only used via var(). */
+@theme static {
+  /* ---- Page & surfaces ------------------------------------------------- */
+  --color-canvas: #fbf8f4; /* page background (warm cream) */
+  --color-surface: #ffffff; /* cards, dialogs, sheets */
+  --color-surface-muted: #f6f2ec; /* subtle fills: table headers, inputs, hover */
+  --color-surface-sunken: #efe9e1; /* progress-bar tracks, pressed states */
+  --color-line: #ebe4da; /* borders and dividers */
+  --color-line-strong: #d9d0c3; /* input borders, emphasized dividers */
+  --color-overlay: rgb(43 45 66 / 0.32); /* dim layer behind dialogs */
+
+  /* ---- Text -------------------------------------------------------------- */
+  --color-ink: #2b2d42; /* main text */
+  --color-ink-soft: #5b5f73; /* secondary text */
+  --color-ink-faint: #8a8d9b; /* hints, placeholders (not for important text) */
+
+  /* ---- Brand (buttons, links, active navigation, focus rings) ------------ */
+  --color-brand: #cdeeee; /* pastel teal fill */
+  --color-brand-ink: #0e6468; /* text/icons on brand fill, links */
+  --color-brand-strong: #197478; /* primary buttons */
+  --color-on-brand-strong: #ffffff; /* text on primary buttons */
+  --color-focus: #4fbcb8; /* keyboard focus ring */
+
+  /* ---- Meaning ----------------------------------------------------------- */
+  --color-gain: #d5f2e3; /* mint: growth, success, goal reached */
+  --color-gain-ink: #1b6e49;
+  --color-loss: #fad9de; /* rose: decline, errors, delete */
+  --color-loss-ink: #a61f3a;
+  --color-warning: #ffe3d1; /* peach: warnings, stale prices */
+  --color-warning-ink: #8f4516;
+  --color-neutral: #eceae6; /* unchanged / no data */
+  --color-neutral-ink: #55596b;
+
+  /* ---- Asset groups (fill + ink) ----------------------------------------- */
+  --color-cash: #d8eafb; /* sky */
+  --color-cash-ink: #1d5a92;
+  --color-gold: #fdefc3; /* butter */
+  --color-gold-ink: #7a5600;
+  --color-stocks: #ede6fd; /* lavender */
+  --color-stocks-ink: #4f3db0;
+  --color-other: #ffe3d1; /* peach */
+  --color-other-ink: #8f4516;
+  --color-pending: #eceae6; /* Upcoming Income */
+  --color-pending-ink: #55596b;
+
+  /* ---- Swatches -------------------------------------------------------------
+   * Colors you can pick for assets, groups and your avatar, also used by the
+   * donut chart and progress bars. Mid-tone pastels so they stay visible as
+   * small dots and chart slices. Their names are stored in the database, so
+   * rename carefully (changing the VALUE is always safe).
+   */
+  --color-swatch-sky: #8ec5f2;
+  --color-swatch-butter: #f5cf5f;
+  --color-swatch-lavender: #b9a6f5;
+  --color-swatch-peach: #ffb38a;
+  --color-swatch-mint: #7fd4a8;
+  --color-swatch-rose: #f49aab;
+  --color-swatch-lilac: #cdb8f7;
+  --color-swatch-teal: #7cd1cc;
+  --color-swatch-coral: #f7a08c;
+  --color-swatch-sage: #a9c79b;
+  --color-swatch-sand: #d9bf93;
+  --color-swatch-slate: #aeb4c4;
+}
+
+/*
+ * ---- Dark mode ----------------------------------------------------------------
+ * The same names with darker values, used when Profile › Appearance is set to Dark
+ * (or to Match device on a device in dark mode). Swatches stay the same: their
+ * mid-tone pastels read well on both backgrounds. Contrast is checked by
+ * colors.test.ts just like the light palette.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark; /* native date pickers, selects and scrollbars follow the theme */
+
+  /* Page & surfaces */
+  --color-canvas: #15161d;
+  --color-surface: #1e1f28;
+  --color-surface-muted: #262733;
+  --color-surface-sunken: #30313e;
+  --color-line: #2e2f3b;
+  --color-line-strong: #434556;
+  --color-overlay: rgb(5 5 10 / 0.6);
+
+  /* Text */
+  --color-ink: #ecebf4;
+  --color-ink-soft: #a9abbd;
+  --color-ink-faint: #787b90;
+
+  /* Brand */
+  --color-brand: #15393b;
+  --color-brand-ink: #8fe0dc;
+  --color-brand-strong: #197478;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #6fd3cd;
+
+  /* Meaning */
+  --color-gain: #173a2b;
+  --color-gain-ink: #8fe0b8;
+  --color-loss: #44202a;
+  --color-loss-ink: #ffa9b8;
+  --color-warning: #432f1e;
+  --color-warning-ink: #ffc49b;
+  --color-neutral: #2b2c37;
+  --color-neutral-ink: #babccc;
+
+  /* Asset groups */
+  --color-cash: #1b3047;
+  --color-cash-ink: #a9d2f8;
+  --color-gold: #3a3118;
+  --color-gold-ink: #f3d67c;
+  --color-stocks: #2c2650;
+  --color-stocks-ink: #cdc2ff;
+  --color-other: #432f1e;
+  --color-other-ink: #ffc49b;
+  --color-pending: #2b2c37;
+  --color-pending-ink: #babccc;
+
+  /* Shadows are darker and softer on a dark page */
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 16px rgb(0 0 0 / 0.2);
+  --shadow-lifted: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.45);
+}

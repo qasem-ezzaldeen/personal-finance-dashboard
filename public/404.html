@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>AuraFinance</title>
+    <script>
+      // GitHub Pages serves this for unknown paths (e.g. /personal-finance-dashboard/assets).
+      // Send the visitor to the app with the path in ?p= (the #hash, used by password-reset links, is kept).
+      (function () {
+        var base = "/personal-finance-dashboard/";
+        var l = window.location;
+        var path = l.pathname.indexOf(base) === 0 ? l.pathname.slice(base.length) : l.pathname.replace(/^\//, "");
+        var query = l.search ? "&" + l.search.slice(1) : "";
+        l.replace(base + "?p=" + encodeURIComponent("/" + path) + query + l.hash);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
