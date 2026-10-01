@@ -490,3 +490,29 @@ export async function fetchAllTransactions(userId: string): Promise<Transaction[
     if (rows.length < 1000) return all;
   }
 }
+
+export async function fetchAllTransactionChanges(userId: string): Promise<TransactionChange[]> {
+  const all: TransactionChange[] = [];
+  for (let page = 0; ; page++) {
+    const rows = unwrap(
+      await supabase
+        .from("transaction_changes")
+        .select("*")
+        .eq("user_id", userId)
+        .order("id", { ascending: true })
+        .range(page * 1000, page * 1000 + 999)
+        .returns<TransactionChange[]>(),
+    ) ?? [];
+    all.push(...rows);
+    if (rows.length < 1000) return all;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Restore from a JSON backup
+// ---------------------------------------------------------------------------
+
+/** Replaces everything in this vault with a backup (checked first with readBackup). */
+export async function restoreVault(backup: Record<string, unknown>) {
+  return unwrap(await supabase.rpc("restore_vault", { p: backup })) as Record<string, number | boolean>;
+}

@@ -36,6 +36,7 @@ const USER_TABLES = [
   "asset_groups",
   "assets",
   "asset_purchases",
+  "asset_sales",
   "automation_rules",
   "transactions",
   "goals",
