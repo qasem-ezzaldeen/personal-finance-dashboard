@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronRight, HandCoins, ReceiptText, Target, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, ChevronRight, HandCoins, Moon, ReceiptText, Target, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { Link } from "react-router-dom";
 import { ResizableColumns } from "@/components/layout/ResizableColumns";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -18,11 +19,20 @@ import { formatGrams, formatMoney, formatNumber } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { HAWL_DAYS, NISAB_GRAMS, convert } from "@/lib/valuation";
 
+/** A small colored square behind a KPI's icon; tones come from the color palette. */
+function KpiIcon({ tone, children }: { tone: string; children: ReactNode }) {
+  return (
+    <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", tone)} aria-hidden="true">
+      {children}
+    </span>
+  );
+}
+
 function StatCard({ label, children, icon }: { label: string; children: ReactNode; icon: ReactNode }) {
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2 text-sm text-ink-soft">
-        <span aria-hidden="true">{icon}</span>
+        {icon}
         {label}
       </div>
       <div className="mt-2">{children}</div>
@@ -41,7 +51,10 @@ function SummaryCards() {
     <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
       <Card className="col-span-2 p-4 xl:col-span-1">
         <div className="flex items-center gap-2 text-sm text-ink-soft">
-          <Wallet className="size-4" aria-hidden="true" /> Net worth
+          <KpiIcon tone="bg-brand text-brand-ink">
+            <Wallet className="size-4" />
+          </KpiIcon>
+          Net worth
         </div>
         <p className="mt-2 text-2xl font-bold text-ink tabular md:text-3xl">{formatMoney(summary.netWorth, base)}</p>
         <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-ink-soft tabular">
@@ -51,14 +64,34 @@ function SummaryCards() {
         </p>
       </Card>
 
-      <StatCard label="Upcoming income" icon={<HandCoins className="size-4" />}>
+      <StatCard
+        label="Upcoming income"
+        icon={
+          <KpiIcon tone="bg-cash text-cash-ink">
+            <HandCoins className="size-4" />
+          </KpiIcon>
+        }
+      >
         <p className="text-xl font-semibold text-ink tabular">{formatMoney(pending?.quantity ?? 0, pending?.asset.currency ?? base)}</p>
         {pending && pending.asset.currency !== base ? (
           <p className="text-sm text-ink-soft tabular">{formatMoney(pending.value, base)}</p>
         ) : null}
       </StatCard>
 
-      <StatCard label="Total gain" icon={<TrendingUp className="size-4" />}>
+      <StatCard
+        label="Total gain"
+        icon={
+          summary.totalGrowth && summary.totalGrowth.gain < 0 ? (
+            <KpiIcon tone="bg-loss text-loss-ink">
+              <TrendingDown className="size-4" />
+            </KpiIcon>
+          ) : (
+            <KpiIcon tone="bg-gain text-gain-ink">
+              <TrendingUp className="size-4" />
+            </KpiIcon>
+          )
+        }
+      >
         {summary.totalGrowth ? (
           <>
             <GrowthPill growth={summary.totalGrowth} />
@@ -76,7 +109,11 @@ function SummaryCards() {
           className="group col-span-2 block rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-soft transition hover:bg-surface-muted xl:col-span-1"
         >
           <div className="flex items-center gap-2 text-sm text-ink-soft">
-            <span aria-hidden="true">🕌</span> Zakat
+            {/* The crescent, as on the Zakat settings tab */}
+            <KpiIcon tone="bg-gold text-gold-ink">
+              <Moon className="size-4" />
+            </KpiIcon>
+            Zakat
             <ChevronRight className="ml-auto size-4 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-ink" aria-hidden="true" />
           </div>
           {z.isDue ? (
@@ -184,10 +221,10 @@ export function DashboardPage() {
                   </Link>
                 }
               />
-              {/* The chart grows with the column; when there's room it sits beside the list */}
+              {/* The chart fits the column up to 12rem; when there's room it sits beside the list */}
               <CardBody className="@container">
-                <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-center @3xl:gap-6">
-                  <div className="hidden w-full max-w-96 self-center sm:block @3xl:w-1/2 @3xl:max-w-none @3xl:shrink-0">
+                <div className="flex flex-col gap-4 @xl:flex-row @xl:items-center @xl:gap-6">
+                  <div className="hidden w-full max-w-48 self-center sm:block @xl:w-48 @xl:shrink-0">
                     <LazyWealthDonut />
                   </div>
                   <div className="min-w-0 flex-1">

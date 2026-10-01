@@ -315,38 +315,87 @@ test("first-year Zakat uses the Nisab value on the start date", async ({ page })
 });
 
 // ---------------------------------------------------------------------------
-// Round 4: buy & sell, palettes, restore, bigger chart, whole numbers
+// Round 4: buying via Add asset, selling, palettes, restore, chart size, whole numbers
 // ---------------------------------------------------------------------------
 
-test("buy gold with money from a cash account", async ({ page }) => {
+test("buy more shares of a stock you have, paid from a cash account, with Add asset", async ({ page }) => {
   const writes: Array<{ path: string; body: unknown }> = [];
   await mockBackend(page, { onWrite: (w) => writes.push(w) });
   await page.goto("assets");
-  await page.getByRole("button", { name: /^Gold ingots 14 g/ }).click();
-  await page.getByRole("button", { name: "Buy Gold ingots" }).click();
-  const dialog = page.getByRole("dialog", { name: "Buy · Gold ingots" });
-  await dialog.getByLabel("Grams").fill("5");
-  await expect(dialog.getByLabel("Paid from")).toHaveValue("qnb");
+  await expect(page.getByRole("button", { name: /^Buy/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add asset" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Add an asset" });
+  await dialog.getByRole("button", { name: /Stock \/ ETF/ }).click();
+  // Typing a ticker you already hold adds to that asset instead of making a second one
+  await dialog.getByLabel("Ticker symbol").fill("spus");
+  await expect(dialog.getByText(/This adds to\s+SPUS ETF/)).toBeVisible();
+  await expect(dialog.getByLabel("Name")).toHaveCount(0);
+  await dialog.getByLabel("Paid from").selectOption({ label: "nsave · $1,500.50" });
+  await dialog.getByLabel("Shares").fill("3");
   await dialog.getByRole("button", { name: "Use market price" }).click();
-  await expect(dialog).toContainText("QNB Bebasata");
-  await snap(page, "buy");
-  await dialog.getByRole("button", { name: "Buy", exact: true }).click();
-  await expect.poll(() => writes.find((w) => w.path === "rpc/buy_asset")?.body).toMatchObject({ p_asset: "ingots", p_from: "qnb", p_quantity: 5 });
+  // nsave before → after is shown
+  await expect(dialog).toContainText(/nsave\s*\$1,500\.50/);
+  await snap(page, "add-to-existing");
+  await dialog.getByRole("button", { name: "Add to SPUS ETF" }).click();
+  await expect
+    .poll(() => writes.find((w) => w.path === "rpc/buy_asset")?.body)
+    .toMatchObject({ p_asset: "spus", p_from: "nsave", p_quantity: 3, p_amount: 177.27 });
+  expect(writes.find((w) => w.path === "assets")).toBeUndefined();
 });
 
-test("gold you already own can still be added without paying from cash", async ({ page }) => {
+test("paying more than an account holds is refused before anything is saved", async ({ page }) => {
   const writes: Array<{ path: string; body: unknown }> = [];
   await mockBackend(page, { onWrite: (w) => writes.push(w) });
   await page.goto("assets");
-  await page.getByRole("button", { name: /^Gold ingots 14 g/ }).click();
-  await page.getByRole("button", { name: "Buy Gold ingots" }).click();
-  const dialog = page.getByRole("dialog", { name: "Buy · Gold ingots" });
+  await page.getByRole("button", { name: "Add asset" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Add an asset" });
+  await dialog.getByRole("button", { name: /Gold/ }).click();
+  await dialog.getByLabel("Add to").selectOption("new");
+  await dialog.getByLabel("Paid from").selectOption({ label: "nsave · $1,500.50" });
+  await dialog.getByLabel("Grams").fill("10");
+  await dialog.getByLabel(/Total paid/).fill("5000");
+  await dialog.getByRole("button", { name: "Add asset" }).click();
+  await expect(dialog.getByText(/There's only \$1,500\.50 in nsave/)).toBeVisible();
+  expect(writes.filter((w) => ["assets", "asset_purchases", "rpc/buy_asset"].includes(w.path))).toEqual([]);
+});
+
+test("new gold is named Ingots (24k) or Scrap Gold (21k) unless you type a name", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("assets");
+  await page.getByRole("button", { name: "Add asset" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Add an asset" });
+  await dialog.getByRole("button", { name: /Gold/ }).click();
+  // You already have 24k gold, so it's added there unless you ask for a new asset
+  await expect(dialog.getByText(/This adds to\s+Gold ingots/)).toBeVisible();
+  await dialog.getByLabel("Add to").selectOption("new");
+  await expect(dialog.getByLabel("Name")).toHaveValue("Ingots");
+  await dialog.getByRole("tab", { name: /21k/ }).click();
+  await expect(dialog.getByLabel("Name")).toHaveValue("Scrap Gold");
+  await dialog.getByLabel("Name").fill("Grandma's ring");
+  await dialog.getByRole("tab", { name: /24k/ }).click();
+  await expect(dialog.getByLabel("Name")).toHaveValue("Grandma's ring");
+});
+
+test("gold you already own can be added without paying from cash", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("assets");
+  await page.getByRole("button", { name: "Add asset" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Add an asset" });
+  await dialog.getByRole("button", { name: /Gold/ }).click();
+  await expect(dialog.getByLabel("Paid from")).toHaveValue("none");
   await dialog.getByLabel("Grams").fill("2");
-  await dialog.getByLabel("Paid from").selectOption("none");
-  await expect(dialog).toContainText("Your cash accounts don't change.");
-  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add to Gold ingots" }).click();
   await expect.poll(() => writes.find((w) => w.path === "asset_purchases")?.body).toMatchObject({ asset_id: "ingots", quantity: 2 });
   expect(writes.find((w) => w.path === "rpc/buy_asset")).toBeUndefined();
+});
+
+test("each asset you hold has a Sell button without expanding it", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("assets");
+  for (const name of ["Gold ingots", "SPUS ETF", "Apple"]) await expect(page.getByRole("button", { name: `Sell ${name}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sell QNB Bebasata" })).toHaveCount(0);
+  await snap(page, "assets-sell-buttons");
 });
 
 test("sell shares into a cash account, and sales show in the asset's history", async ({ page }) => {
@@ -386,6 +435,44 @@ test("quick actions still only move money between accounts", async ({ page }) =>
   await expect(to.locator("option", { hasText: "Gold ingots" })).toHaveCount(0);
 });
 
+test("OLED is pure black and always dark", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("settings?tab=appearance");
+  await page.getByRole("radiogroup", { name: "Color palette" }).getByRole("radio", { name: /OLED/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "oled");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
+  await expect(page.getByText("The OLED palette is always dark.")).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Theme" })).toHaveCount(0);
+  await expect.poll(() => writes.find((w) => w.path.startsWith("profiles"))?.body).toMatchObject({ color_palette: "oled" });
+  await snap(page, "oled");
+});
+
+test("the hero color can be changed and reset", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("settings?tab=appearance");
+  const brand = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-strong").trim());
+  const before = await brand();
+  await page.getByRole("button", { name: "Hero color 3" }).click();
+  await expect.poll(brand).not.toBe(before);
+  await expect
+    .poll(() => (writes.find((w) => w.path.startsWith("profiles") && JSON.stringify(w.body).includes("palette_accents"))?.body as { palette_accents?: object })?.palette_accents)
+    .toHaveProperty("pastel");
+  await snap(page, "hero-color");
+  await page.getByRole("button", { name: /Use Pastel's own/ }).click();
+  await expect.poll(brand).toBe(before);
+});
+
+test("the dashboard KPIs have colored icons", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("");
+  const zakat = page.getByRole("link", { name: "Zakat settings" });
+  await expect(zakat.locator("svg").first()).toBeVisible();
+  await expect(zakat).not.toContainText("🕌");
+});
+
 test("color palettes can be chosen in Appearance", async ({ page }) => {
   const writes: Array<{ path: string; body: unknown }> = [];
   const errors = collectErrors(page);
@@ -394,6 +481,7 @@ test("color palettes can be chosen in Appearance", async ({ page }) => {
   const palettes = page.getByRole("radiogroup", { name: "Color palette" });
   await expect(palettes.getByRole("radio")).toHaveCount(6);
   await expect(palettes.getByRole("radio", { name: /Pastel/ })).toHaveAttribute("aria-checked", "true");
+  await expect(palettes.getByRole("radio", { name: /OLED/ })).toBeVisible();
   const before = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-strong").trim());
   await palettes.getByRole("radio", { name: /Sea & Beach/ }).click();
   await expect(page.locator("html")).toHaveAttribute("data-palette", "sea");
@@ -444,15 +532,15 @@ test("files that aren't backups are refused", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Restore this backup" })).toHaveCount(0);
 });
 
-test("the wealth chart grows with its section", async ({ page }) => {
+test("the wealth chart fits its section, up to 12rem", async ({ page }) => {
   test.skip(test.info().project.name === "phone", "The chart is shown on larger screens");
   await mockBackend(page);
   await page.goto("");
   const chart = page.locator(".recharts-responsive-container").first();
   await expect(chart).toBeVisible();
   const box = (await chart.boundingBox())!;
-  // It used to be a fixed 190 px
-  expect(box.width).toBeGreaterThan(240);
+  expect(box.width).toBeGreaterThan(120);
+  expect(box.width).toBeLessThanOrEqual(193);
   expect(Math.abs(box.width - box.height)).toBeLessThan(2);
 });
 

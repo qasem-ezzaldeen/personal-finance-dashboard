@@ -84,9 +84,9 @@ The app has five pages:
 - **Upcoming income:** money you've logged but not received yet.
 - **Total gain:** how much your assets have grown since you bought them, in % and in money. Assets without a purchase price aren't included.
 - **Zakat:** your progress to the Nisab, the day of your Hawl, or "Due now" (only if Zakat tracking is on). Select it to open all Zakat settings.
-- **Quick actions** (on a computer): log income, an hourly project or a transfer between accounts without opening a popup. Buying and selling gold or stocks is on the Assets page.
+- **Quick actions** (on a computer): log income, an hourly project or a transfer between accounts without opening a popup. To record buying gold or stocks, use **Add asset**; to sell, use **Sell** on the Assets page.
 - **Recent activity:** your last 8 entries. **View all** opens the Activity page.
-- **Wealth distribution:** a donut chart and your asset groups. The chart grows with its column, and sits beside the groups when there's room. **Details** opens the Assets page.
+- **Wealth distribution:** a donut chart and your asset groups. The chart fits its column (up to a fixed size) and sits beside the groups when there's room. **Details** opens the Assets page.
 - **Goals:** your first three goals. **View all** opens the Goals page.
 
 On large screens you can drag the divider between the two columns to make one wider. The app remembers your choice on that device.
@@ -110,7 +110,7 @@ Select **Save vault settings**.
 
 ## 4. Adding your assets
 
-Select **Add asset** on the Assets page, or **➕ › Add asset** on a phone. You can also select **Add to [group]** at the bottom of any group. Then choose a type:
+Select **Add asset** on the Assets page, or **➕ › Add asset** on a phone. You can also select **Add to [group]** at the bottom of any group. **Add asset** is also how you record **buying more** of something you already have (see [Buying, selling and growth](#5-buying-selling-and-growth)). Then choose a type:
 
 ### Cash (bank accounts, wallets, savings)
 
@@ -120,9 +120,8 @@ Select **Add asset** on the Assets page, or **➕ › Add asset** on a phone. Yo
 
 ### Gold
 
-1. Enter a name (e.g. "Gold ingots").
-2. Choose **24k ingots** or **21k jewelry**.
-3. Optionally, under **What you own now**, enter the **grams** you already have, the **date you bought it** and the **total price paid**. To buy more later with money from a cash account, use **Buy** (see the next section).
+1. Choose **24k · Ingots** or **21k · Scrap gold**. The name fills in as **Ingots** or **Scrap Gold**; type your own to change it.
+2. Optionally, under **What you own now**, enter the **grams**, the **date you bought it**, what you paid, and **Paid from** (see the next section).
 
 ### Stock / ETF
 
@@ -163,21 +162,28 @@ On the **Assets** page, select a gold, stock or other asset to expand it. Its hi
 
 Below the purchases you'll find the current value **per gram**, **per share** or **per unit**.
 
-### Buy
+### Buy (with Add asset)
 
-Expand the asset and select **Buy**.
+Everything you buy is recorded with **Add asset**, whether it's new or more of something you have.
 
-1. Enter the **grams**, **shares** or **quantity**.
-2. Choose where the money comes from:
+1. Select **Add asset** and choose the type.
+2. **Buying more of something you have?** It's added to that asset instead of creating a second one:
+   - **Stocks:** type the ticker. If you already hold it (e.g. SPUS), the form says *This adds to SPUS ETF*.
+   - **Gold:** gold of the karat you choose is added to your existing gold of that karat.
+   - **Any type:** pick the asset under **Add to**, or choose **A new asset** to keep it separate.
+3. Enter the **grams**, **shares** or **quantity** and the **date bought**.
+4. Choose **Paid from**:
    - **A cash account:** enter the **total paid** in that account's currency (**Use market price** fills in today's price). The money leaves that account, and you can't spend more than it holds.
    - **Not from my cash accounts:** for gold or shares you already had, a gift, or money from outside your accounts. Your cash doesn't change. Leave the price empty to use the market price on that date.
-3. Pick the **date bought**, add an optional note, and select **Buy** (or **Add**).
+5. Select **Add asset** (or **Add to [asset]**).
+
+For example, to record buying 3 more SPUS shares with money from nsave: **Add asset** › **Stock / ETF** › `SPUS` › **Paid from: nsave** › 3 shares › **Add to SPUS ETF**. The money is taken from nsave and the shares are added to SPUS.
 
 The preview shows the holding and the cash account before → after. Your wealth distribution and totals update right away.
 
 ### Sell
 
-Expand the asset and select **Sell**.
+Select **Sell** next to the asset on the Assets page.
 
 1. Enter how much you sold, or select **Sell all**.
 2. Choose the cash account the **money goes to** and the **total received** (**Use market price** fills in today's price).
@@ -218,7 +224,7 @@ The preview shows the amount in your base currency and Upcoming Income before �
 
 ## 7. Moving money between accounts
 
-You can move money between your cash accounts and Upcoming Income. (To spend cash on gold, stocks or other assets, use **Buy** on the Assets page.)
+You can move money between your cash accounts and Upcoming Income. (To spend cash on gold, stocks or other assets, use **Add asset** and choose **Paid from**.)
 
 1. Choose **Transfer** in Quick actions or **➕ › Transfer**. You can also select the **Upcoming Income** bar on the Assets page or Dashboard.
 2. Pick the **From** and **To** accounts.
@@ -409,7 +415,9 @@ Open it from your avatar menu.
 ### Settings › Appearance
 
 - **Theme:** **Light**, **Dark**, or **Device** (follows your phone's or computer's setting).
-- **Color palette:** **Pastel** (the original), **Minimalist**, **Sea & Beach**, **Autumn**, **Nature & Greenery** or **Vivid**. Each card previews the palette; it colors the whole app in light and dark, including your assets, the chart and progress bars. Gains stay green and losses red in every palette.
+- **Color palette:** **Pastel** (the original), **Minimalist**, **Sea & Beach**, **Autumn**, **Nature & Greenery** or **OLED**. Each card previews the palette; it colors the whole app, including backgrounds, your assets, the chart and progress bars. Gains stay green and losses red in every palette.
+  - **OLED** is pure black with vivid colors, made for OLED screens. It's always dark: the Light/Dark choice comes back when you pick another palette.
+- **Hero color:** the color of buttons, links, the selected page and highlights. Pick one of the suggested colors or **Custom**, for each palette separately. **Use [palette]'s own** goes back to the palette's color. Text stays readable whatever you pick.
 - **Animations:** **Device**, **Off**, **Slow**, **Normal** or **Fast**. Select **Replay** to preview the speed.
 
 Changes apply immediately and follow you to every device you sign in on.

@@ -6,7 +6,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { bootstrapVault, estimatePurchaseCosts, fetchMarketPrices, fetchVault, runScheduledTasks } from "@/lib/api";
 import { purchasesToEstimate } from "@/lib/estimates";
 import { applyMotion } from "@/lib/motion";
-import { applyPalette, applyTheme } from "@/lib/theme";
+import { applyAccents, applyPalette, applyTheme } from "@/lib/theme";
 import { setFormatLocale } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import type { VaultData } from "@/lib/types";
@@ -160,6 +160,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (palette) applyPalette(palette);
   }, [palette]);
+  // Compared as text so a refetch with the same colors doesn't undo a color that's being picked
+  const accents = vault ? JSON.stringify(vault.profile.palette_accents ?? {}) : null;
+  useEffect(() => {
+    if (accents) applyAccents(JSON.parse(accents));
+  }, [accents]);
   // Idempotent; must run before anything below formats numbers
   if (vault) setFormatLocale(vault.profile.number_locale);
 

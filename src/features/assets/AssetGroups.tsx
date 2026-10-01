@@ -1,4 +1,4 @@
-import { ChevronRight, Minus, Pencil, Plus } from "lucide-react";
+import { BadgeDollarSign, ChevronRight, Pencil, Plus } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Collapse } from "@/components/ui/Collapse";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -13,7 +13,7 @@ import { formatDate, formatMoney, formatPercent, formatQuantity } from "@/lib/fo
 import type { Asset, GroupKind, Purchase } from "@/lib/types";
 import { convert, stockPrice, type AssetSummary, type GroupSummary, type SaleSummary } from "@/lib/valuation";
 import { PurchaseDialog } from "./PurchaseDialog";
-import { BuyDialog, SellDialog } from "./TradeDialogs";
+import { SellDialog } from "./TradeDialogs";
 import { useExpanded } from "./useCollapsed";
 
 type Variant = "compact" | "full";
@@ -170,7 +170,8 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
   const hasPurchases = summary.asset.kind !== "cash";
   const [expanded, toggle] = useExpanded(`asset:${summary.asset.id}`, false);
   const [purchaseDialog, setPurchaseDialog] = useState<{ open: boolean; purchase?: Purchase }>({ open: false });
-  const [trade, setTrade] = useState<"buy" | "sell" | null>(null);
+  const [selling, setSelling] = useState(false);
+  const canSell = hasPurchases && summary.quantity > 0;
   // Purchases and sales together, newest first
   const history = [
     ...summary.purchases.map((p) => ({ date: p.purchase.acquired_on, created: p.purchase.created_at, purchase: p, sale: null })),
@@ -204,6 +205,17 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
             <ChevronRight className={cn("size-4 shrink-0 text-ink-faint transition", expanded && "rotate-90")} aria-hidden="true" />
           ) : null}
         </button>
+        {variant === "full" && canSell ? (
+          <button
+            type="button"
+            onClick={() => setSelling(true)}
+            aria-label={`Sell ${summary.asset.name}`}
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line-strong px-2.5 text-sm font-medium text-ink hover:bg-surface-muted sm:px-3"
+          >
+            <BadgeDollarSign className="size-4 text-brand-ink" aria-hidden="true" />
+            <span>Sell</span>
+          </button>
+        ) : null}
         {variant === "full" ? (
           <button
             type="button"
@@ -235,26 +247,9 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
                 ) : null,
               )}
             </ul>
-            <div className="mt-1 flex flex-wrap gap-1">
-              <button
-                type="button"
-                onClick={() => setTrade("buy")}
-                aria-label={`Buy ${summary.asset.name}`}
-                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
-              >
-                <Plus className="size-4" aria-hidden="true" /> Buy
-              </button>
-              {summary.quantity > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setTrade("sell")}
-                  aria-label={`Sell ${summary.asset.name}`}
-                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
-                >
-                  <Minus className="size-4" aria-hidden="true" /> Sell
-                </button>
-              ) : null}
-            </div>
+            {history.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-ink-soft">Nothing recorded yet. Use Add asset to record what you bought.</p>
+            ) : null}
             {summary.purchases.length > 0 && summary.unitValue !== null ? (
               <p className="px-3 pb-1 text-xs text-ink-soft tabular">
                 {summary.asset.kind === "gold" ? "Per gram" : summary.asset.kind === "stock" ? "Per share" : "Per unit"}: {formatMoney(summary.unitValue, base)}
@@ -272,8 +267,7 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
             asset={summary.asset}
             purchase={purchaseDialog.purchase}
           />
-          <BuyDialog open={trade === "buy"} onOpenChange={(open) => !open && setTrade(null)} summary={summary} />
-          <SellDialog open={trade === "sell"} onOpenChange={(open) => !open && setTrade(null)} summary={summary} />
+          <SellDialog open={selling} onOpenChange={setSelling} summary={summary} />
         </>
       ) : null}
     </li>

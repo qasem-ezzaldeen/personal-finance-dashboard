@@ -210,6 +210,7 @@ export type ProfileUpdate = Partial<
     | "animation_speed"
     | "theme"
     | "color_palette"
+    | "palette_accents"
   >
 >;
 

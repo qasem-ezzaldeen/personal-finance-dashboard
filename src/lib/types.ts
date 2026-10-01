@@ -5,7 +5,7 @@ export type AssetKind = GroupKind | "pending_income";
 
 export type ThemeChoice = "light" | "dark" | "system";
 
-export type ColorPalette = "pastel" | "minimal" | "sea" | "autumn" | "nature" | "vivid";
+export type ColorPalette = "pastel" | "minimal" | "sea" | "autumn" | "nature" | "oled";
 
 export type AnimationSpeed = "system" | "off" | "slow" | "normal" | "fast";
 
@@ -23,6 +23,8 @@ export interface Profile {
   animation_speed: AnimationSpeed;
   theme: ThemeChoice;
   color_palette: ColorPalette;
+  /** Hero (accent) color picked per palette, e.g. { sea: "#0b5fa5" } */
+  palette_accents: Partial<Record<ColorPalette, string>>;
   imported_at: string | null;
   created_at: string;
   updated_at: string;

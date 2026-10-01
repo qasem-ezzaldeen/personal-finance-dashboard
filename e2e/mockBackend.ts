@@ -24,7 +24,7 @@ export const FIXTURES: Record<string, unknown[]> = {
   profiles: [{
     user_id: USER_ID, display_name: "qasem", timezone: "Africa/Cairo",
     avatar_color: "lilac", vault_name: "Qasem's Vault", base_currency: "EGP", display_currencies: ["USD", "AUD"],
-    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
+    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", palette_accents: {}, imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
   }],
   pricing_settings: [{
     user_id: USER_ID, gold_mode: "live", manual_gold_24k_price: null, manual_gold_currency: "EGP", gold_premium_pct: 0,
@@ -164,8 +164,12 @@ export async function mockBackend(page: Page, { signedIn = true, onWrite, profil
 
   await page.route(/127\.0\.0\.1:54321\/functions\/v1\//, (route) => {
     const fn = new URL(route.request().url()).pathname.split("/").pop();
+    const asked = String((route.request().postDataJSON?.() as { ticker?: string } | null)?.ticker ?? "").trim().toUpperCase();
+    const known = (fixtures.market_prices as Array<{ symbol: string; price: number; display_name: string | null }>).find((m) => m.symbol === `STOCK:${asked}`);
     const bodies: Record<string, unknown> = {
-      "check-ticker": { ticker: "MSFT", name: "Microsoft Corporation", price: 417.88, currency: "USD" },
+      "check-ticker": known
+        ? { ticker: asked, name: known.display_name, price: known.price, currency: "USD" }
+        : { ticker: "MSFT", name: "Microsoft Corporation", price: 417.88, currency: "USD" },
       "estimate-costs": { updated: 0, failed: 0 },
       // Real closing prices on 3 March 2025
       "price-on-date": {

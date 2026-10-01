@@ -145,3 +145,32 @@ describe("restoring a backup", () => {
     await expect(restore(BOB, { hello: "world" })).rejects.toThrow(/isn't an AuraFinance backup/);
   });
 });
+
+describe("palettes and hero colors", () => {
+  it("OLED replaces Vivid", async () => {
+    await as(ALICE, () => db.query("update public.profiles set color_palette = 'oled' where user_id = $1", [ALICE]));
+    await expect(as(ALICE, () => db.query("update public.profiles set color_palette = 'vivid' where user_id = $1", [ALICE]))).rejects.toThrow(
+      /color_palette/,
+    );
+  });
+
+  it("stores a hero color per palette and rejects anything else", async () => {
+    await as(ALICE, () => db.query(`update public.profiles set palette_accents = '{"sea": "#FF5500"}' where user_id = $1`, [ALICE]));
+    expect(await one(db, "select palette_accents from public.profiles where user_id = $1", [ALICE])).toEqual({ palette_accents: { sea: "#ff5500" } });
+    for (const bad of ['{"sea": "red"}', '{"neon": "#ff0000"}', '["#ff0000"]']) {
+      await expect(as(ALICE, () => db.query(`update public.profiles set palette_accents = '${bad}' where user_id = $1`, [ALICE]))).rejects.toThrow(
+        /Hero colors/,
+      );
+    }
+  });
+
+  it("restores the palette and its hero colors, turning Vivid into OLED", async () => {
+    const backup = await exportVault(ALICE);
+    const profile = { ...(backup.profile as object), color_palette: "vivid", palette_accents: { oled: "#00ff88", bogus: "x" } };
+    await restore(BOB, { ...backup, profile });
+    expect(await one(db, "select color_palette, palette_accents from public.profiles where user_id = $1", [BOB])).toEqual({
+      color_palette: "oled",
+      palette_accents: { oled: "#00ff88" },
+    });
+  });
+});

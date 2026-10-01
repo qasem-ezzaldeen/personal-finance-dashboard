@@ -49,6 +49,7 @@ export const PROFILE: Profile = {
   animation_speed: "normal",
   theme: "light",
   color_palette: "pastel",
+  palette_accents: {},
   imported_at: null,
   created_at: NOW,
   updated_at: NOW,
