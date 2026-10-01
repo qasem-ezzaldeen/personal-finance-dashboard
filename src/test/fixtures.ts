@@ -1,4 +1,4 @@
-import type { Asset, AssetGroup, MarketPrice, PricingSettings, Profile, Purchase, VaultData } from "@/lib/types";
+import type { Asset, AssetGroup, MarketPrice, PricingSettings, Profile, Purchase, Sale, VaultData } from "@/lib/types";
 
 const NOW = "2026-09-30T10:00:00.000Z";
 
@@ -94,6 +94,25 @@ export function purchase(partial: Partial<Purchase> & Pick<Purchase, "asset_id" 
     is_opening_balance: false,
     cost_is_estimated: false,
     cost_estimate_attempted_at: null,
+    paid_from_asset_id: null,
+    paid_amount: null,
+    paid_currency: null,
+    transaction_id: null,
+    created_at: NOW,
+    ...partial,
+  };
+}
+
+export function sale(partial: Partial<Sale> & Pick<Sale, "asset_id" | "quantity" | "proceeds">): Sale {
+  seq += 1;
+  return {
+    id: `sale-${seq}`,
+    user_id: "u1",
+    proceeds_currency: "EGP",
+    sold_on: "2026-09-29",
+    to_asset_id: null,
+    transaction_id: `tx-${seq}`,
+    note: "",
     created_at: NOW,
     ...partial,
   };
@@ -106,6 +125,7 @@ export function vault(partial: Partial<VaultData> = {}): VaultData {
     groups: GROUPS,
     assets: [],
     purchases: [],
+    sales: [],
     goals: [],
     hawl: { user_id: "u1", hawl_start_date: null, last_checked_on: null, start_wealth: null, start_wealth_currency: null, is_first_hawl: false },
     zakatPayments: [],

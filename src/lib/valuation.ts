@@ -11,6 +11,7 @@ import {
   type PriceOverride,
   type PricingSettings,
   type Purchase,
+  type Sale,
   type VaultData,
 } from "./types";
 
@@ -177,9 +178,12 @@ export function unitValue(asset: Asset, ctx: ValuationContext, currency: string)
   }
 }
 
-export function holdingQuantity(asset: Asset, purchases: Purchase[]): number {
+/** Cash balance, or what's held of a gold/stock/other asset: its purchases minus its sales. */
+export function holdingQuantity(asset: Asset, purchases: Purchase[], sales: Sale[] = []): number {
   if (isCashLike(asset)) return Number(asset.balance);
-  return purchases.reduce((sum, p) => sum + Number(p.quantity), 0);
+  const bought = purchases.reduce((sum, p) => sum + Number(p.quantity), 0);
+  const sold = sales.reduce((sum, s) => sum + Number(s.quantity), 0);
+  return Math.max(0, bought - sold);
 }
 
 export function assetValue(asset: Asset, quantity: number, ctx: ValuationContext, currency: string): number | null {
@@ -223,6 +227,14 @@ export function purchaseGrowth(purchase: Purchase, asset: Asset, ctx: ValuationC
   };
 }
 
+/** The same growth for a share of the holding (average cost: every unit cost the same). */
+export function scaleGrowth(growth: Growth | null, share: number): Growth | null {
+  if (!growth || share === 1) return growth;
+  const cost = growth.cost * share;
+  const value = growth.value * share;
+  return { ...growth, cost, value, gain: value - cost, pct: cost > 0 ? (value - cost) / cost : null };
+}
+
 /** Combines several growths into one, converting cost and value at the same (current) rate. */
 export function combineGrowth(items: Array<Growth | null>, currency: string, book: PriceBook): Growth | null {
   let cost = 0;
@@ -254,14 +266,25 @@ export interface PurchaseSummary {
   value: number | null;
 }
 
+export interface SaleSummary {
+  sale: Sale;
+  /** What the sold units cost, at the asset's average cost, in the sale's currency (null when unknown) */
+  cost: number | null;
+  /** Received minus cost */
+  gain: number | null;
+  pct: number | null;
+}
+
 export interface AssetSummary {
   asset: Asset;
+  /** Held now: purchases minus sales */
   quantity: number;
   /** In the base currency; null when a price is missing. */
   value: number | null;
   unitValue: number | null;
   growth: Growth | null;
   purchases: PurchaseSummary[];
+  sales: SaleSummary[];
   hidden: boolean;
 }
 
@@ -316,29 +339,58 @@ export function summarizeVault(vault: VaultData, ctx: ValuationContext, now = ne
     purchasesByAsset.set(p.asset_id, list);
   }
 
+  const salesByAsset = new Map<string, Sale[]>();
+  for (const s of vault.sales ?? []) {
+    const list = salesByAsset.get(s.asset_id) ?? [];
+    list.push(s);
+    salesByAsset.set(s.asset_id, list);
+  }
+
   const missing: string[] = [];
   const summarize = (asset: Asset): AssetSummary => {
     const purchases = [...(purchasesByAsset.get(asset.id) ?? [])].sort((a, b) =>
       b.acquired_on === a.acquired_on ? b.created_at.localeCompare(a.created_at) : b.acquired_on.localeCompare(a.acquired_on),
     );
-    const quantity = holdingQuantity(asset, purchases);
+    const sales = [...(salesByAsset.get(asset.id) ?? [])].sort((a, b) =>
+      b.sold_on === a.sold_on ? b.created_at.localeCompare(a.created_at) : b.sold_on.localeCompare(a.sold_on),
+    );
+    const quantity = holdingQuantity(asset, purchases, sales);
     const value = assetValue(asset, quantity, ctx, base);
     if (value === null) missing.push(asset.name);
-    const purchaseSummaries = purchases.map((purchase) => {
-      const unit = unitValue(asset, ctx, base);
-      return {
-        purchase,
-        growth: purchaseGrowth(purchase, asset, ctx),
-        value: unit === null ? null : Number(purchase.quantity) * unit,
-      };
+    const unit = isCashLike(asset) ? null : unitValue(asset, ctx, base);
+    const purchaseSummaries = purchases.map((purchase) => ({
+      purchase,
+      growth: purchaseGrowth(purchase, asset, ctx),
+      value: unit === null ? null : Number(purchase.quantity) * unit,
+    }));
+
+    // Average cost: what one unit cost, over every purchase with a known price
+    let knownCost = 0;
+    let knownQuantity = 0;
+    for (const p of purchases) {
+      const cost = p.cost_total !== null && p.cost_currency ? convert(Number(p.cost_total), p.cost_currency, base, ctx.book) : null;
+      if (cost === null) continue;
+      knownCost += cost;
+      knownQuantity += Number(p.quantity);
+    }
+    const averageCost = knownQuantity > 0 ? knownCost / knownQuantity : null;
+    const saleSummaries = sales.map((sale): SaleSummary => {
+      const cost = averageCost === null ? null : convert(averageCost * Number(sale.quantity), base, sale.proceeds_currency, ctx.book);
+      const gain = cost === null ? null : Number(sale.proceeds) - cost;
+      return { sale, cost, gain, pct: cost !== null && cost > 0 && gain !== null ? gain / cost : null };
     });
+
+    // Growth of what's still held: the purchases' growth, for the share that hasn't been sold
+    const bought = purchases.reduce((sum, p) => sum + Number(p.quantity), 0);
+    const share = bought > 0 ? quantity / bought : 1;
     return {
       asset,
       quantity,
       value,
-      unitValue: isCashLike(asset) ? null : unitValue(asset, ctx, base),
-      growth: combineGrowth(purchaseSummaries.map((p) => p.growth), base, ctx.book),
+      unitValue: unit,
+      growth: quantity === 0 && sales.length > 0 ? null : scaleGrowth(combineGrowth(purchaseSummaries.map((p) => p.growth), base, ctx.book), share),
       purchases: purchaseSummaries,
+      sales: saleSummaries,
       hidden: asset.hide_when_empty && quantity === 0,
     };
   };

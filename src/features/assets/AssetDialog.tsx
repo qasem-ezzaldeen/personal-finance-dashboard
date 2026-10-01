@@ -13,7 +13,7 @@ import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
 import { createAsset, createPurchase, deleteAsset, setCashBalance, updateAsset } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { currencyOptions } from "@/lib/currencies";
-import { todayIn } from "@/lib/format";
+import { formatMoney, todayIn } from "@/lib/format";
 import type { Asset, GroupKind } from "@/lib/types";
 
 const KINDS: Array<{ kind: GroupKind; label: string; hint: string; icon: typeof Landmark; color: string }> = [
@@ -64,6 +64,20 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Deleting a gold/stock/other asset gives back what its cash-paid purchases took, per account
+  const refunds = useMemo(() => {
+    const totals = new Map<string, { account: string; currency: string; amount: number }>();
+    for (const p of vault.purchases) {
+      if (!asset || p.asset_id !== asset.id || !p.paid_from_asset_id || p.paid_amount === null || !p.paid_currency) continue;
+      const account = vault.assets.find((a) => a.id === p.paid_from_asset_id);
+      if (!account) continue;
+      const key = `${account.id}|${p.paid_currency}`;
+      const t = totals.get(key) ?? { account: account.name, currency: p.paid_currency, amount: 0 };
+      t.amount += Number(p.paid_amount);
+      totals.set(key, t);
+    }
+    return [...totals.values()];
+  }, [vault.purchases, vault.assets, asset]);
 
   const tickerChanged = kind === "stock" && normalizeTicker(tickerRaw) !== (asset?.ticker ?? "");
   const lookup = useTickerLookup(open && tickerChanged ? tickerRaw : "");
@@ -321,7 +335,13 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
             if (ok) onOpenChange(false);
           }}
         >
-          <p>This removes the asset and all its purchases. History entries stay, but can no longer restore this asset's balance.</p>
+          <p>This removes the asset and all its purchases and sales. History entries stay, but can no longer restore this asset.</p>
+          {refunds.length > 0 ? (
+            <p>
+              What you paid from your cash accounts goes back:{" "}
+              <strong className="text-ink">{refunds.map((r) => `${formatMoney(r.amount, r.currency)} to ${r.account}`).join(", ")}</strong>.
+            </p>
+          ) : null}
           {asset.kind === "cash" && Number(asset.balance) > 0 ? (
             <p className="font-medium text-loss-ink">It still holds money. Consider moving it to another account first.</p>
           ) : null}

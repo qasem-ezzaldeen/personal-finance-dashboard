@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Dialog, useOpenKey } from "@/components/ui/Dialog";
 import { AmountInput, Field, Input, Select, parseAmount } from "@/components/ui/Field";
+import { Notice } from "@/components/ui/misc";
 import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
 import { createPurchase, deletePurchase, updatePurchase } from "@/lib/api";
 import { currencyOptions } from "@/lib/currencies";
@@ -42,6 +43,11 @@ function PurchaseDialogContent({ open, onOpenChange, asset, purchase }: Props) {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const unit = asset.kind === "gold" ? "Grams" : asset.kind === "stock" ? "Shares" : "Quantity";
+  // Bought with money from a cash account: deleting gives that money back; editing never touches it
+  const paidFrom = purchase?.paid_from_asset_id ? vault.assets.find((a) => a.id === purchase.paid_from_asset_id) ?? null : null;
+  const paid = purchase?.paid_amount !== null && purchase?.paid_amount !== undefined && purchase.paid_currency
+    ? formatMoney(Number(purchase.paid_amount), purchase.paid_currency)
+    : null;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,6 +103,13 @@ function PurchaseDialogContent({ open, onOpenChange, asset, purchase }: Props) {
           </>
         }
       >
+        {paidFrom && paid ? (
+          <div className="mb-4">
+            <Notice tone="brand">
+              Paid {paid} from {paidFrom.name}. Changing these details doesn't change your cash; deleting the purchase puts {paid} back.
+            </Notice>
+          </div>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={unit} error={errors.quantity}>
             {(p) => <AmountInput {...p} value={quantityRaw} onChange={(e) => setQuantityRaw(e.target.value)} placeholder="0" autoFocus />}
@@ -145,6 +158,11 @@ function PurchaseDialogContent({ open, onOpenChange, asset, purchase }: Props) {
           }}
         >
           <p>The asset's total goes down by this purchase's amount.</p>
+          {paidFrom && paid ? (
+            <p>
+              <strong className="text-ink">{paid}</strong> goes back to {paidFrom.name}.
+            </p>
+          ) : null}
         </ConfirmDialog>
       ) : null}
     </>

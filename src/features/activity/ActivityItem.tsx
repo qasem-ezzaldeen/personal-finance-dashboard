@@ -1,8 +1,8 @@
-import { ArrowDownLeft, ArrowLeftRight, Bot, History, SlidersHorizontal } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, Bot, History, ShoppingBag, SlidersHorizontal, Tag, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/misc";
 import { useVault } from "@/features/vault/VaultProvider";
 import { cn } from "@/lib/cn";
-import { formatDateTime, formatMoney } from "@/lib/format";
+import { formatDateTime, formatMoney, formatQuantity } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 
 const ICONS = {
@@ -11,7 +11,17 @@ const ICONS = {
   automation: { icon: Bot, tone: "bg-brand text-brand-ink" },
   adjustment: { icon: SlidersHorizontal, tone: "bg-warning text-warning-ink" },
   imported: { icon: History, tone: "bg-neutral text-neutral-ink" },
+  buy: { icon: ShoppingBag, tone: "bg-gold text-gold-ink" },
+  sell: { icon: Tag, tone: "bg-stocks text-stocks-ink" },
+  refund: { icon: Undo2, tone: "bg-neutral text-neutral-ink" },
+  sale_removed: { icon: Undo2, tone: "bg-neutral text-neutral-ink" },
 } as const;
+
+/** "10 g" / "3 shares" for buy and sell entries */
+function tradedQuantity(tx: Transaction): string | null {
+  const q = tx.details?.quantity;
+  return q === undefined ? null : formatQuantity(tx.details?.asset_kind ?? "other", Number(q));
+}
 
 export function describeTransaction(tx: Transaction): { title: string; subtitle: string | null; sign: 1 | -1 | 0 } {
   const route = tx.from_asset_name && tx.to_asset_name ? `${tx.from_asset_name} → ${tx.to_asset_name}` : null;
@@ -27,6 +37,34 @@ export function describeTransaction(tx: Transaction): { title: string; subtitle:
         title: tx.description || "Balance updated",
         subtitle: tx.to_asset_name ?? tx.from_asset_name,
         sign: tx.to_asset_id || tx.to_asset_name ? 1 : -1,
+      };
+    case "buy": {
+      const q = tradedQuantity(tx);
+      return {
+        title: `Bought ${[q, tx.to_asset_name].filter(Boolean).join(" of ")}`,
+        subtitle: [tx.from_asset_name ? `from ${tx.from_asset_name}` : null, tx.description || null].filter(Boolean).join(" · ") || null,
+        sign: -1,
+      };
+    }
+    case "sell": {
+      const q = tradedQuantity(tx);
+      return {
+        title: `Sold ${[q, tx.from_asset_name].filter(Boolean).join(" of ")}`,
+        subtitle: [tx.to_asset_name ? `to ${tx.to_asset_name}` : null, tx.description || null].filter(Boolean).join(" · ") || null,
+        sign: 1,
+      };
+    }
+    case "refund":
+      return {
+        title: `Purchase deleted${tx.from_asset_name ? ` · ${tx.from_asset_name}` : ""}`,
+        subtitle: tx.to_asset_name ? `Money back to ${tx.to_asset_name}` : null,
+        sign: 1,
+      };
+    case "sale_removed":
+      return {
+        title: `Sale removed${tx.to_asset_name ? ` · ${tx.to_asset_name}` : ""}`,
+        subtitle: tx.from_asset_name ? `Money taken back from ${tx.from_asset_name}` : null,
+        sign: -1,
       };
     case "imported": {
       const up = tx.pending_after !== null && tx.pending_before !== null ? Number(tx.pending_after) >= Number(tx.pending_before) : true;

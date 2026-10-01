@@ -13,7 +13,7 @@ export type MoneyTab = "income" | "hourly" | "transfer";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-function BeforeAfter({ label, before, after, currency }: { label: string; before: number; after: number; currency: string }) {
+export function BeforeAfter({ label, before, after, currency }: { label: string; before: number; after: number; currency: string }) {
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
       <span className="text-ink-soft">{label}</span>

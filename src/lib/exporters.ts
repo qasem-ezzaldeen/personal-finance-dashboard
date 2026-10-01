@@ -44,15 +44,22 @@ export function transactionsCsv(transactions: Transaction[]): string {
 }
 
 export function assetsCsv(vault: VaultData): string {
-  const rows: unknown[][] = [["Asset", "Type", "Currency / karat / ticker", "Balance", "Purchase date", "Quantity", "Price paid", "Paid in", "Archived"]];
+  const rows: unknown[][] = [
+    ["Asset", "Type", "Currency / karat / ticker", "Balance", "Date", "Quantity", "Price paid / received", "Currency", "Archived"],
+  ];
   for (const a of vault.assets) {
     const detail = a.currency ?? (a.karat ? `${a.karat}k` : a.ticker);
     const purchases = vault.purchases.filter((p) => p.asset_id === a.id);
-    if (purchases.length === 0) {
+    // Sales show as negative quantities with what was received
+    const sales = (vault.sales ?? []).filter((s) => s.asset_id === a.id);
+    if (purchases.length === 0 && sales.length === 0) {
       rows.push([a.name, a.kind, detail, Number(a.balance), "", "", "", "", a.archived_at ? "yes" : ""]);
     }
     for (const p of purchases) {
       rows.push([a.name, a.kind, detail, "", p.acquired_on, Number(p.quantity), p.cost_total, p.cost_currency, a.archived_at ? "yes" : ""]);
+    }
+    for (const s of sales) {
+      rows.push([a.name, a.kind, detail, "", s.sold_on, -Number(s.quantity), Number(s.proceeds), s.proceeds_currency, a.archived_at ? "yes" : ""]);
     }
   }
   return toCsv(rows);

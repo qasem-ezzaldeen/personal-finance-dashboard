@@ -33,13 +33,17 @@ export function ActivityPage() {
     const label = monthLabel(tx.occurred_at, vault.profile.timezone);
     months.set(label, [...(months.get(label) ?? []), tx]);
   }
-  const accounts = vault.assets.filter((a) => a.kind === "cash" || a.kind === "pending_income");
+  // Cash accounts first, then the gold, stocks and other assets bought or sold
+  const accounts = [
+    ...vault.assets.filter((a) => a.kind === "cash" || a.kind === "pending_income"),
+    ...vault.assets.filter((a) => a.kind !== "cash" && a.kind !== "pending_income"),
+  ];
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-2xl font-semibold text-ink">Activity</h1>
-        <p className="text-ink-soft">Every income, transfer and change. Tap an entry to revert to that point.</p>
+        <p className="text-ink-soft">Every income, transfer, purchase, sale and change. Tap an entry to revert to that point.</p>
       </div>
 
       <div className="grid gap-3 sm:max-w-xl sm:grid-cols-2">
@@ -50,6 +54,8 @@ export function ActivityPage() {
               <option value="income">Income</option>
               <option value="transfer">Transfers</option>
               <option value="automation">Automations</option>
+              <option value="buy">Purchases</option>
+              <option value="sell">Sales</option>
               <option value="adjustment">Balance changes</option>
               <option value="imported">Imported history</option>
             </Select>
@@ -58,7 +64,7 @@ export function ActivityPage() {
         <Field label="Account">
           {(p) => (
             <Select {...p} value={filters.assetId} onChange={(e) => setFilters((f) => ({ ...f, assetId: e.target.value }))}>
-              <option value="all">All accounts</option>
+              <option value="all">All accounts and assets</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}

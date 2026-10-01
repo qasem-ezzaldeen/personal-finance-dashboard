@@ -1,4 +1,4 @@
-import { GROUPS, MARKET, PRICING, asset, purchase, vault } from "@/test/fixtures";
+import { GROUPS, MARKET, PRICING, asset, purchase, sale, vault } from "@/test/fixtures";
 import {
   buildPriceBook,
   combineGrowth,
@@ -322,5 +322,45 @@ describe("reserved goals", () => {
     // The first goal uses the $300 upcoming + $200 from the bank, leaving $800 in the bank
     expect(p.get("withUpcoming")!.reached).toBe(true);
     expect(p.get("savingsOnly")!.current).toBeCloseTo(800);
+  });
+});
+
+describe("sales", () => {
+  // 24k gold is 5,030 EGP/g (5,000 + 30 adjustment)
+  const ingots = asset({ kind: "gold", karat: 24, name: "Ingots", id: "ingots" });
+  const bought = [
+    purchase({ asset_id: "ingots", quantity: 6, cost_total: 24000, cost_currency: "EGP" }),
+    purchase({ asset_id: "ingots", quantity: 4, cost_total: 16000, cost_currency: "EGP" }),
+  ];
+
+  it("holds what was bought minus what was sold", () => {
+    const s = summarizeVault(vault({ assets: [ingots], purchases: bought, sales: [sale({ asset_id: "ingots", quantity: 3, proceeds: 15000 })] }), ctx, NOW);
+    const a = s.groups.find((g) => g.group.kind === "gold")!.assets[0];
+    expect(a.quantity).toBe(7);
+    expect(a.value).toBeCloseTo(7 * 5030);
+  });
+
+  it("measures growth of what's left at the average cost", () => {
+    const s = summarizeVault(vault({ assets: [ingots], purchases: bought, sales: [sale({ asset_id: "ingots", quantity: 5, proceeds: 25000 })] }), ctx, NOW);
+    const a = s.groups.find((g) => g.group.kind === "gold")!.assets[0];
+    // 10 g cost 40,000 → 4,000/g; 5 g left cost 20,000 and are worth 25,150
+    expect(a.growth!.cost).toBeCloseTo(20000);
+    expect(a.growth!.value).toBeCloseTo(25150);
+  });
+
+  it("shows each sale's gain against the average cost", () => {
+    const s = summarizeVault(vault({ assets: [ingots], purchases: bought, sales: [sale({ asset_id: "ingots", quantity: 5, proceeds: 25000 })] }), ctx, NOW);
+    const sold = s.groups.find((g) => g.group.kind === "gold")!.assets[0].sales[0];
+    expect(sold.cost).toBeCloseTo(20000);
+    expect(sold.gain).toBeCloseTo(5000);
+    expect(sold.pct).toBeCloseTo(0.25);
+  });
+
+  it("has no growth once everything is sold", () => {
+    const s = summarizeVault(vault({ assets: [ingots], purchases: bought, sales: [sale({ asset_id: "ingots", quantity: 10, proceeds: 50000 })] }), ctx, NOW);
+    const a = s.groups.find((g) => g.group.kind === "gold")!.assets[0];
+    expect(a.quantity).toBe(0);
+    expect(a.value).toBe(0);
+    expect(a.growth).toBeNull();
   });
 });

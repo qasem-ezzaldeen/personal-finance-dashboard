@@ -13,6 +13,7 @@ import type {
   PricingSettings,
   Profile,
   Purchase,
+  Sale,
   Transaction,
   TransactionChange,
   VaultData,
@@ -36,13 +37,14 @@ export async function runScheduledTasks(): Promise<void> {
 
 export async function fetchVault(userId: string): Promise<VaultData> {
   const own = <T>(table: string) => supabase.from(table).select("*").eq("user_id", userId).returns<T>();
-  const [profile, pricing, groups, assets, purchases, goals, hawl, zakatPayments, rules, followed, overrides] =
+  const [profile, pricing, groups, assets, purchases, sales, goals, hawl, zakatPayments, rules, followed, overrides] =
     await Promise.all([
       own<Profile>("profiles").single(),
       own<PricingSettings>("pricing_settings").single(),
       own<AssetGroup[]>("asset_groups"),
       own<Asset[]>("assets"),
       own<Purchase[]>("asset_purchases"),
+      own<Sale[]>("asset_sales"),
       own<Goal[]>("goals"),
       own<ZakatHawl>("zakat_hawl").maybeSingle(),
       own<ZakatPayment[]>("zakat_payments"),
@@ -57,6 +59,7 @@ export async function fetchVault(userId: string): Promise<VaultData> {
     groups: unwrap(groups) ?? [],
     assets: unwrap(assets) ?? [],
     purchases: unwrap(purchases) ?? [],
+    sales: unwrap(sales) ?? [],
     goals: unwrap(goals) ?? [],
     hawl: unwrap(hawl),
     zakatPayments: unwrap(zakatPayments) ?? [],
@@ -111,17 +114,25 @@ export async function fetchRecentActivity(userId: string, limit = 8): Promise<Tr
   );
 }
 
-/** What reverting to `tx` would undo: entries after it and their net effect per account. */
-export async function previewRevert(userId: string, tx: Transaction) {
+export interface RevertPreview {
+  count: number;
+  /** Net change per cash account */
+  effects: Array<{ assetName: string; delta: number }>;
+  /** Net change in grams/shares/units per gold, stock or other asset */
+  holdings: Array<{ assetName: string; kind: "gold" | "stock" | "other"; delta: number }>;
+}
+
+/** What reverting to `tx` would undo: entries after it and their net effect per account and holding. */
+export async function previewRevert(userId: string, tx: Transaction): Promise<RevertPreview> {
   const later = unwrap(
     await supabase
       .from("transactions")
-      .select("id, seq")
+      .select("id, seq, kind, details, from_asset_name, to_asset_name")
       .eq("user_id", userId)
       .gt("seq", tx.seq)
-      .returns<Array<Pick<Transaction, "id" | "seq">>>(),
+      .returns<Array<Pick<Transaction, "id" | "seq" | "kind" | "details" | "from_asset_name" | "to_asset_name">>>(),
   ) ?? [];
-  if (later.length === 0) return { count: 0, effects: [] as Array<{ assetName: string; delta: number }> };
+  if (later.length === 0) return { count: 0, effects: [], holdings: [] };
 
   const changes = unwrap(
     await supabase
@@ -137,10 +148,26 @@ export async function previewRevert(userId: string, tx: Transaction) {
     current.delta += Number(c.delta);
     byAsset.set(key, current);
   }
+
+  // Buys, sells and removals change holdings. Undoing a buy takes the units away; undoing a sale or a
+  // deleted purchase brings them back (a deleted purchase whose buy is also undone nets out to nothing).
+  const held = new Map<string, { assetName: string; kind: "gold" | "stock" | "other"; delta: number }>();
+  for (const t of later) {
+    const quantity = Number(t.details?.quantity ?? 0);
+    if (!quantity) continue;
+    const name = t.kind === "buy" || t.kind === "sale_removed" ? t.to_asset_name : t.from_asset_name;
+    const undo = t.kind === "buy" || t.kind === "sale_removed" ? -quantity : t.kind === "sell" || t.kind === "refund" ? quantity : 0;
+    if (!name || !undo) continue;
+    const current = held.get(name) ?? { assetName: name, kind: t.details?.asset_kind ?? "other", delta: 0 };
+    current.delta += undo;
+    held.set(name, current);
+  }
+
   return {
     count: later.length,
     // Reverting applies the opposite of what those entries did
     effects: [...byAsset.values()].filter((e) => Math.abs(e.delta) > 1e-9).map((e) => ({ ...e, delta: -e.delta })),
+    holdings: [...held.values()].filter((h) => Math.abs(h.delta) > 1e-9),
   };
 }
 
@@ -257,8 +284,41 @@ export async function updatePurchase(purchaseId: string, input: Partial<Purchase
   unwrap(await supabase.from("asset_purchases").update(input).eq("id", purchaseId));
 }
 
+/** Deletes a purchase. If it was paid from a cash account, the database puts that money back. */
 export async function deletePurchase(purchaseId: string) {
   unwrap(await supabase.from("asset_purchases").delete().eq("id", purchaseId));
+}
+
+export interface TradeInput {
+  assetId: string;
+  /** The cash account paid from (buy) or paid into (sell) */
+  cashId: string;
+  quantity: number;
+  /** Paid (buy) or received (sell), in the cash account's currency */
+  amount: number;
+  date: string;
+  note: string;
+}
+
+export async function buyAsset(t: TradeInput) {
+  unwrap(
+    await supabase.rpc("buy_asset", {
+      p_asset: t.assetId, p_from: t.cashId, p_quantity: t.quantity, p_amount: t.amount, p_acquired_on: t.date, p_note: t.note,
+    }),
+  );
+}
+
+export async function sellAsset(t: TradeInput) {
+  unwrap(
+    await supabase.rpc("sell_asset", {
+      p_asset: t.assetId, p_to: t.cashId, p_quantity: t.quantity, p_amount: t.amount, p_sold_on: t.date, p_note: t.note,
+    }),
+  );
+}
+
+/** Removes a sale: its money leaves the cash account again and the holding comes back. */
+export async function deleteSale(saleId: string) {
+  unwrap(await supabase.rpc("delete_sale", { p_sale: saleId }));
 }
 
 // ---------------------------------------------------------------------------

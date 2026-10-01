@@ -78,10 +78,47 @@ export interface Purchase {
   /** True when the cost is the market price on acquired_on, filled in automatically */
   cost_is_estimated: boolean;
   cost_estimate_attempted_at: string | null;
+  /** Set when bought with money from a cash account: deleting the purchase gives paid_amount back */
+  paid_from_asset_id: string | null;
+  paid_amount: number | null;
+  paid_currency: string | null;
+  /** The "buy" history entry (reverting it removes the purchase) */
+  transaction_id: string | null;
   created_at: string;
 }
 
-export type TransactionKind = "income" | "transfer" | "automation" | "adjustment" | "imported";
+export interface Sale {
+  id: string;
+  user_id: string;
+  asset_id: string;
+  quantity: number;
+  /** What was received, in the cash account's currency */
+  proceeds: number;
+  proceeds_currency: string;
+  sold_on: string;
+  to_asset_id: string | null;
+  transaction_id: string;
+  note: string;
+  created_at: string;
+}
+
+export type TransactionKind =
+  | "income"
+  | "transfer"
+  | "automation"
+  | "adjustment"
+  | "imported"
+  | "buy"
+  | "sell"
+  | "refund"
+  | "sale_removed";
+
+/** What a buy/sell/refund entry moved: how much of which kind of asset */
+export interface TransactionDetails {
+  quantity?: number;
+  asset_kind?: "gold" | "stock" | "other";
+  restore?: unknown;
+}
 
 export interface Transaction {
   id: string;
@@ -104,6 +141,7 @@ export interface Transaction {
   pending_after: number | null;
   automation_rule_id: string | null;
   is_imported: boolean;
+  details: TransactionDetails | null;
   occurred_at: string;
 }
 
@@ -200,6 +238,7 @@ export interface VaultData {
   groups: AssetGroup[];
   assets: Asset[];
   purchases: Purchase[];
+  sales: Sale[];
   goals: Goal[];
   hawl: ZakatHawl | null;
   zakatPayments: ZakatPayment[];

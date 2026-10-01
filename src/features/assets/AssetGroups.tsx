@@ -1,17 +1,19 @@
-import { ChevronRight, Pencil, Plus } from "lucide-react";
+import { ChevronRight, Minus, Pencil, Plus } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Collapse } from "@/components/ui/Collapse";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DragHandle, SortableList, useLocalOrder, useSortableItem } from "@/components/ui/Sortable";
 import { Badge, ColorDot, GrowthPill } from "@/components/ui/misc";
 import { useActions } from "@/features/actions/ActionsProvider";
 import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
-import { reorderAssets, reorderGroups } from "@/lib/api";
+import { deleteSale, reorderAssets, reorderGroups } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { purchasePriceState } from "@/lib/estimates";
 import { formatDate, formatMoney, formatPercent, formatQuantity } from "@/lib/format";
 import type { Asset, GroupKind, Purchase } from "@/lib/types";
-import { convert, stockPrice, type AssetSummary, type GroupSummary } from "@/lib/valuation";
+import { convert, stockPrice, type AssetSummary, type GroupSummary, type SaleSummary } from "@/lib/valuation";
 import { PurchaseDialog } from "./PurchaseDialog";
+import { BuyDialog, SellDialog } from "./TradeDialogs";
 import { useExpanded } from "./useCollapsed";
 
 type Variant = "compact" | "full";
@@ -105,6 +107,60 @@ function PurchaseRow({ asset, purchase, value, growth, onEdit }: {
   );
 }
 
+function SaleRow({ asset, sale }: { asset: Asset; sale: SaleSummary }) {
+  const { vault } = useVault();
+  const run = useVaultAction();
+  const [confirming, setConfirming] = useState(false);
+  const s = sale.sale;
+  const account = vault.assets.find((a) => a.id === s.to_asset_id) ?? null;
+  const quantity = formatQuantity(asset.kind as "gold" | "stock" | "other", Number(s.quantity));
+  const received = formatMoney(Number(s.proceeds), s.proceeds_currency);
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-muted"
+      >
+        <span className="w-24 shrink-0 text-ink-soft tabular">
+          {formatDate(s.sold_on)}
+          <span className="block text-xs">sold</span>
+        </span>
+        <span className="font-medium text-ink tabular">−{quantity}</span>
+        <span className="min-w-0 flex-1 text-ink-soft tabular">
+          received {received}
+          {account ? ` in ${account.name}` : ""}
+        </span>
+        {sale.gain !== null ? (
+          <span className={cn("text-xs font-semibold tabular", sale.gain > 0 ? "text-gain-ink" : sale.gain < 0 ? "text-loss-ink" : "text-ink-soft")}>
+            {formatMoney(sale.gain, s.proceeds_currency, { signed: true })}
+            {sale.pct !== null ? ` (${formatPercent(sale.pct, { signed: true })})` : ""}
+          </span>
+        ) : null}
+      </button>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title="Remove this sale?"
+        confirmLabel="Remove sale"
+        onConfirm={() => run(() => deleteSale(s.id), "Sale removed")}
+      >
+        <p>
+          {quantity} will be back in {asset.name}
+          {account ? (
+            <>
+              , and <strong className="text-ink">{received}</strong> is taken back out of {account.name}
+            </>
+          ) : null}
+          .
+        </p>
+        <p>Use this if the sale was recorded by mistake.</p>
+      </ConfirmDialog>
+    </li>
+  );
+}
+
 function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Variant }) {
   const { vault, ctx } = useVault();
   const { openAsset } = useActions();
@@ -114,6 +170,12 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
   const hasPurchases = summary.asset.kind !== "cash";
   const [expanded, toggle] = useExpanded(`asset:${summary.asset.id}`, false);
   const [purchaseDialog, setPurchaseDialog] = useState<{ open: boolean; purchase?: Purchase }>({ open: false });
+  const [trade, setTrade] = useState<"buy" | "sell" | null>(null);
+  // Purchases and sales together, newest first
+  const history = [
+    ...summary.purchases.map((p) => ({ date: p.purchase.acquired_on, created: p.purchase.created_at, purchase: p, sale: null })),
+    ...summary.sales.map((s) => ({ date: s.sale.sold_on, created: s.sale.created_at, purchase: null, sale: s })),
+  ].sort((a, b) => (b.date === a.date ? b.created.localeCompare(a.created) : b.date.localeCompare(a.date)));
   const detail = describeHolding(summary, base, ctx);
 
   return (
@@ -158,24 +220,39 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
         <Collapse open={expanded}>
           <div className="mb-2 ml-9 border-l-2 border-line pl-2">
             <ul className="flex flex-col">
-              {summary.purchases.map((p) => (
-                <PurchaseRow
-                  key={p.purchase.id}
-                  asset={summary.asset}
-                  purchase={p.purchase}
-                  value={p.value}
-                  growth={p.growth}
-                  onEdit={() => setPurchaseDialog({ open: true, purchase: p.purchase })}
-                />
-              ))}
+              {history.map(({ purchase: p, sale }) =>
+                p ? (
+                  <PurchaseRow
+                    key={p.purchase.id}
+                    asset={summary.asset}
+                    purchase={p.purchase}
+                    value={p.value}
+                    growth={p.growth}
+                    onEdit={() => setPurchaseDialog({ open: true, purchase: p.purchase })}
+                  />
+                ) : sale ? (
+                  <SaleRow key={sale.sale.id} asset={summary.asset} sale={sale} />
+                ) : null,
+              )}
             </ul>
-            <button
-              type="button"
-              onClick={() => setPurchaseDialog({ open: true })}
-              className="mt-1 flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
-            >
-              <Plus className="size-4" aria-hidden="true" /> Add purchase
-            </button>
+            <div className="mt-1 flex flex-wrap gap-1">
+              <button
+                type="button"
+                onClick={() => setTrade("buy")}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
+              >
+                <Plus className="size-4" aria-hidden="true" /> Buy
+              </button>
+              {summary.quantity > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setTrade("sell")}
+                  className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
+                >
+                  <Minus className="size-4" aria-hidden="true" /> Sell
+                </button>
+              ) : null}
+            </div>
             {summary.purchases.length > 0 && summary.unitValue !== null ? (
               <p className="px-3 pb-1 text-xs text-ink-soft tabular">
                 {summary.asset.kind === "gold" ? "Per gram" : summary.asset.kind === "stock" ? "Per share" : "Per unit"}: {formatMoney(summary.unitValue, base)}
@@ -186,12 +263,16 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
       ) : null}
 
       {hasPurchases ? (
-        <PurchaseDialog
-          open={purchaseDialog.open}
-          onOpenChange={(open) => setPurchaseDialog((d) => ({ ...d, open }))}
-          asset={summary.asset}
-          purchase={purchaseDialog.purchase}
-        />
+        <>
+          <PurchaseDialog
+            open={purchaseDialog.open}
+            onOpenChange={(open) => setPurchaseDialog((d) => ({ ...d, open }))}
+            asset={summary.asset}
+            purchase={purchaseDialog.purchase}
+          />
+          <BuyDialog open={trade === "buy"} onOpenChange={(open) => !open && setTrade(null)} summary={summary} />
+          <SellDialog open={trade === "sell"} onOpenChange={(open) => !open && setTrade(null)} summary={summary} />
+        </>
       ) : null}
     </li>
   );
