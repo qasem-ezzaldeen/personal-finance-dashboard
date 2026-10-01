@@ -5,8 +5,8 @@
 | Path | What it is |
 |---|---|
 | `src/` | The web app (React + TypeScript + Tailwind) |
-| `src/styles/colors.css` | **Every color in the app**, light and dark. Change a value there to recolor the whole site |
-| `src/styles/motion.css` | Animation timings. The speed setting in Profile › Appearance scales all of them |
+| `src/styles/colors.css` | **Every color in the app**: light and dark, and the color palettes. Change a value there to recolor the whole site |
+| `src/styles/motion.css` | Animation timings. The speed setting in Settings › Appearance scales all of them |
 | `src/lib/valuation.ts` | How assets, growth, goals and Zakat are calculated |
 | `supabase/migrations/` | Database tables, security rules and money functions |
 | `supabase/functions/` | Server functions: `market-refresh` (prices), `check-ticker`, `estimate-costs` (fills in a purchase's price from the market price on its date) and `price-on-date` (gold and exchange rates on a past day, e.g. the Nisab value when a Hawl started) |
@@ -25,7 +25,7 @@ npm run dev          # http://localhost:5173/personal-finance-dashboard/
 npx supabase functions serve   # optional: live-reloads the server functions while you edit them
 ```
 
-Test accounts for the local database are listed at the top of `supabase/seed.sql`. The demo account has data from the previous AuraFinance you can import from **Profile › Data**.
+Test accounts for the local database are listed at the top of `supabase/seed.sql`. The demo account has data from the previous AuraFinance you can import from **Settings › Data**.
 
 Development always talks to the **local** database (`.env.development`), never to your real data.
 
@@ -107,7 +107,7 @@ To roll back at any time: set Pages back to "Deploy from a branch" on the `previ
 
 ### 9. Import your data
 
-Sign in → **Profile › Data → Import from the previous AuraFinance**. Compare the preview with your current numbers, then import.
+Sign in → **Settings › Data → Import from the previous AuraFinance**. Compare the preview with your current numbers, then import.
 
 Afterwards, open **Assets** and set the real purchase date on each gold/stock "Opening balance". Its growth is then tracked from that day's market price, or from the price you enter.
 
@@ -115,4 +115,14 @@ Afterwards, open **Assets** and set the real purchase date on each gold/stock "O
 
 Once your data is imported and everything looks right:
 - drop the `dashboards` table in Supabase
-- delete the import feature: `src/features/import/`, its card in `src/features/profile/DataTab.tsx`, `supabase/migrations/20261003000004_import_previous_version.sql` and `supabase/tests/import.test.ts`
+- delete the import feature: `src/features/import/`, its card in `src/features/settings/DataTab.tsx`, `supabase/migrations/20261003000004_import_previous_version.sql` and `supabase/tests/import.test.ts`
+
+## Shipping changes that touch the database
+
+Pushing to `master` publishes the web app automatically, but database changes in `supabase/migrations/` are applied by hand. When a change adds a migration, apply it **before** the new app goes live, so the app never calls a table or function that doesn't exist yet:
+
+```bash
+npx supabase db push
+```
+
+Then merge to `master`. `npm test` runs every migration against an in-memory database first, so a migration that fails there will fail on Supabase too.
