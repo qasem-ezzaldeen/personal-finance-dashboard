@@ -34,12 +34,7 @@ export function ZakatTab() {
 
       {enabled ? (
         <>
-          <Card>
-            <CardHeader title="Nisab & Hawl" subtitle="Where you are in the lunar year" />
-            <CardBody>
-              <ZakatStatusCard />
-            </CardBody>
-          </Card>
+          <ZakatStatusCard />
 
           <Card>
             <CardHeader title="Gold price used for the Nisab" />

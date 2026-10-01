@@ -14,6 +14,7 @@ const purchase = (id: string, assetId: string, quantity: number, cost: number | 
   id, user_id: USER_ID, asset_id: assetId, quantity, cost_total: cost, cost_currency: costCurrency,
   acquired_on: day(daysAgo), note: "", is_opening_balance: opening, cost_is_estimated: estimated,
   cost_estimate_attempted_at: estimated ? iso(1) : null, created_at: iso(daysAgo),
+  paid_from_asset_id: null, paid_amount: null, paid_currency: null, transaction_id: null,
 });
 const price = (symbol: string, kind: string, value: number, previous: number, name: string | null = null) => ({
   symbol, kind, price: value, previous_price: previous, currency: "USD", display_name: name, source: "fixture", fetched_at: iso(0.01), changed_at: iso(0.01),
@@ -52,7 +53,10 @@ export const FIXTURES: Record<string, unknown[]> = {
     purchase("p3", "ingots", 2, 11200, "EGP", 2),
     purchase("p4", "jewelry", 40, null, null, 30, true),
     purchase("p5", "spus", 12, 610, "USD", 200),
-    purchase("p6", "aapl", 3, 690, "USD", 90),
+    { ...purchase("p6", "aapl", 3, 690, "USD", 90), paid_from_asset_id: "qnb", paid_amount: 690, paid_currency: "USD", transaction_id: "t0" },
+  ],
+  asset_sales: [
+    { id: "s1", user_id: USER_ID, asset_id: "spus", quantity: 2, proceeds: 118, proceeds_currency: "USD", sold_on: day(20), to_asset_id: "nsave", transaction_id: "t1b", note: "", created_at: iso(20) },
   ],
   goals: [
     { id: "g1", user_id: USER_ID, name: "Emergency fund", emoji: "💰", target_amount: 10000, target_unit: "USD", include_upcoming: true, reserve_funds: true, sort_order: 1, is_system: false },
@@ -77,10 +81,11 @@ export const FIXTURES: Record<string, unknown[]> = {
     price("STOCK:NVDA", "stock", 119.37, 121, "NVIDIA Corporation"),
   ],
   transactions: [
-    { id: "t4", seq: 4, user_id: USER_ID, kind: "income", description: "Client project", amount: 500, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: "pending", to_asset_name: "Upcoming Income", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 750, pending_after: 1250, automation_rule_id: null, is_imported: false, occurred_at: iso(0.2) },
-    { id: "t3", seq: 3, user_id: USER_ID, kind: "income", description: "Hourly: 5 h 0 min × $50.00/h", amount: 250, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: "pending", to_asset_name: "Upcoming Income", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 500, pending_after: 750, automation_rule_id: null, is_imported: false, occurred_at: iso(3) },
-    { id: "t2", seq: 2, user_id: USER_ID, kind: "automation", description: "Payday sweep", amount: 800, currency: "USD", rate_to_base: 49.9, base_currency: "EGP", from_asset_id: "pending", from_asset_name: "Upcoming Income", to_asset_id: "paypal", to_asset_name: "PayPal", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 800, pending_after: 0, automation_rule_id: "r1", is_imported: false, occurred_at: iso(6) },
-    { id: "t1", seq: 1, user_id: USER_ID, kind: "imported", description: "", amount: 500, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: null, to_asset_name: null, converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 0, pending_after: 500, automation_rule_id: null, is_imported: true, occurred_at: iso(40) },
+    { id: "t4", seq: 4, user_id: USER_ID, kind: "income", description: "Client project", amount: 500, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: "pending", to_asset_name: "Upcoming Income", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 750, pending_after: 1250, automation_rule_id: null, is_imported: false, details: null, occurred_at: iso(0.2) },
+    { id: "t3", seq: 3, user_id: USER_ID, kind: "income", description: "Hourly: 5 h 0 min × $50.00/h", amount: 250, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: "pending", to_asset_name: "Upcoming Income", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 500, pending_after: 750, automation_rule_id: null, is_imported: false, details: null, occurred_at: iso(3) },
+    { id: "t2", seq: 2, user_id: USER_ID, kind: "automation", description: "Payday sweep", amount: 800, currency: "USD", rate_to_base: 49.9, base_currency: "EGP", from_asset_id: "pending", from_asset_name: "Upcoming Income", to_asset_id: "paypal", to_asset_name: "PayPal", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 800, pending_after: 0, automation_rule_id: "r1", is_imported: false, details: null, occurred_at: iso(6) },
+    { id: "t1b", seq: 1.5, user_id: USER_ID, kind: "sell", description: "", amount: 118, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: "spus", from_asset_name: "SPUS ETF", to_asset_id: "nsave", to_asset_name: "nsave", converted_amount: null, converted_currency: null, fx_rate: null, pending_before: null, pending_after: null, automation_rule_id: null, is_imported: false, details: { quantity: 2, asset_kind: "stock" }, occurred_at: iso(20) },
+    { id: "t1", seq: 1, user_id: USER_ID, kind: "imported", description: "", amount: 500, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: null, to_asset_name: null, converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 0, pending_after: 500, automation_rule_id: null, is_imported: true, details: null, occurred_at: iso(40) },
   ],
   transaction_changes: [
     { id: 1, transaction_id: "t3", asset_id: "pending", asset_name: "Upcoming Income", delta: 250 },

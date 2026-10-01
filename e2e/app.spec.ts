@@ -73,11 +73,27 @@ test("activity and revert preview", async ({ page }) => {
   await expectNoHorizontalScroll(page);
 });
 
-test("goals and Zakat", async ({ page }) => {
+test("goals", async ({ page }) => {
   await mockBackend(page);
   await page.goto("goals");
-  await expect(page.getByRole("heading", { name: "Zakat threshold" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Emergency fund/ })).toBeVisible();
+  // Zakat isn't a goal anymore
+  await expect(page.getByText("Zakat threshold")).toHaveCount(0);
+  // Emergency fund reserves its money: it's marked, and the others don't count it again
+  await expect(page.getByRole("heading", { name: /Emergency fund/ })).toContainText("Reserved");
+  await expectNoHorizontalScroll(page);
+  await snap(page, "goals");
+});
+
+test("the Zakat card on the dashboard opens all Zakat settings", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("");
+  await page.getByRole("link", { name: "Zakat settings" }).click();
+  await expect(page).toHaveURL(/settings\?tab=zakat/);
+  await expect(page.getByRole("heading", { name: "Nisab & Hawl" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gold price used for the Nisab" })).toBeVisible();
   await expect(page.getByText(/Day 212 of 354/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Zakat payments" })).toBeVisible();
   await page.getByRole("button", { name: "Edit Hawl" }).click();
   await expect(page.getByRole("dialog", { name: "Edit your Hawl" })).toBeVisible();
   await page.getByRole("button", { name: "Full Hawl" }).click();
@@ -85,7 +101,7 @@ test("goals and Zakat", async ({ page }) => {
   await snap(page, "hawl");
   await page.keyboard.press("Escape");
   await expectNoHorizontalScroll(page);
-  await snap(page, "goals");
+  await snap(page, "settings-zakat");
 });
 
 test("log income sends the right amount", async ({ page }) => {
@@ -123,26 +139,52 @@ test("add a stock with a checked ticker", async ({ page }) => {
   await expect.poll(() => writes.find((w) => w.path === "assets")?.body).toMatchObject({ kind: "stock", ticker: "MSFT" });
 });
 
-test("profile tabs", async ({ page }) => {
+test("settings tabs", async ({ page }) => {
   const errors = collectErrors(page);
   await mockBackend(page);
-  await page.goto("profile?tab=personal");
-  await expect(page.getByRole("heading", { name: "Profile & settings" })).toBeVisible();
+  await page.goto("settings?tab=accounts");
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   const sections = page.getByRole("tablist", { name: "Settings sections" });
   const TABS = [
-    ["Personal", "personal"], ["Vault", "vault"], ["Appearance", "appearance"], ["Accounts", "accounts"], ["Automations", "automations"],
-    ["Market & pricing", "market"], ["Zakat", "zakat"], ["Security", "security"], ["Data", "data"],
+    ["Vault", "vault"], ["Appearance", "appearance"], ["Accounts", "accounts"], ["Automations", "automations"],
+    ["Market & pricing", "market"], ["Zakat", "zakat"], ["Data", "data"],
   ];
   for (const [tab, id] of TABS) {
     await sections.getByRole("tab", { name: tab }).click();
     await expect(page).toHaveURL(new RegExp(`tab=${id}`));
     await expectNoHorizontalScroll(page);
-    if (["Vault", "Automations", "Market & pricing"].includes(tab)) await snap(page, `profile-${tab.split(" ")[0].toLowerCase()}`);
+    if (["Vault", "Automations", "Market & pricing", "Data"].includes(tab)) await snap(page, `settings-${tab.split(" ")[0].toLowerCase()}`);
   }
   await sections.getByRole("tab", { name: "Automations" }).click();
   await expect(page.getByText("Payday sweep")).toBeVisible();
   await expect(page.getByText("On the 24th of every month")).toBeVisible();
+  // The time zone lives with the vault settings now
+  await sections.getByRole("tab", { name: "Vault" }).click();
+  await expect(page.getByLabel("Time zone")).toHaveValue("Africa/Cairo");
   expect(errors).toEqual([]);
+});
+
+test("the sidebar opens Settings and the avatar opens the profile", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("");
+  await expect(page.getByRole("link", { name: "Profile" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Settings" }).first().click();
+  await expect(page).toHaveURL(/\/settings/);
+  await page.getByRole("button", { name: "Account menu" }).filter({ visible: true }).click();
+  await page.getByRole("menuitem", { name: "Profile" }).click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Change password" })).toBeVisible();
+  await expect(page.getByLabel("Display name")).toHaveValue("qasem");
+  for (const gone of [/Full name/, /Phone/, /Country/, /Time zone/]) await expect(page.getByLabel(gone)).toHaveCount(0);
+  await expectNoHorizontalScroll(page);
+  await snap(page, "profile");
+});
+
+test("old profile links open the matching settings", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("profile?tab=market");
+  await expect(page).toHaveURL(/settings\?tab=market/);
 });
 
 // ---------------------------------------------------------------------------
@@ -184,7 +226,7 @@ test("with animations off, the rates bar is a normal swipeable strip", async ({ 
 test("animation speed can be changed in Appearance", async ({ page }) => {
   const writes: Array<{ path: string; body: unknown }> = [];
   await mockBackend(page, { onWrite: (w) => writes.push(w) });
-  await page.goto("profile?tab=appearance");
+  await page.goto("settings?tab=appearance");
   await expect(page.getByRole("heading", { name: "Animations" })).toBeVisible();
   await page.getByRole("tab", { name: "Slow" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-motion", "slow");
@@ -209,7 +251,7 @@ test("estimated purchase prices are marked", async ({ page }) => {
 
 test("the Hawl editor records the start-of-Hawl wealth", async ({ page }) => {
   await mockBackend(page);
-  await page.goto("goals");
+  await page.goto("settings?tab=zakat");
   await page.getByRole("button", { name: "Edit Hawl" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit your Hawl" });
   await expect(dialog.getByLabel(/^Wealth on/)).toHaveValue("450000");
@@ -225,7 +267,7 @@ test("dark mode can be switched on in Appearance", async ({ page }) => {
   const writes: Array<{ path: string; body: unknown }> = [];
   const errors = collectErrors(page);
   await mockBackend(page, { onWrite: (w) => writes.push(w) });
-  await page.goto("profile?tab=appearance");
+  await page.goto("settings?tab=appearance");
   await expect(page.getByRole("heading", { name: "Theme" })).toBeVisible();
   const lightBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
@@ -255,13 +297,13 @@ test("a saved dark theme is used from the first screen", async ({ page }) => {
 test("first-year Zakat uses the Nisab value on the start date", async ({ page }) => {
   const writes: Array<{ path: string; body: unknown }> = [];
   await mockBackend(page, { onWrite: (w) => writes.push(w) });
-  await page.goto("goals");
+  await page.goto("settings?tab=zakat");
   await page.getByRole("button", { name: "Edit Hawl" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit your Hawl" });
   await dialog.getByLabel("This is my first year above the Nisab").check();
-  // 85 g × (2,901.10 / 31.1034768 × 50.4413 × 1.025) ≈ EGP 409,905
-  await expect(dialog).toContainText(/Nisab value: EGP\s?409,90\d\.\d\d/);
-  await expect(dialog).toContainText(/Zakat when due: EGP\s?10,247\.\d\d/);
+  // 85 g × (2,901.10 / 31.1034768 × 50.4413), no local premium ≈ EGP 399,907 (no decimals from 100,000)
+  await expect(dialog).toContainText(/Nisab value: EGP\s?399,907(?![\d.])/);
+  await expect(dialog).toContainText(/Zakat when due: EGP\s?9,997\.\d\d/);
   await expect(dialog.getByLabel(/^Wealth on/)).toHaveCount(0);
   await snap(page, "first-hawl");
   await dialog.getByRole("button", { name: "Save" }).click();
@@ -269,5 +311,156 @@ test("first-year Zakat uses the Nisab value on the start date", async ({ page })
     .poll(() => writes.find((w) => w.path.startsWith("zakat_hawl"))?.body)
     .toMatchObject({ is_first_hawl: true, start_wealth_currency: "EGP" });
   const saved = writes.find((w) => w.path.startsWith("zakat_hawl"))!.body as { start_wealth: number };
-  expect(Math.abs(saved.start_wealth - 409904.5)).toBeLessThan(2);
+  expect(Math.abs(saved.start_wealth - 399906.96)).toBeLessThan(2);
+});
+
+// ---------------------------------------------------------------------------
+// Round 4: buy & sell, palettes, restore, bigger chart, whole numbers
+// ---------------------------------------------------------------------------
+
+test("buy gold with money from a cash account", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("assets");
+  await page.getByRole("button", { name: /^Gold ingots 14 g/ }).click();
+  await page.getByRole("button", { name: "Buy Gold ingots" }).click();
+  const dialog = page.getByRole("dialog", { name: "Buy · Gold ingots" });
+  await dialog.getByLabel("Grams").fill("5");
+  await expect(dialog.getByLabel("Paid from")).toHaveValue("qnb");
+  await dialog.getByRole("button", { name: "Use market price" }).click();
+  await expect(dialog).toContainText("QNB Bebasata");
+  await snap(page, "buy");
+  await dialog.getByRole("button", { name: "Buy", exact: true }).click();
+  await expect.poll(() => writes.find((w) => w.path === "rpc/buy_asset")?.body).toMatchObject({ p_asset: "ingots", p_from: "qnb", p_quantity: 5 });
+});
+
+test("gold you already own can still be added without paying from cash", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("assets");
+  await page.getByRole("button", { name: /^Gold ingots 14 g/ }).click();
+  await page.getByRole("button", { name: "Buy Gold ingots" }).click();
+  const dialog = page.getByRole("dialog", { name: "Buy · Gold ingots" });
+  await dialog.getByLabel("Grams").fill("2");
+  await dialog.getByLabel("Paid from").selectOption("none");
+  await expect(dialog).toContainText("Your cash accounts don't change.");
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  await expect.poll(() => writes.find((w) => w.path === "asset_purchases")?.body).toMatchObject({ asset_id: "ingots", quantity: 2 });
+  expect(writes.find((w) => w.path === "rpc/buy_asset")).toBeUndefined();
+});
+
+test("sell shares into a cash account, and sales show in the asset's history", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("assets");
+  // 12 bought − 2 sold
+  await page.getByRole("button", { name: /^SPUS ETF 10 shares/ }).click();
+  await expect(page.getByText(/received \$118\.00 in nsave/)).toBeVisible();
+  await page.getByRole("button", { name: "Sell SPUS ETF" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sell · SPUS ETF" });
+  await dialog.getByRole("button", { name: "Sell all" }).click();
+  await dialog.getByLabel(/Total received/).fill("700");
+  await expect(dialog).toContainText("Gain vs. what you paid");
+  await snap(page, "sell");
+  await dialog.getByRole("button", { name: "Sell", exact: true }).click();
+  await expect.poll(() => writes.find((w) => w.path === "rpc/sell_asset")?.body).toMatchObject({ p_asset: "spus", p_quantity: 10, p_amount: 700 });
+});
+
+test("deleting a purchase paid from cash says the money goes back", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("assets");
+  await page.getByRole("button", { name: /^Apple/ }).click();
+  await page.getByRole("button", { name: /paid \$690\.00/ }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit purchase" });
+  await expect(dialog).toContainText("Paid $690.00 from QNB Bebasata");
+  await dialog.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("dialog", { name: "Delete this purchase?" })).toContainText("$690.00 goes back to QNB Bebasata");
+});
+
+test("quick actions still only move money between accounts", async ({ page }) => {
+  test.skip(test.info().project.name === "phone", "Quick actions are a dashboard card on larger screens");
+  await mockBackend(page);
+  await page.goto("");
+  await page.getByRole("tab", { name: "Transfer" }).first().click();
+  const to = page.locator("main").getByLabel("To");
+  await expect(to.locator("option", { hasText: "Gold ingots" })).toHaveCount(0);
+});
+
+test("color palettes can be chosen in Appearance", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  const errors = collectErrors(page);
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("settings?tab=appearance");
+  const palettes = page.getByRole("radiogroup", { name: "Color palette" });
+  await expect(palettes.getByRole("radio")).toHaveCount(6);
+  await expect(palettes.getByRole("radio", { name: /Pastel/ })).toHaveAttribute("aria-checked", "true");
+  const before = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-strong").trim());
+  await palettes.getByRole("radio", { name: /Sea & Beach/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "sea");
+  await expect.poll(() => writes.find((w) => w.path.startsWith("profiles"))?.body).toMatchObject({ color_palette: "sea" });
+  const after = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-strong").trim());
+  expect(after).not.toBe(before);
+  await snap(page, "palettes");
+  await page.getByRole("link", { name: /Home|Dashboard/ }).first().click();
+  await expect(page.getByText("Net worth").first()).toBeVisible();
+  await snap(page, "palette-sea-dashboard");
+  expect(await page.evaluate(() => localStorage.getItem("aura.palette"))).toBe("sea");
+  expect(errors).toEqual([]);
+});
+
+test("a saved palette is used from the first screen, in dark mode too", async ({ page }) => {
+  await mockBackend(page, { profile: { color_palette: "autumn", theme: "dark" } });
+  await page.goto("");
+  await expect(page.locator("html")).toHaveAttribute("data-palette", "autumn");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByText("Net worth").first()).toBeVisible();
+  await snap(page, "palette-autumn-dark");
+});
+
+test("a JSON backup can be checked and restored", async ({ page }) => {
+  const writes: Array<{ path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("settings?tab=data");
+  const backup = {
+    format: "aurafinance-backup", version: 2, app: "AuraFinance", exported_at: new Date().toISOString(),
+    profile: { vault_name: "Old vault", base_currency: "EGP" },
+    assets: [{ id: "a1", kind: "cash", name: "Bank", currency: "EGP", balance: 100 }],
+    purchases: [], sales: [], goals: [{ id: "g1", name: "House", is_system: false }], rules: [], transactions: [], transaction_changes: [],
+  };
+  await page.getByLabel("Backup file").setInputFiles({ name: "backup.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(backup)) });
+  await expect(page.getByText("Old vault")).toBeVisible();
+  await expect(page.getByText("1 assets and accounts")).toBeVisible();
+  await snap(page, "restore");
+  await page.getByRole("button", { name: "Restore this backup" }).click();
+  await page.getByRole("dialog", { name: "Replace this vault with the backup?" }).getByRole("button", { name: "Restore" }).click();
+  await expect.poll(() => writes.find((w) => w.path === "rpc/restore_vault")?.body).toMatchObject({ p: { profile: { vault_name: "Old vault" } } });
+});
+
+test("files that aren't backups are refused", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("settings?tab=data");
+  await page.getByLabel("Backup file").setInputFiles({ name: "notes.json", mimeType: "application/json", buffer: Buffer.from('{"hello":1}') });
+  await expect(page.getByText(/isn't an AuraFinance backup/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Restore this backup" })).toHaveCount(0);
+});
+
+test("the wealth chart grows with its section", async ({ page }) => {
+  test.skip(test.info().project.name === "phone", "The chart is shown on larger screens");
+  await mockBackend(page);
+  await page.goto("");
+  const chart = page.locator(".recharts-responsive-container").first();
+  await expect(chart).toBeVisible();
+  const box = (await chart.boundingBox())!;
+  // It used to be a fixed 190 px
+  expect(box.width).toBeGreaterThan(240);
+  expect(Math.abs(box.width - box.height)).toBeLessThan(2);
+});
+
+test("money of 100,000 or more has no decimals", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("");
+  // Net worth is well above 100,000 EGP
+  const netWorth = page.locator("main").getByText(/^EGP\s?[\d,]{7,}$/).first();
+  await expect(netWorth).toBeVisible();
+  await expect(netWorth).not.toContainText(".");
 });

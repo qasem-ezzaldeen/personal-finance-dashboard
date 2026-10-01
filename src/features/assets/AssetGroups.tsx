@@ -239,6 +239,7 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
               <button
                 type="button"
                 onClick={() => setTrade("buy")}
+                aria-label={`Buy ${summary.asset.name}`}
                 className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
               >
                 <Plus className="size-4" aria-hidden="true" /> Buy
@@ -247,6 +248,7 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
                 <button
                   type="button"
                   onClick={() => setTrade("sell")}
+                  aria-label={`Sell ${summary.asset.name}`}
                   className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-brand-ink hover:bg-surface-muted"
                 >
                   <Minus className="size-4" aria-hidden="true" /> Sell
