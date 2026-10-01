@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, HandCoins, ReceiptText, Target, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, ChevronRight, HandCoins, ReceiptText, Target, TrendingUp, Wallet } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ResizableColumns } from "@/components/layout/ResizableColumns";
@@ -9,8 +9,9 @@ import { ActivityItem } from "@/features/activity/ActivityItem";
 import { RevertDialog } from "@/features/activity/RevertDialog";
 import { AssetGroups } from "@/features/assets/AssetGroups";
 import { LazyWealthDonut } from "@/features/assets/LazyWealthDonut";
-import { GoalsList, ZakatDueBanner } from "@/features/goals/GoalsList";
+import { GoalsList } from "@/features/goals/GoalsList";
 import { MoneyForm } from "@/features/money/MoneyForm";
+import { ZakatDueBanner } from "@/features/zakat/ZakatStatus";
 import { queryKeys, useVault } from "@/features/vault/VaultProvider";
 import { fetchRecentActivity } from "@/lib/api";
 import { formatGrams, formatMoney, formatNumber } from "@/lib/format";
@@ -69,9 +70,14 @@ function SummaryCards() {
       </StatCard>
 
       {vault.profile.zakat_enabled ? (
-        <Card className="col-span-2 p-4 xl:col-span-1">
+        <Link
+          to="/settings?tab=zakat"
+          aria-label="Zakat settings"
+          className="group col-span-2 block rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-soft transition hover:bg-surface-muted xl:col-span-1"
+        >
           <div className="flex items-center gap-2 text-sm text-ink-soft">
             <span aria-hidden="true">🕌</span> Zakat
+            <ChevronRight className="ml-auto size-4 text-ink-faint transition group-hover:translate-x-0.5 group-hover:text-ink" aria-hidden="true" />
           </div>
           {z.isDue ? (
             <p className="mt-2 text-lg font-semibold text-gain-ink">Due now · {formatMoney(z.dueAmount, base)}</p>
@@ -94,7 +100,7 @@ function SummaryCards() {
               </div>
             </>
           )}
-        </Card>
+        </Link>
       ) : null}
     </div>
   );
@@ -178,11 +184,16 @@ export function DashboardPage() {
                   </Link>
                 }
               />
-              <CardBody className="flex flex-col gap-4">
-                <div className="hidden sm:block">
-                  <LazyWealthDonut size={190} />
+              {/* The chart grows with the column; when there's room it sits beside the list */}
+              <CardBody className="@container">
+                <div className="flex flex-col gap-4 @3xl:flex-row @3xl:items-center @3xl:gap-6">
+                  <div className="hidden w-full max-w-96 self-center sm:block @3xl:w-1/2 @3xl:max-w-none @3xl:shrink-0">
+                    <LazyWealthDonut />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <AssetGroups variant="compact" />
+                  </div>
                 </div>
-                <AssetGroups variant="compact" />
               </CardBody>
             </Card>
             <Card>

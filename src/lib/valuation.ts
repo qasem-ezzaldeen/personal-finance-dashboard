@@ -419,21 +419,69 @@ export interface GoalProgress {
   reached: boolean;
 }
 
-export function goalProgress(goal: Goal, summary: VaultSummary, ctx: ValuationContext): GoalProgress {
-  const wealth = goal.include_upcoming ? summary.netWorth : summary.zakatable;
-  let current: number | null;
-  if (goal.target_unit === GOLD_UNIT) {
-    current = summary.gold24k && summary.gold24k > 0 ? wealth / summary.gold24k : null;
-  } else {
-    current = convert(wealth, summary.base, goal.target_unit, ctx.book);
-  }
+/** Converts an amount in the base currency to a goal unit (a currency or grams of 24k gold), and back. */
+function toUnit(amount: number, unit: string, summary: VaultSummary, ctx: ValuationContext): number | null {
+  if (unit === GOLD_UNIT) return summary.gold24k && summary.gold24k > 0 ? amount / summary.gold24k : null;
+  return convert(amount, summary.base, unit, ctx.book);
+}
+
+function fromUnit(amount: number, unit: string, summary: VaultSummary, ctx: ValuationContext): number | null {
+  if (unit === GOLD_UNIT) return summary.gold24k && summary.gold24k > 0 ? amount * summary.gold24k : null;
+  return convert(amount, unit, summary.base, ctx.book);
+}
+
+function progressOf(current: number | null, goal: Goal): GoalProgress {
   const target = Number(goal.target_amount);
+  // Tiny rounding differences from converting back and forth shouldn't keep a goal from being reached
+  const reached = current !== null && current >= target * (1 - 1e-9);
   return {
     current,
     target,
     unit: goal.target_unit,
-    progress: current === null ? null : current / target,
-    remaining: current === null ? null : Math.max(0, target - current),
-    reached: current !== null && current >= target,
+    progress: current === null ? null : reached ? Math.max(1, current / target) : current / target,
+    remaining: current === null || reached ? (current === null ? null : 0) : Math.max(0, target - current),
+    reached,
   };
+}
+
+/** Progress toward one goal, measured against all of the wealth it counts (milestones). */
+export function goalProgress(goal: Goal, summary: VaultSummary, ctx: ValuationContext): GoalProgress {
+  const wealth = goal.include_upcoming ? summary.netWorth : summary.zakatable;
+  return progressOf(toUnit(wealth, goal.target_unit, summary, ctx), goal);
+}
+
+/**
+ * Progress for a list of goals in their order. Unreserved goals see all the wealth they count.
+ * Reserved goals claim money one after another, each up to its target, so the same money is never
+ * counted twice: with 1M and two reserved 1M goals, the first is reached and the second is at 0%.
+ * A goal that excludes Upcoming Income can only claim money that isn't Upcoming Income, so reserved
+ * goals that include it use Upcoming Income first.
+ */
+export function goalsProgress(goals: Goal[], summary: VaultSummary, ctx: ValuationContext): Map<string, GoalProgress> {
+  const result = new Map<string, GoalProgress>();
+  let main = Math.max(0, summary.zakatable);
+  let upcoming = Math.max(0, summary.netWorth - summary.zakatable);
+
+  for (const goal of goals) {
+    if (!goal.reserve_funds) {
+      result.set(goal.id, goalProgress(goal, summary, ctx));
+      continue;
+    }
+    const targetInBase = fromUnit(Number(goal.target_amount), goal.target_unit, summary, ctx);
+    if (targetInBase === null) {
+      result.set(goal.id, progressOf(null, goal));
+      continue;
+    }
+    let claimed = 0;
+    if (goal.include_upcoming) {
+      const fromUpcoming = Math.min(upcoming, targetInBase);
+      upcoming -= fromUpcoming;
+      claimed += fromUpcoming;
+    }
+    const fromMain = Math.min(main, targetInBase - claimed);
+    main -= fromMain;
+    claimed += fromMain;
+    result.set(goal.id, progressOf(toUnit(claimed, goal.target_unit, summary, ctx), goal));
+  }
+  return result;
 }

@@ -6,7 +6,7 @@ import { Field, Input, Select } from "@/components/ui/Field";
 import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
 import { updateProfile } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { currencyOptions } from "@/lib/currencies";
+import { currencyOptions, guessTimeZone, timeZoneOptions } from "@/lib/currencies";
 import { formatMoney } from "@/lib/format";
 
 const LOCALES = [
@@ -23,12 +23,15 @@ export function VaultTab() {
   const run = useVaultAction();
   const p = vault.profile;
   const options = useMemo(() => currencyOptions(book.usdRates.keys()), [book.usdRates]);
+  const zones = useMemo(() => timeZoneOptions(), []);
+  const deviceZone = useMemo(() => guessTimeZone(), []);
 
   const [vaultName, setVaultName] = useState(p.vault_name);
   const [base, setBase] = useState(p.base_currency);
   const [display, setDisplay] = useState<string[]>(p.display_currencies);
   const [income, setIncome] = useState(p.income_currency);
   const [locale, setLocale] = useState(p.number_locale);
+  const [timezone, setTimezone] = useState(p.timezone);
   const [saving, setSaving] = useState(false);
   const pendingBalance = summary.pending?.quantity ?? 0;
 
@@ -47,6 +50,7 @@ export function VaultTab() {
           display_currencies: display.filter((c) => c !== base),
           income_currency: income,
           number_locale: locale,
+          timezone,
         }),
       "Vault settings saved",
     );
@@ -55,7 +59,7 @@ export function VaultTab() {
 
   return (
     <Card>
-      <CardHeader title="Vault" subtitle="Name and currencies" />
+      <CardHeader title="Vault" subtitle="Name, currencies and region" />
       <CardBody>
         <form onSubmit={save} className="flex flex-col gap-5" noValidate>
           <Field label="Vault name" hint="Shown at the top of the app" error={vaultName.trim() ? undefined : "Give your vault a name"}>
@@ -116,17 +120,44 @@ export function VaultTab() {
             </div>
           </fieldset>
 
-          <Field label="Number format">
-            {(f) => (
-              <Select {...f} value={locale} onChange={(e) => setLocale(e.target.value)}>
-                {LOCALES.map((l) => (
-                  <option key={l.value} value={l.value}>
-                    {l.label}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Number format">
+              {(f) => (
+                <Select {...f} value={locale} onChange={(e) => setLocale(e.target.value)}>
+                  {LOCALES.map((l) => (
+                    <option key={l.value} value={l.value}>
+                      {l.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field
+              label="Time zone"
+              hint="Decides when your day starts: dates, automation days and the daily Zakat check"
+              labelAside={
+                timezone !== deviceZone && zones.includes(deviceZone) ? (
+                  <button
+                    type="button"
+                    onClick={() => setTimezone(deviceZone)}
+                    className="text-sm font-medium text-brand-ink underline-offset-4 hover:underline"
+                  >
+                    Use this device's
+                  </button>
+                ) : null
+              }
+            >
+              {(f) => (
+                <Select {...f} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+                  {zones.map((z) => (
+                    <option key={z} value={z}>
+                      {z.replace(/_/g, " ")}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
 
           <Button type="submit" variant="primary" loading={saving} className="self-start">
             Save vault settings

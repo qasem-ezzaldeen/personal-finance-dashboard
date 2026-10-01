@@ -11,6 +11,7 @@ import {
   Wallet,
   HandCoins,
   Landmark,
+  Settings,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -27,7 +28,7 @@ const NAV = [
   { to: "/assets", label: "Assets", short: "Assets", icon: Wallet },
   { to: "/activity", label: "Activity", short: "Activity", icon: ReceiptText },
   { to: "/goals", label: "Goals", short: "Goals", icon: Target },
-  { to: "/profile", label: "Profile", short: "Profile", icon: UserRound },
+  { to: "/settings", label: "Settings", short: "Settings", icon: Settings },
 ];
 
 function Avatar({ size = "md" }: { size?: "sm" | "md" }) {
@@ -75,7 +76,7 @@ function UserMenu() {
             onSelect={() => navigate("/profile")}
             className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-ink outline-none data-[highlighted]:bg-surface-muted"
           >
-            <UserRound className="size-4" aria-hidden="true" /> Profile & settings
+            <UserRound className="size-4" aria-hidden="true" /> Profile
           </DM.Item>
           <DM.Item
             onSelect={() => signOut()}

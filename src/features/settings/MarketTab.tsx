@@ -134,7 +134,7 @@ export function MarketTab() {
                 </Field>
               </div>
             ) : (
-              <Field label="Local premium over the global spot price" hint="Added to the live price (default 2.5%)" error={errors.premium}>
+              <Field label="Local premium over the global spot price" hint="Added to the live price (default 0%)" error={errors.premium}>
                 {(f) => <AmountInput {...f} value={premium} onChange={(e) => setPremium(e.target.value)} suffix="%" className="sm:max-w-48" />}
               </Field>
             )}

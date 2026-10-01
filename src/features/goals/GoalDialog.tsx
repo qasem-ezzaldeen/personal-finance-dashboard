@@ -41,6 +41,7 @@ function GoalDialogContent({ open, onOpenChange, goal }: Props) {
   const [unit, setUnit] = useState(goal?.target_unit ?? base);
   const [targetRaw, setTargetRaw] = useState(goal ? String(Number(goal.target_amount)) : "");
   const [includeUpcoming, setIncludeUpcoming] = useState(goal?.include_upcoming ?? true);
+  const [reserve, setReserve] = useState(goal?.reserve_funds ?? false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -55,7 +56,7 @@ function GoalDialogContent({ open, onOpenChange, goal }: Props) {
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const input = { name: name.trim(), emoji: emoji.trim(), target_amount: target!, target_unit: unit, include_upcoming: includeUpcoming };
+    const input = { name: name.trim(), emoji: emoji.trim(), target_amount: target!, target_unit: unit, include_upcoming: includeUpcoming, reserve_funds: reserve };
     setSaving(true);
     const ok = await run(
       () => (goal ? updateGoal(goal.id, input) : createGoal(userId, input, vault.goals.length + 1)),
@@ -132,6 +133,21 @@ function GoalDialogContent({ open, onOpenChange, goal }: Props) {
             label="Count Upcoming Income"
             description="Include income you've logged but not received yet."
           />
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-surface-muted p-3">
+            <input
+              type="checkbox"
+              checked={reserve}
+              onChange={(e) => setReserve(e.target.checked)}
+              className="mt-0.5 size-5 shrink-0 cursor-pointer accent-brand-strong"
+            />
+            <span>
+              <span className="block text-sm font-medium text-ink">Reserve money for this goal</span>
+              <span className="block text-sm text-ink-soft">
+                Money counted here isn't counted again for other reserved goals. Reserved goals are filled in the order of your list.
+                Leave it off for milestones, like reaching a net worth.
+              </span>
+            </span>
+          </label>
         </div>
       </Dialog>
       {goal ? (

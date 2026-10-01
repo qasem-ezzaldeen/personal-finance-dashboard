@@ -22,14 +22,17 @@ function nf(key: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
   return f;
 }
 
+/** Money at or above this (either sign) is shown without decimals. */
+export const WHOLE_MONEY_FROM = 100_000;
+
 export function formatMoney(
   amount: number | null | undefined,
   currency: string,
   opts: { compact?: boolean; signed?: boolean; decimals?: number } = {},
 ): string {
   if (amount === null || amount === undefined || !Number.isFinite(amount)) return "—";
-  const decimals = opts.decimals ?? 2;
-  const key = `money|${currency}|${opts.compact ? "c" : ""}|${opts.signed ? "s" : ""}|${opts.decimals ?? "default"}`;
+  const decimals = !opts.compact && Math.abs(amount) >= WHOLE_MONEY_FROM ? 0 : (opts.decimals ?? 2);
+  const key = `money|${currency}|${opts.compact ? "c" : ""}|${opts.signed ? "s" : ""}|${opts.compact ? (opts.decimals ?? "default") : decimals}`;
   try {
     return nf(key, {
       style: "currency",

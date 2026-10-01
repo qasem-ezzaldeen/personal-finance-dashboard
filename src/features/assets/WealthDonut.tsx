@@ -1,6 +1,6 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useVault } from "@/features/vault/VaultProvider";
-import { resolvedColor, themeColor } from "@/lib/cn";
+import { cn, resolvedColor, themeColor } from "@/lib/cn";
 import { useMotionScale } from "@/lib/motion";
 import { useResolvedTheme } from "@/lib/theme";
 import { formatMoney, formatPercent } from "@/lib/format";
@@ -13,8 +13,11 @@ interface Slice {
   color: string;
 }
 
-/** Donut of net worth by group. Decorative for screen readers; the group list carries the same numbers. */
-export function WealthDonut({ size = 200 }: { size?: number }) {
+/**
+ * Donut of net worth by group. Decorative for screen readers; the group list carries the same numbers.
+ * It fills the width it's given (square), so it grows and shrinks with its section.
+ */
+export function WealthDonut({ className }: { className?: string }) {
   const { vault, summary } = useVault();
   const motion = useMotionScale();
   useResolvedTheme(); // colors read at render time must refresh when the theme changes
@@ -29,7 +32,7 @@ export function WealthDonut({ size = 200 }: { size?: number }) {
   const total = slices.reduce((s, x) => s + x.value, 0);
 
   return (
-    <div className="relative mx-auto" style={{ width: size, height: size }} aria-hidden="true">
+    <div className={cn("@container relative mx-auto aspect-square w-full", className)} aria-hidden="true">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -74,8 +77,8 @@ export function WealthDonut({ size = 200 }: { size?: number }) {
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
         <div>
-          <p className="text-xs text-ink-soft">Net worth</p>
-          <p className="text-base font-bold text-ink tabular">{formatMoney(summary.netWorth, base, { compact: true, decimals: 2 })}</p>
+          <p className="text-[clamp(0.75rem,5cqw,1.125rem)] text-ink-soft">Net worth</p>
+          <p className="text-[clamp(1rem,9cqw,2.25rem)] leading-tight font-bold text-ink tabular">{formatMoney(summary.netWorth, base, { compact: true, decimals: 2 })}</p>
         </div>
       </div>
     </div>

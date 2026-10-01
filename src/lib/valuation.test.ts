@@ -4,6 +4,7 @@ import {
   combineGrowth,
   convert,
   goalProgress,
+  goalsProgress,
   goldGramValue,
   gold24kPerGram,
   makeContext,
@@ -234,6 +235,7 @@ describe("goal progress", () => {
     target_amount: 400,
     target_unit: "USD",
     include_upcoming: true,
+    reserve_funds: false,
     sort_order: 1,
     is_system: false,
     ...partial,
@@ -254,5 +256,71 @@ describe("goal progress", () => {
     const p = goalProgress(goal({ target_unit: GOLD_UNIT, target_amount: 1, include_upcoming: false }), summary, ctx);
     expect(p.current).toBeCloseTo(1); // $100 = 1 g at $100/g
     expect(p.reached).toBe(true);
+  });
+});
+
+describe("reserved goals", () => {
+  // $1,000 in the bank, nothing upcoming
+  const bank = asset({ kind: "cash", currency: "USD", balance: 1000, name: "Bank" });
+  const summary = summarizeVault(vault({ assets: [bank] }), ctx, NOW);
+  const goal = (id: string, partial: Partial<Goal> = {}): Goal => ({
+    id,
+    user_id: "u1",
+    name: id,
+    emoji: "🎯",
+    target_amount: 1000,
+    target_unit: "USD",
+    include_upcoming: true,
+    reserve_funds: true,
+    sort_order: 1,
+    is_system: false,
+    ...partial,
+  });
+
+  it("fills reserved goals in order without counting the same money twice", () => {
+    const p = goalsProgress([goal("first"), goal("second")], summary, ctx);
+    expect(p.get("first")).toMatchObject({ reached: true, remaining: 0 });
+    expect(p.get("first")!.current).toBeCloseTo(1000);
+    expect(p.get("second")!.current).toBeCloseTo(0);
+    expect(p.get("second")!.progress).toBeCloseTo(0);
+  });
+
+  it("gives the next reserved goal whatever is left", () => {
+    const p = goalsProgress([goal("first", { target_amount: 600 }), goal("second")], summary, ctx);
+    expect(p.get("first")!.reached).toBe(true);
+    expect(p.get("second")!.current).toBeCloseTo(400);
+    expect(p.get("second")!.remaining).toBeCloseTo(600);
+  });
+
+  it("follows the list order", () => {
+    const p = goalsProgress([goal("second"), goal("first")], summary, ctx);
+    expect(p.get("second")!.reached).toBe(true);
+    expect(p.get("first")!.current).toBeCloseTo(0);
+  });
+
+  it("keeps milestones (unreserved goals) measured against all wealth", () => {
+    const p = goalsProgress([goal("reserved"), goal("milestone", { reserve_funds: false, target_amount: 2000 })], summary, ctx);
+    expect(p.get("reserved")!.reached).toBe(true);
+    expect(p.get("milestone")!.current).toBeCloseTo(1000);
+    expect(p.get("milestone")!.progress).toBeCloseTo(0.5);
+  });
+
+  it("converts between units: a 5 g gold goal takes $500 before a dollar goal", () => {
+    const p = goalsProgress([goal("gold", { target_unit: GOLD_UNIT, target_amount: 5 }), goal("usd")], summary, ctx);
+    expect(p.get("gold")!.current).toBeCloseTo(5);
+    expect(p.get("usd")!.current).toBeCloseTo(500);
+  });
+
+  it("only lets goals that include Upcoming Income use it, and spends it first", () => {
+    const pending = asset({ kind: "pending_income", currency: "USD", balance: 300, name: "Upcoming Income" });
+    const withPending = summarizeVault(vault({ assets: [bank, pending] }), ctx, NOW);
+    const p = goalsProgress(
+      [goal("withUpcoming", { target_amount: 500 }), goal("savingsOnly", { include_upcoming: false })],
+      withPending,
+      ctx,
+    );
+    // The first goal uses the $300 upcoming + $200 from the bank, leaving $800 in the bank
+    expect(p.get("withUpcoming")!.reached).toBe(true);
+    expect(p.get("savingsOnly")!.current).toBeCloseTo(800);
   });
 });

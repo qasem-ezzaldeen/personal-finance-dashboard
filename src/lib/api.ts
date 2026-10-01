@@ -171,10 +171,7 @@ export async function revertToTransaction(txId: string): Promise<number> {
 export type ProfileUpdate = Partial<
   Pick<
     Profile,
-    | "full_name"
     | "display_name"
-    | "phone"
-    | "country"
     | "timezone"
     | "avatar_color"
     | "vault_name"
@@ -185,6 +182,7 @@ export type ProfileUpdate = Partial<
     | "zakat_enabled"
     | "animation_speed"
     | "theme"
+    | "color_palette"
   >
 >;
 
@@ -267,7 +265,7 @@ export async function deletePurchase(purchaseId: string) {
 // Goals & Zakat
 // ---------------------------------------------------------------------------
 
-export type GoalInput = Pick<Goal, "name" | "emoji" | "target_amount" | "target_unit" | "include_upcoming">;
+export type GoalInput = Pick<Goal, "name" | "emoji" | "target_amount" | "target_unit" | "include_upcoming" | "reserve_funds">;
 
 export async function createGoal(userId: string, input: GoalInput, sortOrder: number) {
   unwrap(await supabase.from("goals").insert({ ...input, user_id: userId, sort_order: sortOrder }));

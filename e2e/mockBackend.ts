@@ -21,12 +21,12 @@ const price = (symbol: string, kind: string, value: number, previous: number, na
 
 export const FIXTURES: Record<string, unknown[]> = {
   profiles: [{
-    user_id: USER_ID, full_name: "Qasem", display_name: "qasem", phone: "", country: "Egypt", timezone: "Africa/Cairo",
+    user_id: USER_ID, display_name: "qasem", timezone: "Africa/Cairo",
     avatar_color: "lilac", vault_name: "Qasem's Vault", base_currency: "EGP", display_currencies: ["USD", "AUD"],
-    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
+    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
   }],
   pricing_settings: [{
-    user_id: USER_ID, gold_mode: "live", manual_gold_24k_price: null, manual_gold_currency: "EGP", gold_premium_pct: 2.5,
+    user_id: USER_ID, gold_mode: "live", manual_gold_24k_price: null, manual_gold_currency: "EGP", gold_premium_pct: 0,
     gold_21k_adjustment: -30, gold_24k_adjustment: 30, gold_adjustment_currency: "EGP",
   }],
   asset_groups: [
@@ -55,10 +55,9 @@ export const FIXTURES: Record<string, unknown[]> = {
     purchase("p6", "aapl", 3, 690, "USD", 90),
   ],
   goals: [
-    { id: "zakat", user_id: USER_ID, name: "Zakat threshold", emoji: "🕌", target_amount: 85, target_unit: "GOLD_24K_G", include_upcoming: false, sort_order: 0, is_system: true },
-    { id: "g1", user_id: USER_ID, name: "Emergency fund", emoji: "💰", target_amount: 10000, target_unit: "USD", include_upcoming: true, sort_order: 1, is_system: false },
-    { id: "g2", user_id: USER_ID, name: "Move to Australia", emoji: "🇦🇺", target_amount: 40000, target_unit: "AUD", include_upcoming: true, sort_order: 2, is_system: false },
-    { id: "g3", user_id: USER_ID, name: "Gold savings", emoji: "🪙", target_amount: 200, target_unit: "GOLD_24K_G", include_upcoming: false, sort_order: 3, is_system: false },
+    { id: "g1", user_id: USER_ID, name: "Emergency fund", emoji: "💰", target_amount: 10000, target_unit: "USD", include_upcoming: true, reserve_funds: true, sort_order: 1, is_system: false },
+    { id: "g2", user_id: USER_ID, name: "Move to Australia", emoji: "🇦🇺", target_amount: 40000, target_unit: "AUD", include_upcoming: true, reserve_funds: false, sort_order: 2, is_system: false },
+    { id: "g3", user_id: USER_ID, name: "Gold savings", emoji: "🪙", target_amount: 200, target_unit: "GOLD_24K_G", include_upcoming: false, reserve_funds: false, sort_order: 3, is_system: false },
   ],
   zakat_hawl: [{ user_id: USER_ID, hawl_start_date: day(211), last_checked_on: day(0), start_wealth: 450000, start_wealth_currency: "EGP", is_first_hawl: false }],
   zakat_payments: [],

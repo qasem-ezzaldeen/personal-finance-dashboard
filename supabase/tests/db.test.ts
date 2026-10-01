@@ -33,7 +33,7 @@ async function createCash(user: string, name: string, currency = "USD"): Promise
 }
 
 describe("vault setup", () => {
-  it("creates the profile, groups, Upcoming Income, Zakat goal and Hawl row once", async () => {
+  it("creates the profile, groups, Upcoming Income and Hawl row once (Zakat isn't a goal)", async () => {
     await asUser(db, ALICE, () => db.query("select public.bootstrap_vault()"));
     expect(await rows(db, "select kind from public.asset_groups where user_id = $1 order by sort_order", [ALICE])).toEqual([
       { kind: "cash" },
@@ -42,11 +42,13 @@ describe("vault setup", () => {
       { kind: "other" },
     ]);
     expect(await rows(db, "select name from public.assets where user_id = $1", [ALICE])).toEqual([{ name: "Upcoming Income" }]);
-    expect(await rows(db, "select name, is_system from public.goals where user_id = $1", [ALICE])).toEqual([
-      { name: "Zakat threshold", is_system: true },
-    ]);
+    expect(await rows(db, "select name from public.goals where user_id = $1", [ALICE])).toEqual([]);
+    expect(await rows(db, "select user_id from public.zakat_hawl where user_id = $1", [ALICE])).toHaveLength(1);
     const profile = await one(db, "select display_name, base_currency from public.profiles where user_id = $1", [ALICE]);
     expect(profile).toEqual({ display_name: "alice", base_currency: "EGP" });
+    expect(await one(db, "select gold_premium_pct::float from public.pricing_settings where user_id = $1", [ALICE])).toEqual({
+      gold_premium_pct: 0,
+    });
   });
 });
 
@@ -83,11 +85,22 @@ describe("security", () => {
     expect(await balance(alicePending)).toBe(100);
   });
 
-  it("protects Upcoming Income and the Zakat goal from deletion", async () => {
+  it("protects Upcoming Income from deletion", async () => {
     const pending = await pendingId();
-    await asUser(db, ALICE, () => db.query("delete from public.assets where id = $1", [pending])).catch(() => undefined);
+    await expect(asUser(db, ALICE, () => db.query("delete from public.assets where id = $1", [pending]))).rejects.toThrow(/Upcoming Income/);
     expect(await balance(pending)).toBe(0);
-    await expect(asUser(db, ALICE, () => db.query("delete from public.goals where is_system"))).rejects.toThrow(/Zakat goal/);
+  });
+
+  it("lets users reserve money for a goal", async () => {
+    const goal = await asUser(db, ALICE, async () =>
+      (await one<{ id: string }>(
+        db,
+        "insert into public.goals (user_id, name, target_amount, target_unit, reserve_funds) values ($1, 'House', 1000000, 'EGP', true) returning id",
+        [ALICE],
+      )).id,
+    );
+    await asUser(db, ALICE, () => db.query("update public.goals set reserve_funds = false where id = $1", [goal]));
+    expect(await one(db, "select reserve_funds from public.goals where id = $1", [goal])).toEqual({ reserve_funds: false });
   });
 
   it("rejects unknown time zones", async () => {

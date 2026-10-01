@@ -37,10 +37,7 @@ export const PRICING: PricingSettings = {
 
 export const PROFILE: Profile = {
   user_id: "u1",
-  full_name: "",
   display_name: "tester",
-  phone: "",
-  country: "",
   timezone: "Africa/Cairo",
   avatar_color: "lilac",
   vault_name: "My Vault",
@@ -51,6 +48,7 @@ export const PROFILE: Profile = {
   zakat_enabled: true,
   animation_speed: "normal",
   theme: "light",
+  color_palette: "pastel",
   imported_at: null,
   created_at: NOW,
   updated_at: NOW,

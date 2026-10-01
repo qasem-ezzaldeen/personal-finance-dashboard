@@ -96,7 +96,7 @@ export function RatesStrip() {
   const has24 = isEmpty || holdings.some((a) => a.kind === "gold" && a.karat === 24);
   const has21 = holdings.some((a) => a.kind === "gold" && a.karat === 21);
   const p24 = gold24kPerGram(ctx, base);
-  const openPricing = () => navigate("/profile?tab=market");
+  const openPricing = () => navigate("/settings?tab=market");
   if (has24) {
     pills.push({
       key: "gold24",

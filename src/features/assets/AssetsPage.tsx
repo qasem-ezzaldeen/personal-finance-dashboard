@@ -25,12 +25,12 @@ export function AssetsPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <AssetGroups variant="full" />
 
         <Card className="h-fit lg:sticky lg:top-24">
           <CardBody className="flex flex-col gap-4 pt-5">
-            <LazyWealthDonut size={220} />
+            <LazyWealthDonut />
             <dl className="flex flex-col gap-2 text-sm">
               {summary.groups
                 .filter((g) => g.value > 0)

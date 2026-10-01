@@ -216,7 +216,7 @@ export function mapPreviousVault(data: PreviousVault, today: string): ImportPayl
       gold_mode: data.isManualGold && manualGold && manualGold > 0 ? "manual" : "live",
       manual_gold_24k_price: manualGold && manualGold > 0 ? manualGold : null,
       manual_gold_currency: "EGP",
-      gold_premium_pct: num(data.goldPremium) ?? 2.5,
+      gold_premium_pct: num(data.goldPremium) ?? 0,
     },
     pending_balance: Math.max(0, num(data.upcomingIncome) ?? 0),
     assets,

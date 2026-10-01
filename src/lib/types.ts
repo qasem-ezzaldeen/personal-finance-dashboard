@@ -5,14 +5,13 @@ export type AssetKind = GroupKind | "pending_income";
 
 export type ThemeChoice = "light" | "dark" | "system";
 
+export type ColorPalette = "pastel" | "minimal" | "sea" | "autumn" | "nature" | "vivid";
+
 export type AnimationSpeed = "system" | "off" | "slow" | "normal" | "fast";
 
 export interface Profile {
   user_id: string;
-  full_name: string;
   display_name: string;
-  phone: string;
-  country: string;
   timezone: string;
   avatar_color: string;
   vault_name: string;
@@ -23,6 +22,7 @@ export interface Profile {
   zakat_enabled: boolean;
   animation_speed: AnimationSpeed;
   theme: ThemeChoice;
+  color_palette: ColorPalette;
   imported_at: string | null;
   created_at: string;
   updated_at: string;
@@ -126,6 +126,8 @@ export interface Goal {
   target_amount: number;
   target_unit: GoalUnit;
   include_upcoming: boolean;
+  /** Money counted toward this goal isn't counted toward goals below it (list order decides who's first) */
+  reserve_funds: boolean;
   sort_order: number;
   is_system: boolean;
 }

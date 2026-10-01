@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { FullScreenMessage } from "@/components/layout/FullScreenMessage";
 import { ActionsProvider } from "@/features/actions/ActionsProvider";
@@ -12,6 +12,7 @@ const AssetsPage = lazy(() => import("@/features/assets/AssetsPage").then((m) =>
 const ActivityPage = lazy(() => import("@/features/activity/ActivityPage").then((m) => ({ default: m.ActivityPage })));
 const GoalsPage = lazy(() => import("@/features/goals/GoalsPage").then((m) => ({ default: m.GoalsPage })));
 const ProfilePage = lazy(() => import("@/features/profile/ProfilePage").then((m) => ({ default: m.ProfilePage })));
+const SettingsPage = lazy(() => import("@/features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })));
 const authPages = () => import("@/features/auth/AuthPages");
 const SignInPage = lazy(() => authPages().then((m) => ({ default: m.SignInPage })));
 const RegisterPage = lazy(() => authPages().then((m) => ({ default: m.RegisterPage })));
@@ -46,6 +47,20 @@ function PublicOnly() {
 
 function PageFallback() {
   return <div className="h-40" aria-busy="true" />;
+}
+
+// Settings used to share a page with the profile; old links like /profile?tab=market still land in the right place
+const MOVED_TO_SETTINGS = ["vault", "appearance", "accounts", "automations", "market", "zakat", "data"];
+
+function ProfileRoute() {
+  const [params] = useSearchParams();
+  const tab = params.get("tab");
+  if (tab && MOVED_TO_SETTINGS.includes(tab)) return <Navigate to={`/settings?tab=${tab}`} replace />;
+  return (
+    <Suspense fallback={<PageFallback />}>
+      <ProfilePage />
+    </Suspense>
+  );
 }
 
 export function App() {
@@ -91,11 +106,12 @@ export function App() {
               </Suspense>
             }
           />
+          <Route path="profile" element={<ProfileRoute />} />
           <Route
-            path="profile"
+            path="settings"
             element={
               <Suspense fallback={<PageFallback />}>
-                <ProfilePage />
+                <SettingsPage />
               </Suspense>
             }
           />
