@@ -4,7 +4,8 @@
  * ============================================================================
  *
  *  Change any value below and the whole site updates. Nothing else in the code
- *  uses a raw color value.
+ *  uses a raw color value. The values right below are the default "Pastel"
+ *  palette; the other palettes (Settings › Appearance) are at the end.
  *
  *  How it works: each `--color-NAME` becomes a Tailwind class (bg-NAME,
  *  text-NAME, border-NAME, ...) and a CSS variable var(--color-NAME).
@@ -88,7 +89,7 @@
 
 /*
  * ---- Dark mode ----------------------------------------------------------------
- * The same names with darker values, used when Profile › Appearance is set to Dark
+ * The same names with darker values, used when Settings › Appearance is set to Dark
  * (or to Match device on a device in dark mode). Swatches stay the same: their
  * mid-tone pastels read well on both backgrounds. Contrast is checked by
  * colors.test.ts just like the light palette.
@@ -142,4 +143,377 @@
   /* Shadows are darker and softer on a dark page */
   --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.25), 0 4px 16px rgb(0 0 0 / 0.2);
   --shadow-lifted: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px rgb(0 0 0 / 0.45);
+}
+
+/*
+ * ---- Color palettes ---------------------------------------------------------
+ * Chosen in Settings › Appearance and applied on top of light/dark:
+ * <html data-palette="sea"> (Pastel, the defaults above, needs no attribute).
+ * A palette changes surfaces, the brand color, the asset-group colors and the
+ * swatches; text and meaning colors (gain is green, loss is red) stay the same.
+ * The same blocks color the previews in Appearance ([data-palette-preview]).
+ * Each palette needs a light and a dark block; colors.test.ts checks them all.
+ */
+
+/* Pastel (default) */
+[data-palette-preview="pastel"] {
+  --color-swatch-sky: #8ec5f2;
+  --color-swatch-butter: #f5cf5f;
+  --color-swatch-lavender: #b9a6f5;
+  --color-swatch-peach: #ffb38a;
+  --color-swatch-mint: #7fd4a8;
+  --color-swatch-rose: #f49aab;
+  --color-swatch-lilac: #cdb8f7;
+  --color-swatch-teal: #7cd1cc;
+  --color-swatch-coral: #f7a08c;
+  --color-swatch-sage: #a9c79b;
+  --color-swatch-sand: #d9bf93;
+  --color-swatch-slate: #aeb4c4;
+}
+:root:not([data-theme="dark"]) [data-palette-preview="pastel"] {
+  --color-canvas: #fbf8f4;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f2ec;
+  --color-surface-sunken: #efe9e1;
+  --color-line: #ebe4da;
+  --color-line-strong: #d9d0c3;
+  --color-brand: #cdeeee;
+  --color-brand-ink: #0e6468;
+  --color-brand-strong: #197478;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #4fbcb8;
+  --color-cash: #d8eafb;
+  --color-cash-ink: #1d5a92;
+  --color-gold: #fdefc3;
+  --color-gold-ink: #7a5600;
+  --color-stocks: #ede6fd;
+  --color-stocks-ink: #4f3db0;
+  --color-other: #ffe3d1;
+  --color-other-ink: #8f4516;
+}
+:root[data-theme="dark"] [data-palette-preview="pastel"] {
+  --color-canvas: #15161d;
+  --color-surface: #1e1f28;
+  --color-surface-muted: #262733;
+  --color-surface-sunken: #30313e;
+  --color-line: #2e2f3b;
+  --color-line-strong: #434556;
+  --color-brand: #15393b;
+  --color-brand-ink: #8fe0dc;
+  --color-brand-strong: #197478;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #6fd3cd;
+  --color-cash: #1b3047;
+  --color-cash-ink: #a9d2f8;
+  --color-gold: #3a3118;
+  --color-gold-ink: #f3d67c;
+  --color-stocks: #2c2650;
+  --color-stocks-ink: #cdc2ff;
+  --color-other: #432f1e;
+  --color-other-ink: #ffc49b;
+}
+
+/* Minimalist: quiet grays and graphite */
+:root[data-palette="minimal"],
+[data-palette-preview="minimal"] {
+  --color-swatch-sky: #9fb4c7;
+  --color-swatch-butter: #d6c69a;
+  --color-swatch-lavender: #b3aec9;
+  --color-swatch-peach: #d4b4a2;
+  --color-swatch-mint: #a7c2b3;
+  --color-swatch-rose: #cfa7ae;
+  --color-swatch-lilac: #c1b6d1;
+  --color-swatch-teal: #9cc0bd;
+  --color-swatch-coral: #d1a596;
+  --color-swatch-sage: #b5c0a6;
+  --color-swatch-sand: #cbbfa8;
+  --color-swatch-slate: #a9adb3;
+}
+:root:not([data-theme="dark"])[data-palette="minimal"],
+:root:not([data-theme="dark"]) [data-palette-preview="minimal"] {
+  --color-canvas: #f7f7f6;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f1f0;
+  --color-surface-sunken: #e7e7e5;
+  --color-line: #e6e6e4;
+  --color-line-strong: #d2d2cf;
+  --color-brand: #ececeb;
+  --color-brand-ink: #1f1f1f;
+  --color-brand-strong: #262626;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #6b6b6b;
+  --color-cash: #e9eef3;
+  --color-cash-ink: #2f4a63;
+  --color-gold: #f1ede4;
+  --color-gold-ink: #5e4b22;
+  --color-stocks: #ecebf1;
+  --color-stocks-ink: #3e3a5c;
+  --color-other: #f2ebe7;
+  --color-other-ink: #6a3f2b;
+}
+:root[data-theme="dark"][data-palette="minimal"],
+:root[data-theme="dark"] [data-palette-preview="minimal"] {
+  --color-canvas: #121212;
+  --color-surface: #1b1b1b;
+  --color-surface-muted: #242424;
+  --color-surface-sunken: #2e2e2e;
+  --color-line: #2a2a2a;
+  --color-line-strong: #3d3d3d;
+  --color-brand: #2a2a2a;
+  --color-brand-ink: #f0f0f0;
+  --color-brand-strong: #e8e8e8;
+  --color-on-brand-strong: #111111;
+  --color-focus: #bdbdbd;
+  --color-cash: #1e2730;
+  --color-cash-ink: #b8cde0;
+  --color-gold: #2a261d;
+  --color-gold-ink: #e2d3a8;
+  --color-stocks: #25242d;
+  --color-stocks-ink: #cdc8e6;
+  --color-other: #2c231f;
+  --color-other-ink: #e5c3b2;
+}
+
+/* Sea & Beach: sand, sea foam and coral */
+:root[data-palette="sea"],
+[data-palette-preview="sea"] {
+  --color-swatch-sky: #6fb8e0;
+  --color-swatch-butter: #f2d27a;
+  --color-swatch-lavender: #8fb3e8;
+  --color-swatch-peach: #f6b48f;
+  --color-swatch-mint: #6fd1c0;
+  --color-swatch-rose: #f39a9a;
+  --color-swatch-lilac: #a9c4f0;
+  --color-swatch-teal: #3fb5b0;
+  --color-swatch-coral: #f08a6f;
+  --color-swatch-sage: #9cc9a8;
+  --color-swatch-sand: #e2c99a;
+  --color-swatch-slate: #9fb3c1;
+}
+:root:not([data-theme="dark"])[data-palette="sea"],
+:root:not([data-theme="dark"]) [data-palette-preview="sea"] {
+  --color-canvas: #f6f3ec;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0ece2;
+  --color-surface-sunken: #e6e0d2;
+  --color-line: #e8e2d5;
+  --color-line-strong: #d6cdb9;
+  --color-brand: #cfeaf3;
+  --color-brand-ink: #0b5570;
+  --color-brand-strong: #0e6b8c;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #3fa7c9;
+  --color-cash: #d6ecf7;
+  --color-cash-ink: #155a80;
+  --color-gold: #f6e9c6;
+  --color-gold-ink: #735310;
+  --color-stocks: #d5f0ec;
+  --color-stocks-ink: #155e57;
+  --color-other: #fde0d6;
+  --color-other-ink: #8c3a22;
+}
+:root[data-theme="dark"][data-palette="sea"],
+:root[data-theme="dark"] [data-palette-preview="sea"] {
+  --color-canvas: #0f1a20;
+  --color-surface: #15232b;
+  --color-surface-muted: #1c2e38;
+  --color-surface-sunken: #243845;
+  --color-line: #20333d;
+  --color-line-strong: #34505e;
+  --color-brand: #12394a;
+  --color-brand-ink: #8fd6ef;
+  --color-brand-strong: #0e6b8c;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #5cc3e3;
+  --color-cash: #163447;
+  --color-cash-ink: #a6d8f3;
+  --color-gold: #39301a;
+  --color-gold-ink: #f0d48a;
+  --color-stocks: #12382f;
+  --color-stocks-ink: #93e0cf;
+  --color-other: #42241c;
+  --color-other-ink: #ffb9a3;
+}
+
+/* Autumn: pumpkin, mustard, brick and olive */
+:root[data-palette="autumn"],
+[data-palette-preview="autumn"] {
+  --color-swatch-sky: #8fa7a0;
+  --color-swatch-butter: #e5b844;
+  --color-swatch-lavender: #a9849a;
+  --color-swatch-peach: #e8a06a;
+  --color-swatch-mint: #a3ad6b;
+  --color-swatch-rose: #c8695f;
+  --color-swatch-lilac: #b9929b;
+  --color-swatch-teal: #6f9a8d;
+  --color-swatch-coral: #d9774a;
+  --color-swatch-sage: #9aa57a;
+  --color-swatch-sand: #d2b48c;
+  --color-swatch-slate: #a39a8f;
+}
+:root:not([data-theme="dark"])[data-palette="autumn"],
+:root:not([data-theme="dark"]) [data-palette-preview="autumn"] {
+  --color-canvas: #faf5ee;
+  --color-surface: #fffdf9;
+  --color-surface-muted: #f5ede2;
+  --color-surface-sunken: #ebdfd0;
+  --color-line: #eadfcf;
+  --color-line-strong: #d9c8b2;
+  --color-brand: #f6dcc8;
+  --color-brand-ink: #8a3a12;
+  --color-brand-strong: #a2471a;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #d0773f;
+  --color-cash: #e8ead2;
+  --color-cash-ink: #4d5a1c;
+  --color-gold: #f8e6b8;
+  --color-gold-ink: #6e4f05;
+  --color-stocks: #f1d9d6;
+  --color-stocks-ink: #7c2a2a;
+  --color-other: #f6dcc8;
+  --color-other-ink: #8a3a12;
+}
+:root[data-theme="dark"][data-palette="autumn"],
+:root[data-theme="dark"] [data-palette-preview="autumn"] {
+  --color-canvas: #1a1410;
+  --color-surface: #231b16;
+  --color-surface-muted: #2d231c;
+  --color-surface-sunken: #382c23;
+  --color-line: #33281f;
+  --color-line-strong: #4b3b2e;
+  --color-brand: #45261a;
+  --color-brand-ink: #f5b48a;
+  --color-brand-strong: #a2471a;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #e08a52;
+  --color-cash: #2f331b;
+  --color-cash-ink: #d2dc9a;
+  --color-gold: #3d3014;
+  --color-gold-ink: #f2cf73;
+  --color-stocks: #3d1f1f;
+  --color-stocks-ink: #f0aaaa;
+  --color-other: #45261a;
+  --color-other-ink: #f5b48a;
+}
+
+/* Nature & Greenery: leaf, moss, water and wood */
+:root[data-palette="nature"],
+[data-palette-preview="nature"] {
+  --color-swatch-sky: #8ec1d6;
+  --color-swatch-butter: #e2cf6b;
+  --color-swatch-lavender: #a7b5d9;
+  --color-swatch-peach: #d9b38a;
+  --color-swatch-mint: #8fcf9a;
+  --color-swatch-rose: #d99a9a;
+  --color-swatch-lilac: #b8b0d6;
+  --color-swatch-teal: #6fb5a3;
+  --color-swatch-coral: #d79a6f;
+  --color-swatch-sage: #a3bf8a;
+  --color-swatch-sand: #cdbb8f;
+  --color-swatch-slate: #9aa8a0;
+}
+:root:not([data-theme="dark"])[data-palette="nature"],
+:root:not([data-theme="dark"]) [data-palette-preview="nature"] {
+  --color-canvas: #f4f7f1;
+  --color-surface: #ffffff;
+  --color-surface-muted: #edf2e8;
+  --color-surface-sunken: #e1e9da;
+  --color-line: #e1e8da;
+  --color-line-strong: #cbd7c0;
+  --color-brand: #d5ecd3;
+  --color-brand-ink: #1f5a2c;
+  --color-brand-strong: #2d6a3a;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #5aa86a;
+  --color-cash: #dbeaf2;
+  --color-cash-ink: #22566e;
+  --color-gold: #f3ebc4;
+  --color-gold-ink: #66530a;
+  --color-stocks: #dcebd5;
+  --color-stocks-ink: #2e5c22;
+  --color-other: #ece0d0;
+  --color-other-ink: #6b4a2a;
+}
+:root[data-theme="dark"][data-palette="nature"],
+:root[data-theme="dark"] [data-palette-preview="nature"] {
+  --color-canvas: #111813;
+  --color-surface: #18211a;
+  --color-surface-muted: #202b22;
+  --color-surface-sunken: #2a372c;
+  --color-line: #253027;
+  --color-line-strong: #3a4a3c;
+  --color-brand: #1d3b24;
+  --color-brand-ink: #9fdcaa;
+  --color-brand-strong: #2d6a3a;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #6cc27e;
+  --color-cash: #183140;
+  --color-cash-ink: #a3d3ea;
+  --color-gold: #34301a;
+  --color-gold-ink: #e6d58a;
+  --color-stocks: #1f3519;
+  --color-stocks-ink: #b3dca1;
+  --color-other: #352a1e;
+  --color-other-ink: #e2c3a0;
+}
+
+/* Vivid: bright, saturated and bold */
+:root[data-palette="vivid"],
+[data-palette-preview="vivid"] {
+  --color-swatch-sky: #2f9bff;
+  --color-swatch-butter: #ffc61a;
+  --color-swatch-lavender: #8b5cff;
+  --color-swatch-peach: #ff8a3d;
+  --color-swatch-mint: #19c98a;
+  --color-swatch-rose: #ff4f7b;
+  --color-swatch-lilac: #c25cff;
+  --color-swatch-teal: #00b8c4;
+  --color-swatch-coral: #ff5c3d;
+  --color-swatch-sage: #7fc23a;
+  --color-swatch-sand: #e0a84a;
+  --color-swatch-slate: #7a86a8;
+}
+:root:not([data-theme="dark"])[data-palette="vivid"],
+:root:not([data-theme="dark"]) [data-palette-preview="vivid"] {
+  --color-canvas: #f7f8fc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eff1f8;
+  --color-surface-sunken: #e3e7f2;
+  --color-line: #e3e6f0;
+  --color-line-strong: #cdd2e3;
+  --color-brand: #e3e1ff;
+  --color-brand-ink: #3b2bc4;
+  --color-brand-strong: #4f3cf0;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #7b6bff;
+  --color-cash: #dceeff;
+  --color-cash-ink: #0b5cb8;
+  --color-gold: #fff0bf;
+  --color-gold-ink: #7a5600;
+  --color-stocks: #efe0ff;
+  --color-stocks-ink: #6a1fc0;
+  --color-other: #ffe0d1;
+  --color-other-ink: #a53d0a;
+}
+:root[data-theme="dark"][data-palette="vivid"],
+:root[data-theme="dark"] [data-palette-preview="vivid"] {
+  --color-canvas: #0e0f1a;
+  --color-surface: #161827;
+  --color-surface-muted: #1e2135;
+  --color-surface-sunken: #272b43;
+  --color-line: #23263b;
+  --color-line-strong: #383d5a;
+  --color-brand: #2a2470;
+  --color-brand-ink: #c3bcff;
+  --color-brand-strong: #5a48f5;
+  --color-on-brand-strong: #ffffff;
+  --color-focus: #9a8dff;
+  --color-cash: #10335c;
+  --color-cash-ink: #9ccbff;
+  --color-gold: #3d3210;
+  --color-gold-ink: #ffd75a;
+  --color-stocks: #33175e;
+  --color-stocks-ink: #d9b3ff;
+  --color-other: #4a2210;
+  --color-other-ink: #ffb38a;
 }

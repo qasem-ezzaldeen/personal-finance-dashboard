@@ -6,7 +6,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { bootstrapVault, estimatePurchaseCosts, fetchMarketPrices, fetchVault, runScheduledTasks } from "@/lib/api";
 import { purchasesToEstimate } from "@/lib/estimates";
 import { applyMotion } from "@/lib/motion";
-import { applyTheme } from "@/lib/theme";
+import { applyPalette, applyTheme } from "@/lib/theme";
 import { setFormatLocale } from "@/lib/format";
 import { supabase } from "@/lib/supabase";
 import type { VaultData } from "@/lib/types";
@@ -156,6 +156,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (theme) applyTheme(theme);
   }, [theme]);
+  const palette = vault?.profile.color_palette;
+  useEffect(() => {
+    if (palette) applyPalette(palette);
+  }, [palette]);
   // Idempotent; must run before anything below formats numbers
   if (vault) setFormatLocale(vault.profile.number_locale);
 

@@ -2,7 +2,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useVault } from "@/features/vault/VaultProvider";
 import { cn, resolvedColor, themeColor } from "@/lib/cn";
 import { useMotionScale } from "@/lib/motion";
-import { useResolvedTheme } from "@/lib/theme";
+import { usePalette, useResolvedTheme } from "@/lib/theme";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { expandItem } from "./useCollapsed";
 
@@ -20,7 +20,9 @@ interface Slice {
 export function WealthDonut({ className }: { className?: string }) {
   const { vault, summary } = useVault();
   const motion = useMotionScale();
-  useResolvedTheme(); // colors read at render time must refresh when the theme changes
+  // Colors read at render time must refresh when the theme or palette changes
+  useResolvedTheme();
+  usePalette();
   const base = vault.profile.base_currency;
 
   const slices: Slice[] = summary.groups

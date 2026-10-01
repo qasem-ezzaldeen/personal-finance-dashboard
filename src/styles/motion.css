@@ -1,6 +1,6 @@
 /*
  * Motion: every animation and transition in the app scales with --motion-scale,
- * set from Profile › Appearance (data-motion on <html>):
+ * set from Settings › Appearance (data-motion on <html>):
  *   off 0 · fast 0.55 · normal 1 · slow 1.6 · system = normal, or off if the device asks for reduced motion
  */
 

@@ -7,7 +7,7 @@ export function ColorPicker({ value, onChange, label = "Color" }: { value: strin
     <fieldset>
       <legend className="mb-1.5 text-sm font-medium text-ink">{label}</legend>
       <div className="flex flex-wrap items-center gap-2">
-        {SWATCHES.map((swatch) => (
+        {SWATCHES.map((swatch, i) => (
           <button
             key={swatch}
             type="button"
@@ -17,7 +17,8 @@ export function ColorPicker({ value, onChange, label = "Color" }: { value: strin
               value === swatch ? "ring-2 ring-ink" : "hover:scale-105",
             )}
             style={{ background: colorValue(swatch) }}
-            aria-label={swatch}
+            // Swatch names are stored ids; what they look like depends on the color palette
+            aria-label={`Color ${i + 1}`}
             aria-pressed={value === swatch}
           >
             {value === swatch ? <Check className="size-4 text-ink" aria-hidden="true" /> : null}
