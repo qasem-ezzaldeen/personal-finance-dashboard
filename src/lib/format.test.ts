@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAmount, formatMoney, formatUnitTotal } from "./format";
+import { formatMoney, formatUnitTotal } from "./format";
 
 describe("formatMoney", () => {
   it("shows two decimals below 100,000", () => {
@@ -23,15 +23,5 @@ describe("formatUnitTotal", () => {
     expect(formatUnitTotal({ unit: "gold", karat: 21, grams: 20 })).toBe("21k 20 g");
     expect(formatUnitTotal({ unit: "gold", karat: 24, grams: 45.5 })).toBe("24k 45.5 g");
     expect(formatUnitTotal({ unit: "money", currency: "USD", amount: 342 })).toBe("$342.00");
-  });
-});
-
-describe("formatAmount", () => {
-  it("shows grams of gold, with a sign only when it isn't zero", () => {
-    expect(formatAmount(1.256, "GOLD_24K_G", { signed: true })).toBe("+1.26 g");
-    expect(formatAmount(-0.5, "GOLD_24K_G", { signed: true })).toBe("-0.5 g");
-    expect(formatAmount(0.001, "GOLD_24K_G", { signed: true })).toBe("0 g");
-    expect(formatAmount(-0.001, "GOLD_24K_G", { signed: true })).toBe("0 g");
-    expect(formatAmount(342, "USD")).toBe("$342.00");
   });
 });

@@ -96,7 +96,7 @@ On large screens you can drag the divider between the two columns to make one wi
 
 Insights shows how your net worth changed and why. Pick a period at the top: **Month** (since the 1st), **1W**, **1M**, **3M**, **YTD** (since 1 January), **1Y** or **All**.
 
-**Measure in** shows every amount on the page in your base currency, one of your other display currencies, or **Gold** (grams of 24k gold). Measuring in another unit shows whether you're getting richer in that unit: in USD, money held in EGP loses value when the pound weakens; in gold, everything that isn't gold is worth fewer grams when gold rises (shown as **Gold's own price**). Income is always shown in your income currency.
+**Measure in** shows every amount on the page in your base currency or in **USD** (it's hidden when your base currency is USD). Measuring in USD shows whether you're getting richer in dollars: money held in EGP loses value when the pound weakens, and that shows up under **Exchange rates**. Income is always shown in your income currency.
 
 - **Net worth change, Income, Investment gain and Exchange rates:** the totals for the period.
 - **Net worth over time:** a line of your net worth for every day of the period. Green dots mark days you logged income. **By group** stacks Cash, Gold, Stocks & ETFs, Other and Upcoming Income instead.

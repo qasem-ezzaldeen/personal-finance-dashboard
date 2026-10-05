@@ -653,17 +653,20 @@ test("Insights can switch periods and show net worth by group", async ({ page })
   await snap(page, "insights-ytd");
 });
 
-test("Insights can measure everything in another currency or in grams of gold", async ({ page }) => {
+test("Insights can be measured in the base currency or USD", async ({ page }) => {
   await mockBackend(page);
   await page.goto("insights?period=3m");
   const measure = page.getByRole("tablist", { name: "Measure in" });
+  // EGP and USD only, even though AUD is also a display currency
+  await expect(measure.getByRole("tab")).toHaveText(["EGP", "USD"]);
+  await expect(page.getByText("In EGP", { exact: true })).toBeVisible();
   await measure.getByRole("tab", { name: "USD" }).click();
   await expect(page).toHaveURL(/in=USD/);
   await expect(page.getByText("In USD", { exact: true })).toBeVisible();
-  await measure.getByRole("tab", { name: "Gold" }).click();
-  await expect(page.getByText("In grams of 24k gold")).toBeVisible();
-  await expect(page.getByText("Gold's own price").first()).toBeVisible();
-  await expect(page.getByRole("list", { name: "What changed" })).toContainText(/ g$/m);
+  await expect(page.getByRole("list", { name: "What changed" })).toContainText("$");
+  // An old link to gold falls back to the base currency
+  await page.goto("insights?period=3m&in=GOLD_24K_G");
+  await expect(page.getByText("In EGP", { exact: true })).toBeVisible();
   await expectNoHorizontalScroll(page);
 });
 

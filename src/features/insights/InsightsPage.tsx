@@ -1,11 +1,11 @@
-import { ChartCandlestick, ChartLine, Coins, Flag, HandCoins, Layers, Table2, TrendingUp } from "lucide-react";
+import { ChartCandlestick, ChartLine, Flag, HandCoins, Layers, Table2, TrendingUp } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { KpiIcon, Notice, PercentPill, Segmented, Skeleton } from "@/components/ui/misc";
 import { useVault } from "@/features/vault/VaultProvider";
 import { cn, signTone } from "@/lib/cn";
-import { addDays, formatAmount, formatDate, formatMoney, unitName } from "@/lib/format";
+import { addDays, formatDate, formatMoney } from "@/lib/format";
 import {
   PERIODS,
   assetPerformance,
@@ -19,7 +19,7 @@ import {
   summarizePeriod,
   type PeriodSummary,
 } from "@/lib/history";
-import { GOLD_UNIT, type PeriodKey } from "@/lib/types";
+import type { PeriodKey } from "@/lib/types";
 import { AssetTable } from "./AssetTable";
 import { ChangeBreakdown } from "./ChangeBreakdown";
 import { GoalForecast } from "./GoalForecast";
@@ -41,7 +41,7 @@ function Tile({ label, icon, children }: { label: string; icon: ReactNode; child
 }
 
 function Signed({ amount, unit }: { amount: number; unit: string }) {
-  return <p className={cn("text-xl font-semibold tabular", signTone(amount))}>{formatAmount(amount, unit, { signed: true })}</p>;
+  return <p className={cn("text-xl font-semibold tabular", signTone(amount))}>{formatMoney(amount, unit, { signed: true })}</p>;
 }
 
 function Tiles({
@@ -60,8 +60,7 @@ function Tiles({
   const income = incomeBetween(vault, state.ledger, book, period.baseline, period.end);
   const incomeCurrency = vault.profile.income_currency;
   const when = periodLabel(periodKey).toLowerCase();
-  const short = (x: number) => formatAmount(x, unit, { compact: true, decimals: 1 });
-  const inGold = unit === GOLD_UNIT;
+  const short = (x: number) => formatMoney(x, unit, { compact: true, decimals: 1 });
 
   return (
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:gap-4 xl:grid-cols-4">
@@ -88,17 +87,10 @@ function Tiles({
         </div>
         <p className="mt-1 text-sm text-ink-soft">Gold and stock prices</p>
       </Tile>
-      {inGold ? (
-        <Tile label="Gold's own price" icon={<KpiIcon tone="bg-gold text-gold-ink"><Coins className="size-4" /></KpiIcon>}>
-          <Signed amount={period.parts.measure} unit={unit} />
-          <p className="mt-1 text-sm text-ink-soft">Everything that isn't gold, against gold</p>
-        </Tile>
-      ) : (
-        <Tile label="Exchange rates" icon={<KpiIcon tone="bg-stocks text-stocks-ink"><Layers className="size-4" /></KpiIcon>}>
-          <Signed amount={period.parts.currency} unit={unit} />
-          <p className="mt-1 text-sm text-ink-soft">{unit === base ? "On money held in other currencies" : `On money not held in ${unit}`}</p>
-        </Tile>
-      )}
+      <Tile label="Exchange rates" icon={<KpiIcon tone="bg-stocks text-stocks-ink"><Layers className="size-4" /></KpiIcon>}>
+        <Signed amount={period.parts.currency} unit={unit} />
+        <p className="mt-1 text-sm text-ink-soft">{unit === base ? "On money held in other currencies" : `On money not held in ${unit}`}</p>
+      </Tile>
     </div>
   );
 }
@@ -124,7 +116,7 @@ function symbolName(symbol: string): string {
   return `the ${code} exchange rate`;
 }
 
-/** The unit asked for in the address, when it's one of the vault's; otherwise the base currency (the first). */
+/** The currency asked for in the address when it's one Insights can measure in; otherwise the base currency (the first). */
 function pickUnit(units: string[], asked: string | null): string {
   return asked && units.includes(asked) ? asked : units[0];
 }
@@ -188,18 +180,19 @@ export function InsightsPage() {
             items={PERIODS.map((p) => ({ value: p.key, label: <span title={p.label}>{p.short}</span> }))}
             className="w-full max-w-xl"
           />
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-ink-soft" id="measure-label">
-              Measure in
-            </span>
-            <Segmented
-              label="Measure in"
-              value={unit}
-              onValueChange={(u) => set("in", u)}
-              items={measureUnits(vault).map((u) => ({ value: u, label: unitName(u) }))}
-              className="min-w-0 flex-1 lg:w-64 lg:flex-none"
-            />
-          </div>
+          {/* The base currency and USD; nothing to pick when the base currency is USD */}
+          {measureUnits(vault).length > 1 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-ink-soft">Measure in</span>
+              <Segmented
+                label="Measure in"
+                value={unit}
+                onValueChange={(u) => set("in", u)}
+                items={measureUnits(vault).map((u) => ({ value: u, label: u }))}
+                className="w-40"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -217,8 +210,7 @@ export function InsightsPage() {
           ) : null}
           {view.unitUnavailable ? (
             <Notice>
-              There's no {unit === GOLD_UNIT ? "gold price" : `${unit} exchange rate`} for every day of this period, so it's shown in{" "}
-              {view.history.base}.
+              There's no {unit} exchange rate for every day of this period, so it's shown in {view.history.base}.
             </Notice>
           ) : null}
           {state.status === "ready" && state.missingHistory.length > 0 ? (
@@ -238,7 +230,7 @@ export function InsightsPage() {
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <Card>
-              <CardHeader title="Net worth over time" icon={<ChartLine className="size-5" />} subtitle={view.unit === GOLD_UNIT ? "In grams of 24k gold" : `In ${view.unit}`} />
+              <CardHeader title="Net worth over time" icon={<ChartLine className="size-5" />} subtitle={`In ${view.unit}`} />
               <CardBody>
                 <NetWorthChart points={view.points} unit={view.unit} />
               </CardBody>

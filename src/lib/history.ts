@@ -10,7 +10,6 @@ import { GOLD_UNIT, type Asset, type Goal, type GroupKind, type HistoricalPrice,
 import {
   buildPriceBook,
   convert,
-  gold24kPerGram,
   goldGramValue,
   isCashLike,
   makeContext,
@@ -149,16 +148,14 @@ export function historySymbols(vault: VaultData, live: MarketPrice[]): string[] 
   };
   const liveStocks = new Map(live.filter((r) => r.symbol.startsWith("STOCK:")).map((r) => [r.symbol, r.currency]));
   const overrides = new Map(vault.overrides.map((o) => [o.ticker, o.currency]));
+  // Also what measuring in USD needs: the base currency's rate every day
   fx(vault.profile.base_currency);
-  // Measuring in gold or another display currency needs these every day
-  symbols.add("METAL:XAU");
-  for (const c of vault.profile.display_currencies) fx(c);
-  if (vault.pricing.gold_mode === "manual") fx(vault.pricing.manual_gold_currency);
   for (const asset of vault.assets) {
     if (asset.archived_at) continue;
     if (asset.kind === "gold") {
       symbols.add("METAL:XAU");
       fx(vault.pricing.gold_adjustment_currency);
+      if (vault.pricing.gold_mode === "manual") fx(vault.pricing.manual_gold_currency);
     } else if (asset.kind === "stock" && asset.ticker) {
       if (overrides.has(asset.ticker)) fx(overrides.get(asset.ticker));
       else {
@@ -251,17 +248,14 @@ export interface Change {
   other: number;
   /** Exchange-rate moves on money held in another currency than the one it's measured in */
   currency: number;
-  /** Measuring in gold only: gold's own price moving (when gold rises, everything else is worth fewer grams) */
-  measure: number;
   /** Everything else: balance edits, holdings added without paying from cash, money that left, prices that appeared */
   unexplained: number;
 }
 
-/** One asset's change from prices and from exchange rates (and, measuring in gold, gold's own price). */
+/** One asset's change from its own price and from exchange rates. */
 export interface AssetChange {
   price: number;
   currency: number;
-  measure: number;
 }
 
 export type GroupValues = Record<GroupKind | "pending", number>;
@@ -288,7 +282,7 @@ export interface HistoryPoint {
   change: Change;
   /** Each asset's part of the change (only assets that moved) */
   assetChanges: Record<string, AssetChange>;
-  /** Base-currency value of one of each measuring unit (a currency, or a gram of 24k gold) */
+  /** Base-currency value of one of each currency it can be measured in */
   rates: Record<string, number | null>;
   /** Price of each instrument, in the instrument's currency */
   prices: Record<string, number | null>;
@@ -296,7 +290,7 @@ export interface HistoryPoint {
 
 export interface VaultHistory {
   base: string;
-  /** What the amounts are measured in: a currency code, or GOLD_UNIT (grams of 24k gold) */
+  /** The currency the amounts are measured in */
   unit: string;
   today: string;
   /** The first day anything was recorded */
@@ -308,7 +302,7 @@ export interface VaultHistory {
   points: HistoryPoint[];
 }
 
-const ZERO_CHANGE: Change = { income: 0, gold: 0, stock: 0, other: 0, currency: 0, measure: 0, unexplained: 0 };
+const ZERO_CHANGE: Change = { income: 0, gold: 0, stock: 0, other: 0, currency: 0, unexplained: 0 };
 
 export function addChanges(a: Change, b: Change): Change {
   return {
@@ -317,15 +311,14 @@ export function addChanges(a: Change, b: Change): Change {
     stock: a.stock + b.stock,
     other: a.other + b.other,
     currency: a.currency + b.currency,
-    measure: a.measure + b.measure,
     unexplained: a.unexplained + b.unexplained,
   };
 }
 
-/** The units amounts can be measured in: the base currency, the other display currencies and grams of 24k gold. */
+/** The currencies amounts can be measured in: the base currency, and USD. */
 export function measureUnits(vault: VaultData): string[] {
   const base = vault.profile.base_currency;
-  return [base, ...vault.profile.display_currencies.filter((c) => c !== base), GOLD_UNIT];
+  return base === "USD" ? [base] : [base, "USD"];
 }
 
 /** What can be charted for this vault: each karat of gold held, each stock, and each other currency money is held in. */
@@ -414,7 +407,7 @@ function changeBetween(a: Day, b: Day, income: number): { change: Change; byAsse
     if (asset.kind === "gold") change.gold += price;
     else if (asset.kind === "stock") change.stock += price;
     else if (asset.kind === "other") change.other += price;
-    if (price !== 0 || fx !== 0) byAsset[id] = { price, currency: fx, measure: 0 };
+    if (price !== 0 || fx !== 0) byAsset[id] = { price, currency: fx };
   }
   const explained = change.income + change.gold + change.stock + change.other + change.currency;
   change.unexplained = b.summary.netWorth - a.summary.netWorth - explained;
@@ -511,7 +504,7 @@ export function buildHistory({ vault, ledger, prices, live, today, from }: Histo
       assets: values,
       change,
       assetChanges: byAsset,
-      rates: Object.fromEntries(units.map((u) => [u, u === GOLD_UNIT ? gold24kPerGram(ctx, base) : convert(1, u, base, book)])),
+      rates: Object.fromEntries(units.map((u) => [u, convert(1, u, base, book)])),
       prices: Object.fromEntries(instruments.map((i) => [i.key, instrumentPrice(i, ctx)])),
     });
     previous = day;
@@ -527,17 +520,15 @@ function scaleValues<K extends string>(record: Record<K, number>, by: number): R
 }
 
 /**
- * The same history measured in another unit (a currency, or grams of 24k gold), at each day's rate.
- * A day's change splits into its causes at that day's rate, plus the unit's own move on what was held
- * the day before: an exchange-rate effect for a currency, or gold's own price for gold.
- * Null when a day's rate isn't known.
+ * The same history measured in another currency, at each day's exchange rate. A day's change splits
+ * into its causes at that day's rate, plus the rate's own move on what was held the day before, which
+ * counts as an exchange-rate effect. Null when a day's rate isn't known.
  */
 export function measureHistory(history: VaultHistory, unit: string): VaultHistory | null {
   if (unit === history.unit) return history;
   if (history.unit !== history.base) throw new Error("Measure from the base-currency history");
   const rates = history.points.map((p) => p.rates[unit] ?? null);
   if (rates.some((r) => r === null || !(r > 0))) return null;
-  const asCurrency = unit !== GOLD_UNIT;
 
   const points = history.points.map((p, i): HistoryPoint => {
     const r = rates[i]!;
@@ -545,16 +536,12 @@ export function measureHistory(history: VaultHistory, unit: string): VaultHistor
     // What one base-currency unit held since yesterday gained or lost in the new unit
     const shift = prev ? 1 / r - 1 / rates[i - 1]! : 0;
     const change = scaleValues(p.change, r);
-    const own = prev ? prev.netWorth * shift : 0;
-    if (asCurrency) change.currency += own;
-    else change.measure += own;
+    change.currency += prev ? prev.netWorth * shift : 0;
 
     const assetChanges: Record<string, AssetChange> = {};
     for (const id of new Set([...Object.keys(p.assetChanges), ...Object.keys(prev?.assets ?? {})])) {
-      const c = scaleValues(p.assetChanges[id] ?? { price: 0, currency: 0, measure: 0 }, r);
-      const held = (prev?.assets[id] ?? 0) * shift;
-      if (asCurrency) c.currency += held;
-      else c.measure += held;
+      const c = scaleValues(p.assetChanges[id] ?? { price: 0, currency: 0 }, r);
+      c.currency += (prev?.assets[id] ?? 0) * shift;
       assetChanges[id] = c;
     }
     return { ...p, netWorth: p.netWorth / r, groups: scaleValues(p.groups, r), assets: scaleValues(p.assets, r), change, assetChanges };
@@ -712,8 +699,6 @@ export interface AssetPerformance {
   price: number;
   /** Exchange rates moving */
   currency: number;
-  /** Measuring in gold: gold's own price moving */
-  measure: number;
   gain: number;
   /** Of what was held: the start value plus anything added during the period. Null when nothing was. */
   pct: number | null;
@@ -728,10 +713,9 @@ export function assetPerformance(history: VaultHistory, baseline: string, vault:
   const totals = new Map<string, AssetChange>();
   for (const p of points.slice(1)) {
     for (const [id, c] of Object.entries(p.assetChanges)) {
-      const t = totals.get(id) ?? { price: 0, currency: 0, measure: 0 };
+      const t = totals.get(id) ?? { price: 0, currency: 0 };
       t.price += c.price;
       t.currency += c.currency;
-      t.measure += c.measure;
       totals.set(id, t);
     }
   }
@@ -740,8 +724,8 @@ export function assetPerformance(history: VaultHistory, baseline: string, vault:
     if (asset.archived_at || isCashLike(asset)) continue;
     const startValue = first.assets[asset.id] ?? 0;
     const endValue = last.assets[asset.id] ?? 0;
-    const t = totals.get(asset.id) ?? { price: 0, currency: 0, measure: 0 };
-    const gain = t.price + t.currency + t.measure;
+    const t = totals.get(asset.id) ?? { price: 0, currency: 0 };
+    const gain = t.price + t.currency;
     if (startValue === 0 && endValue === 0 && gain === 0) continue;
     // Bought during the period: measured against what it was worth when it came in
     const held = endValue > 0 ? endValue - gain : startValue;

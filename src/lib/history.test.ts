@@ -10,6 +10,7 @@ import {
   incomeBetween,
   instrumentsFor,
   measureHistory,
+  measureUnits,
   monthlyIncome,
   periodBaseline,
   summarizePeriod,
@@ -231,7 +232,7 @@ describe("chart points", () => {
       netWorth: i,
       groups: { cash: i, gold: 0, stock: 0, other: 0, pending: 0 },
       assets: {},
-      change: { income: i === 0 ? 0 : 1, gold: 0, stock: 0, other: 0, currency: 0, measure: 0, unexplained: 0 },
+      change: { income: i === 0 ? 0 : 1, gold: 0, stock: 0, other: 0, currency: 0, unexplained: 0 },
       assetChanges: {},
       rates: {},
       prices: {},
@@ -244,7 +245,13 @@ describe("chart points", () => {
   });
 });
 
-describe("measuring in another unit", () => {
+describe("measuring in USD", () => {
+  it("offers the base currency and USD only", () => {
+    // AUD is a display currency too, but isn't offered
+    expect(measureUnits(vault({ profile: { ...PROFILE, display_currencies: ["USD", "AUD"] } }))).toEqual(["EGP", "USD"]);
+    expect(measureUnits(vault({ profile: { ...PROFILE, base_currency: "USD" } }))).toEqual(["USD"]);
+  });
+
   const wallet = asset({ kind: "cash", currency: "EGP", balance: 4800, name: "Wallet" });
   const bank = asset({ kind: "cash", currency: "USD", balance: 100, name: "Bank" });
   // The pound weakens from 48 to 50 per dollar
@@ -259,33 +266,6 @@ describe("measuring in another unit", () => {
     expect(period.change).toBeCloseTo(4800 / 50 - 100);
     expect(period.parts.currency).toBeCloseTo(period.change);
     expect(period.parts.unexplained).toBeCloseTo(0);
-  });
-
-  it("measures in grams of gold, where gold's own price is a part of its own", () => {
-    const ingots = asset({ kind: "gold", karat: 24, name: "Ingots" });
-    const data = vault({
-      profile: PROFILE_SINCE_SEPT,
-      pricing: { ...PRICING, gold_24k_adjustment: 0, gold_21k_adjustment: 0 },
-      assets: [ingots, wallet],
-      purchases: [purchase({ asset_id: ingots.id, quantity: 2, acquired_on: "2026-09-01" })],
-    });
-    // Gold rises from $90 to $100 a gram; the pound stays at 50
-    const h = buildHistory({
-      vault: data,
-      ledger: EMPTY,
-      prices: [...egp([["2026-09-26", 50]]), ...goldPerGram([["2026-09-26", 90], ["2026-09-29", 100]])],
-      live: MARKET,
-      today: "2026-09-30",
-      from: "2026-09-26",
-    });
-    const grams = measureHistory(h, GOLD_UNIT)!;
-    const period = summarizePeriod(grams, "2026-09-26")!;
-    // 2 g of gold stay 2 g; 4,800 EGP buy fewer grams once gold rises
-    expect(grams.points[0].netWorth).toBeCloseTo(2 + 4800 / 4500);
-    expect(period.endValue).toBeCloseTo(2 + 4800 / 5000);
-    expect(period.parts.gold + period.parts.measure).toBeCloseTo(period.change);
-    const ingotsChange = assetPerformance(grams, "2026-09-26", data).find((a) => a.asset.id === ingots.id)!;
-    expect(ingotsChange.gain).toBeCloseTo(0);
   });
 
   it("gives up on a unit without a rate", () => {

@@ -3,7 +3,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Segmented } from "@/components/ui/misc";
 import { useVault } from "@/features/vault/VaultProvider";
 import { resolvedColor, themeColor } from "@/lib/cn";
-import { daysBetween, formatAmount, formatCompactNumber, formatDate } from "@/lib/format";
+import { daysBetween, formatCompactNumber, formatDate, formatMoney } from "@/lib/format";
 import type { ChartPoint } from "@/lib/history";
 import { useMotionScale } from "@/lib/motion";
 import { usePalette, useResolvedTheme } from "@/lib/theme";
@@ -79,16 +79,16 @@ export function NetWorthChart({ points, unit }: { points: ChartPoint[]; unit: st
                 return (
                   <div className="rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-lifted">
                     <p className="font-medium text-ink">{formatDate(p.date)}</p>
-                    <p className="text-ink tabular">{formatAmount(p.netWorth, unit)}</p>
+                    <p className="text-ink tabular">{formatMoney(p.netWorth, unit)}</p>
                     {mode === "groups"
                       ? groups.map((g) => (
                           <p key={g.key} className="flex items-center gap-1.5 text-ink-soft tabular">
                             <span className="size-2 rounded-full" style={{ background: g.color }} />
-                            {g.name} {formatAmount(p.groups[g.key], unit)}
+                            {g.name} {formatMoney(p.groups[g.key], unit)}
                           </p>
                         ))
                       : null}
-                    {p.incomeSince > 0 ? <p className="text-gain-ink tabular">Income {formatAmount(p.incomeSince, unit, { signed: true })}</p> : null}
+                    {p.incomeSince > 0 ? <p className="text-gain-ink tabular">Income {formatMoney(p.incomeSince, unit, { signed: true })}</p> : null}
                   </div>
                 );
               }}

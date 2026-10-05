@@ -1,7 +1,6 @@
 import { cn, signTone } from "@/lib/cn";
-import { formatAmount, formatDate } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import type { PeriodSummary } from "@/lib/history";
-import { GOLD_UNIT } from "@/lib/types";
 
 interface Row {
   key: string;
@@ -18,23 +17,19 @@ interface Row {
  */
 export function ChangeBreakdown({ period, unit }: { period: PeriodSummary; unit: string }) {
   const { parts } = period;
-  // Relative, so it works for grams of gold as well as for money
+  // Relative to the net worth, so rounding leftovers don't get a row
   const moved = (x: number) => Math.abs(x) > Math.max(Math.abs(period.startValue), Math.abs(period.endValue), 1) * 1e-6;
-  const inGold = unit === GOLD_UNIT;
 
   const rows: Row[] = [
     { key: "start", label: `On ${formatDate(period.baseline, { month: "short", day: "numeric" })}`, total: period.startValue },
     { key: "income", label: "Income", hint: "Income you logged", delta: parts.income },
     ...(moved(parts.gold)
-      ? [{ key: "gold", label: "Gold prices", hint: inGold ? "Your gold's price, before gold's own move" : "Gold's price per gram in your base currency", delta: parts.gold }]
+      ? [{ key: "gold", label: "Gold prices", hint: "Gold's price per gram in your base currency", delta: parts.gold }]
       : []),
     ...(moved(parts.stock) ? [{ key: "stock", label: "Stock prices", hint: "Share prices, in the currency each stock trades in", delta: parts.stock }] : []),
     ...(moved(parts.other) ? [{ key: "other-assets", label: "Other assets", delta: parts.other }] : []),
     ...(moved(parts.currency)
       ? [{ key: "currency", label: "Exchange rates", hint: "Cash and stocks in other currencies, as rates moved", delta: parts.currency }]
-      : []),
-    ...(moved(parts.measure)
-      ? [{ key: "measure", label: "Gold's own price", hint: "Measuring in gold: when gold rises, everything else is worth fewer grams", delta: parts.measure }]
       : []),
     ...(moved(parts.unexplained)
       ? [{ key: "unexplained", label: "Other changes", hint: "Balance edits, assets added without paying from cash, money spent or moved out", delta: parts.unexplained }]
@@ -84,7 +79,7 @@ export function ChangeBreakdown({ period, unit }: { period: PeriodSummary; unit:
                 />
               </span>
               <span className={cn("text-right text-sm font-medium tabular", isTotal ? "text-ink" : signTone(amount))}>
-                {formatAmount(amount, unit, isTotal ? {} : { signed: true })}
+                {formatMoney(amount, unit, isTotal ? {} : { signed: true })}
               </span>
             </li>
           );
