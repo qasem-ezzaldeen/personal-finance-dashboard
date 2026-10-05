@@ -50,6 +50,8 @@ export const PROFILE: Profile = {
   theme: "light",
   color_palette: "pastel",
   palette_accents: {},
+  kpi_metric: "net_worth",
+  kpi_period: "month",
   imported_at: null,
   created_at: NOW,
   updated_at: NOW,

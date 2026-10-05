@@ -9,7 +9,7 @@
 | `src/styles/motion.css` | Animation timings. The speed setting in Settings › Appearance scales all of them |
 | `src/lib/valuation.ts` | How assets, growth, goals and Zakat are calculated |
 | `supabase/migrations/` | Database tables, security rules and money functions |
-| `supabase/functions/` | Server functions: `market-refresh` (prices), `check-ticker`, `estimate-costs` (fills in a purchase's price from the market price on its date) and `price-on-date` (gold and exchange rates on a past day, e.g. the Nisab value when a Hawl started) |
+| `supabase/functions/` | Server functions: `market-refresh` (prices), `check-ticker`, `estimate-costs` (fills in a purchase's price from the market price on its date), `price-on-date` (gold and exchange rates on a past day, e.g. the Nisab value when a Hawl started) and `price-history` (fills in daily closing prices for the Insights charts) |
 | `supabase/seed.sql` | Local test data and test accounts (never runs on the live project) |
 | `supabase/tests/`, `src/**/*.test.ts` | Database and logic tests |
 | `e2e/` | Browser tests on phone, tablet and desktop sizes |
@@ -74,6 +74,7 @@ npx supabase functions deploy market-refresh
 npx supabase functions deploy check-ticker
 npx supabase functions deploy estimate-costs
 npx supabase functions deploy price-on-date
+npx supabase functions deploy price-history
 ```
 
 ### 6. Let the scheduler call the price function

@@ -4,6 +4,11 @@ export function cn(...inputs: ClassValue[]): string {
   return clsx(inputs);
 }
 
+/** Text color for an amount that went up (green), down (red) or nowhere. */
+export function signTone(amount: number): string {
+  return amount > 0.005 ? "text-gain-ink" : amount < -0.005 ? "text-loss-ink" : "text-ink";
+}
+
 /** Resolves a stored color (swatch token name or #hex) to a CSS color value. */
 export function colorValue(color: string | null | undefined): string {
   if (!color) return "var(--color-swatch-slate)";

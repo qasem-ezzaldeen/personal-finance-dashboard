@@ -63,12 +63,13 @@ Reset links work once and only for a short time. If yours has expired, the page 
 
 ## 2. Finding your way around
 
-The app has five pages:
+The app has six pages:
 
 | Page | What's on it |
 |---|---|
 | **Dashboard** | Your net worth, a quick income/transfer form, recent activity, how your wealth is split, and your top goals |
 | **Assets** | Everything you own, grouped, with each purchase and its growth |
+| **Insights** | How your net worth changed over a period and why, and your income month by month |
 | **Activity** | Every income, transfer, purchase, sale and balance change, with a way to undo them |
 | **Goals** | Your savings goals and milestones |
 | **Settings** | How your vault works and looks: vault, appearance, accounts, automations, market & pricing, Zakat and data |
@@ -82,7 +83,7 @@ The app has five pages:
 
 - **Net worth:** the total value of everything you own plus Upcoming Income, in your base currency and up to two other currencies.
 - **Upcoming income:** money you've logged but not received yet.
-- **Total gain:** how much your assets have grown since you bought them, in % and in money. Assets without a purchase price aren't included.
+- **Change card:** by default, how much your net worth changed **this month** (since the 1st), with a short breakdown: income, markets (gold and stock prices) and currency (exchange rates). Select the **sliders** button on the card to choose what it shows and over which period (see [Insights](#insights)). Select the card itself to open Insights for the same period.
 - **Zakat:** your progress to the Nisab, the day of your Hawl, or "Due now" (only if Zakat tracking is on). Select it to open all Zakat settings.
 - **Quick actions** (on a computer): log income, an hourly project or a transfer between accounts without opening a popup. To record buying gold or stocks, use **Add asset**; to sell, use **Sell** on the Assets page.
 - **Recent activity:** your last 8 entries. **View all** opens the Activity page.
@@ -90,6 +91,41 @@ The app has five pages:
 - **Goals:** your first three goals. **View all** opens the Goals page.
 
 On large screens you can drag the divider between the two columns to make one wider. The app remembers your choice on that device.
+
+### Insights
+
+Insights shows how your net worth changed and why. Pick a period at the top: **Month** (since the 1st), **1W**, **1M**, **3M**, **YTD** (since 1 January), **1Y** or **All**.
+
+**Measure in** shows every amount on the page in your base currency, one of your other display currencies, or **Gold** (grams of 24k gold). Measuring in another unit shows whether you're getting richer in that unit: in USD, money held in EGP loses value when the pound weakens; in gold, everything that isn't gold is worth fewer grams when gold rises (shown as **Gold's own price**). Income is always shown in your income currency.
+
+- **Net worth change, Income, Investment gain and Exchange rates:** the totals for the period.
+- **Net worth over time:** a line of your net worth for every day of the period. Green dots mark days you logged income. **By group** stacks Cash, Gold, Stocks & ETFs, Other and Upcoming Income instead.
+- **What changed:** your net worth at the start, each cause of the change, and where it is today:
+  - **Income:** income you logged (it counts on the day you log it).
+  - **Gold prices / Stock prices:** your holdings going up or down in price. Gold is measured by its price per gram in your base currency; stocks in the currency they trade in.
+  - **Exchange rates:** what cash and stocks in other currencies gained or lost in your base currency as rates moved.
+  - **Other changes:** everything else, e.g. balance edits, assets you added without paying from a cash account, and money spent or moved out.
+- **Prices of what you own:** the price of each karat of gold you hold (per gram), each stock, and each currency you hold money in, over the period. Dots mark your purchases (green) and sales (red), and a dashed line shows what you paid on average. The latest purchases and sales are listed under the chart.
+- **How each asset did:** every gold, stock and other asset, with its value now and how much it gained or lost over the period, in money and %. On wider screens it's split into its own price and the exchange rate. The best and worst performers are marked.
+- **Monthly income:** income per month for the last 12 months, in your income currency or base currency, with this month so far, last month and the average of recent full months.
+- **Goal forecast:** roughly when you'd reach each goal if you kept adding your average monthly income (the last full months, up to 6) and spent none of it. Reserved goals fill one after another, as they do on the Goals page.
+
+How it's worked out:
+
+- What you held on each day comes from your records: purchases and sales by their dates, and cash balances by undoing later Activity entries. A purchase paid from cash takes the money out on the purchase date, even if you recorded it later.
+- Past days use that day's closing prices for gold, stocks and exchange rates, with your current gold settings (premium and adjustments). The first time you open a period, past prices are looked up, which can take a moment.
+- Stocks with a price override, "Other" assets and manual gold prices keep the same price throughout, so they show no price change.
+- If no past price can be found for something (e.g. a stock that started trading later), Insights says so, and days before its first known price use that price.
+- Before the day your vault was created, cash balances weren't recorded, so they're shown at the balance you started with. Insights tells you when a period reaches back that far.
+
+The change card on the Dashboard can show:
+
+| Option | What it shows |
+|---|---|
+| **Net worth change** (default) | The change in net worth over the period, in money and % |
+| **Investment gain** | Price changes of your gold and stocks over the period |
+| **Income** | Income logged in the period |
+| **Growth since purchase** | How much your assets have grown since you bought them (no period) |
 
 ---
 
@@ -198,7 +234,7 @@ The preview shows the holding and the cash account before → after, and your **
 
 ### Growth
 
-Growth is measured in the currency you paid in, so currency changes don't hide how the asset itself performed. After a sale, growth covers what you still hold, at your **average cost** (every unit you bought counts as costing the same). Each group and your whole vault also show combined growth. You can see it on the **Total gain** card and in the Assets side panel.
+Growth is measured in the currency you paid in, so currency changes don't hide how the asset itself performed. After a sale, growth covers what you still hold, at your **average cost** (every unit you bought counts as costing the same). Each group and your whole vault also show combined growth. You can see it in the Assets side panel, and on the Dashboard's change card when it's set to **Growth since purchase**.
 
 ---
 
@@ -479,7 +515,7 @@ It updates itself automatically. You need an internet connection to use it; your
 **Why isn't one of my assets counted in the total?**
 Its price hasn't arrived yet (e.g. a new stock). The Assets page names it in a note under the total, and it's added as soon as a price is available.
 
-**Why is "Total gain" empty?**
+**Why is "Growth since purchase" empty?**
 Growth needs a purchase price. For gold and stocks, set the date bought and the price is filled in from the market. For "Other" assets, enter the price paid.
 
 **Why isn't my Upcoming Income counted for Zakat?**

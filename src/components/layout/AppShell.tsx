@@ -1,6 +1,7 @@
 import * as DM from "@radix-ui/react-dropdown-menu";
 import {
   ArrowLeftRight,
+  ChartLine,
   CirclePlus,
   LayoutDashboard,
   LogOut,
@@ -26,6 +27,7 @@ import { Logo } from "./Logo";
 const NAV = [
   { to: "/", label: "Dashboard", short: "Home", icon: LayoutDashboard, end: true },
   { to: "/assets", label: "Assets", short: "Assets", icon: Wallet },
+  { to: "/insights", label: "Insights", short: "Insights", icon: ChartLine },
   { to: "/activity", label: "Activity", short: "Activity", icon: ReceiptText },
   { to: "/goals", label: "Goals", short: "Goals", icon: Target },
 ];
@@ -133,7 +135,7 @@ function Sidebar() {
 function BottomNav() {
   return (
     <nav aria-label="Main" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur md:hidden">
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {NAV.map(({ to, short, icon: Icon, end }) => (
           <li key={to}>
             <NavLink

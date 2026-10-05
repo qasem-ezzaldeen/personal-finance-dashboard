@@ -141,6 +141,37 @@ export function GrowthPill({ growth, size = "md", showAmount = false }: { growth
   );
 }
 
+/** A small colored square behind a KPI's icon; tones come from the color palette. */
+export function KpiIcon({ tone, children }: { tone: string; children: ReactNode }) {
+  return (
+    <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", tone)} aria-hidden="true">
+      {children}
+    </span>
+  );
+}
+
+/** A signed percentage in a green, red or gray pill, e.g. the change in net worth over a period. */
+export function PercentPill({ pct, label, size = "md" }: { pct: number | null; label: string; size?: "sm" | "md" }) {
+  if (pct === null || !Number.isFinite(pct)) return null;
+  const direction = Math.abs(pct) < 0.0005 ? 0 : Math.sign(pct);
+  const tone = direction > 0 ? "bg-gain text-gain-ink" : direction < 0 ? "bg-loss text-loss-ink" : "bg-neutral text-neutral-ink";
+  const Icon = direction > 0 ? ArrowUpRight : direction < 0 ? ArrowDownRight : Minus;
+  const verb = direction > 0 ? "Up" : direction < 0 ? "Down" : "Unchanged";
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-full font-semibold tabular",
+        size === "sm" ? "px-1.5 py-0.5 text-xs" : "px-2 py-0.5 text-sm",
+        tone,
+      )}
+      aria-label={`${verb} ${formatPercent(Math.abs(pct))} ${label}`}
+    >
+      <Icon className={size === "sm" ? "size-3" : "size-3.5"} aria-hidden="true" />
+      {formatPercent(Math.abs(pct))}
+    </span>
+  );
+}
+
 export function TrendArrow({ trend }: { trend: number }) {
   if (trend > 0) {
     return (

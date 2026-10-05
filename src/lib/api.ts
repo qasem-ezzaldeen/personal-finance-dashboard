@@ -7,6 +7,7 @@ import type {
   AutomationRule,
   FollowedTicker,
   Goal,
+  HistoricalPrice,
   GroupKind,
   MarketPrice,
   PriceOverride,
@@ -211,6 +212,8 @@ export type ProfileUpdate = Partial<
     | "theme"
     | "color_palette"
     | "palette_accents"
+    | "kpi_metric"
+    | "kpi_period"
   >
 >;
 
@@ -426,6 +429,32 @@ export async function estimatePurchaseCosts(): Promise<{ updated: number; failed
   const { data, error } = await supabase.functions.invoke<{ updated: number; failed: number }>("estimate-costs", { body: {} });
   if (error) throw new Error("Couldn't look up past prices right now.");
   return data ?? { updated: 0, failed: 0 };
+}
+
+/** Asks the server to fill in every daily close of `symbols` since `from` (it skips what it already has). */
+export async function ensurePriceHistory(symbols: string[], from: string): Promise<void> {
+  const { error } = await supabase.functions.invoke("price-history", { body: { symbols, from } });
+  if (error) throw new Error("Couldn't load past prices right now.");
+}
+
+/** Daily closes of `symbols` since `from`, oldest first. */
+export async function fetchPriceHistory(symbols: string[], from: string): Promise<HistoricalPrice[]> {
+  const all: HistoricalPrice[] = [];
+  for (let page = 0; ; page++) {
+    const rows = unwrap(
+      await supabase
+        .from("historical_prices")
+        .select("symbol, price_date, price, currency")
+        .in("symbol", symbols)
+        .gte("price_date", from)
+        .order("symbol")
+        .order("price_date")
+        .range(page * 1000, page * 1000 + 999)
+        .returns<HistoricalPrice[]>(),
+    ) ?? [];
+    all.push(...rows);
+    if (rows.length < 1000) return all;
+  }
 }
 
 export async function requestMarketRefresh(): Promise<void> {

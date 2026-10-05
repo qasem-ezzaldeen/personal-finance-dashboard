@@ -9,6 +9,12 @@ export type ColorPalette = "pastel" | "minimal" | "sea" | "autumn" | "nature" | 
 
 export type AnimationSpeed = "system" | "off" | "slow" | "normal" | "fast";
 
+/** What the dashboard's change KPI measures */
+export type KpiMetric = "net_worth" | "investments" | "income" | "since_purchase";
+
+/** A period ending today: since the 1st of the month, the last 7/30 days, 3 months, since 1 January, 12 months, or everything */
+export type PeriodKey = "month" | "7d" | "30d" | "3m" | "ytd" | "1y" | "all";
+
 export interface Profile {
   user_id: string;
   display_name: string;
@@ -25,6 +31,8 @@ export interface Profile {
   color_palette: ColorPalette;
   /** Hero (accent) color picked per palette, e.g. { sea: "#0b5fa5" } */
   palette_accents: Partial<Record<ColorPalette, string>>;
+  kpi_metric: KpiMetric;
+  kpi_period: PeriodKey;
   imported_at: string | null;
   created_at: string;
   updated_at: string;
@@ -217,6 +225,14 @@ export interface FollowedTicker {
 export interface PriceOverride {
   user_id: string;
   ticker: string;
+  price: number;
+  currency: string;
+}
+
+/** A daily close, cached by the server (FX: units per USD; METAL:XAU: USD per troy ounce) */
+export interface HistoricalPrice {
+  symbol: string;
+  price_date: string;
   price: number;
   currency: string;
 }

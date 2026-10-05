@@ -50,5 +50,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}", "supabase/tests/**/*.test.ts"],
     testTimeout: 30000,
+    // Each database test file starts its own in-memory Postgres; with all files at once that can take a while
+    hookTimeout: 60000,
   },
 });

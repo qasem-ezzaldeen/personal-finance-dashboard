@@ -1,16 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronRight, HandCoins, Moon, ReceiptText, Target, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { ArrowRight, ChevronRight, HandCoins, Moon, ReceiptText, Target, Wallet } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { cn } from "@/lib/cn";
 import { Link } from "react-router-dom";
+import { cn } from "@/lib/cn";
 import { ResizableColumns } from "@/components/layout/ResizableColumns";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { EmptyState, GrowthPill, ProgressBar, Skeleton } from "@/components/ui/misc";
+import { EmptyState, KpiIcon, ProgressBar, Skeleton } from "@/components/ui/misc";
 import { ActivityItem } from "@/features/activity/ActivityItem";
 import { RevertDialog } from "@/features/activity/RevertDialog";
 import { AssetGroups } from "@/features/assets/AssetGroups";
 import { LazyWealthDonut } from "@/features/assets/LazyWealthDonut";
 import { GoalsList } from "@/features/goals/GoalsList";
+import { ChangeKpi } from "@/features/insights/ChangeKpi";
 import { MoneyForm } from "@/features/money/MoneyForm";
 import { ZakatDueBanner } from "@/features/zakat/ZakatStatus";
 import { queryKeys, useVault } from "@/features/vault/VaultProvider";
@@ -19,18 +20,9 @@ import { formatGrams, formatMoney, formatNumber } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { HAWL_DAYS, NISAB_GRAMS, convert } from "@/lib/valuation";
 
-/** A small colored square behind a KPI's icon; tones come from the color palette. */
-function KpiIcon({ tone, children }: { tone: string; children: ReactNode }) {
+function StatCard({ label, children, icon, className }: { label: string; children: ReactNode; icon: ReactNode; className?: string }) {
   return (
-    <span className={cn("grid size-7 shrink-0 place-items-center rounded-lg", tone)} aria-hidden="true">
-      {children}
-    </span>
-  );
-}
-
-function StatCard({ label, children, icon }: { label: string; children: ReactNode; icon: ReactNode }) {
-  return (
-    <Card className="p-4">
+    <Card className={cn("p-4", className)}>
       <div className="flex items-center gap-2 text-sm text-ink-soft">
         {icon}
         {label}
@@ -48,7 +40,8 @@ function SummaryCards() {
   const z = summary.zakat;
 
   return (
-    <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
+    // Below xl the change card takes a full row, and Upcoming income and Zakat share one (dense fills the gap)
+    <div className="grid grid-flow-row-dense grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
       <Card className="col-span-2 p-4 xl:col-span-1">
         <div className="flex items-center gap-2 text-sm text-ink-soft">
           <KpiIcon tone="bg-brand text-brand-ink">
@@ -66,6 +59,7 @@ function SummaryCards() {
 
       <StatCard
         label="Upcoming income"
+        className={vault.profile.zakat_enabled ? undefined : "col-span-2 xl:col-span-1"}
         icon={
           <KpiIcon tone="bg-cash text-cash-ink">
             <HandCoins className="size-4" />
@@ -78,35 +72,13 @@ function SummaryCards() {
         ) : null}
       </StatCard>
 
-      <StatCard
-        label="Total gain"
-        icon={
-          summary.totalGrowth && summary.totalGrowth.gain < 0 ? (
-            <KpiIcon tone="bg-loss text-loss-ink">
-              <TrendingDown className="size-4" />
-            </KpiIcon>
-          ) : (
-            <KpiIcon tone="bg-gain text-gain-ink">
-              <TrendingUp className="size-4" />
-            </KpiIcon>
-          )
-        }
-      >
-        {summary.totalGrowth ? (
-          <>
-            <GrowthPill growth={summary.totalGrowth} />
-            <p className="mt-1 text-sm text-ink-soft tabular">{formatMoney(summary.totalGrowth.gain, base, { signed: true })}</p>
-          </>
-        ) : (
-          <p className="text-sm text-ink-soft">Add purchase prices to your assets to see growth.</p>
-        )}
-      </StatCard>
+      <ChangeKpi className="col-span-2 xl:col-span-1" />
 
       {vault.profile.zakat_enabled ? (
         <Link
           to="/settings?tab=zakat"
           aria-label="Zakat settings"
-          className="group col-span-2 block rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-soft transition hover:bg-surface-muted xl:col-span-1"
+          className="group block rounded-[var(--radius-card)] border border-line bg-surface p-4 shadow-soft transition hover:bg-surface-muted"
         >
           <div className="flex items-center gap-2 text-sm text-ink-soft">
             {/* The crescent, as on the Zakat settings tab */}

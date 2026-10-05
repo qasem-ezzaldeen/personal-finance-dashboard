@@ -20,11 +20,23 @@ const price = (symbol: string, kind: string, value: number, previous: number, na
   symbol, kind, price: value, previous_price: previous, currency: "USD", display_name: name, source: "fixture", fetched_at: iso(0.01), changed_at: iso(0.01),
 });
 
+/** About 14 months of daily closes drifting from `from` to `to`, with a gentle wobble (weekends skipped). */
+function closes(symbol: string, from: number, to: number, days = 420) {
+  const rows: Array<{ symbol: string; price_date: string; price: number; currency: string }> = [];
+  for (let i = days; i >= 1; i--) {
+    const weekday = new Date(NOW - i * 86400000).getUTCDay();
+    if (weekday === 0 || weekday === 6) continue;
+    const t = (days - i) / days;
+    rows.push({ symbol, price_date: day(i), price: +(from + (to - from) * t + Math.sin(i / 9) * (to - from) * 0.04).toFixed(4), currency: "USD" });
+  }
+  return rows;
+}
+
 export const FIXTURES: Record<string, unknown[]> = {
   profiles: [{
     user_id: USER_ID, display_name: "qasem", timezone: "Africa/Cairo",
     avatar_color: "lilac", vault_name: "Qasem's Vault", base_currency: "EGP", display_currencies: ["USD", "AUD"],
-    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", palette_accents: {}, imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
+    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", palette_accents: {}, kpi_metric: "net_worth", kpi_period: "month", imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
   }],
   pricing_settings: [{
     user_id: USER_ID, gold_mode: "live", manual_gold_24k_price: null, manual_gold_currency: "EGP", gold_premium_pct: 0,
@@ -88,10 +100,17 @@ export const FIXTURES: Record<string, unknown[]> = {
     { id: "t1", seq: 1, user_id: USER_ID, kind: "imported", description: "", amount: 500, currency: "USD", rate_to_base: 49.93, base_currency: "EGP", from_asset_id: null, from_asset_name: null, to_asset_id: null, to_asset_name: null, converted_amount: null, converted_currency: null, fx_rate: null, pending_before: 0, pending_after: 500, automation_rule_id: null, is_imported: true, details: null, occurred_at: iso(40) },
   ],
   transaction_changes: [
-    { id: 1, transaction_id: "t3", asset_id: "pending", asset_name: "Upcoming Income", delta: 250 },
-    { id: 2, transaction_id: "t4", asset_id: "pending", asset_name: "Upcoming Income", delta: 500 },
+    { id: 1, user_id: USER_ID, transaction_id: "t3", asset_id: "pending", asset_name: "Upcoming Income", delta: 250 },
+    { id: 2, user_id: USER_ID, transaction_id: "t4", asset_id: "pending", asset_name: "Upcoming Income", delta: 500 },
   ],
   dashboards: [],
+  historical_prices: [
+    ...closes("FX:EGP", 47.6, 49.9),
+    ...closes("FX:AUD", 1.55, 1.5),
+    ...closes("METAL:XAU", 3300, 4220),
+    ...closes("STOCK:SPUS", 48, 59),
+    ...closes("STOCK:AAPL", 190, 224),
+  ],
 };
 
 function b64url(value: object) {
@@ -146,6 +165,7 @@ export async function mockBackend(page: Page, { signedIn = true, onWrite, profil
       const [op, value] = [raw.slice(0, raw.indexOf(".")), raw.slice(raw.indexOf(".") + 1)];
       if (op === "eq") rows = rows.filter((r) => String(r[key]) === value);
       if (op === "gt") rows = rows.filter((r) => Number(r[key]) > Number(value));
+      if (op === "gte") rows = rows.filter((r) => String(r[key]) >= value);
       if (op === "in") {
         const set = new Set(value.replace(/^\(|\)$/g, "").split(","));
         rows = rows.filter((r) => set.has(String(r[key])));
@@ -171,6 +191,7 @@ export async function mockBackend(page: Page, { signedIn = true, onWrite, profil
         ? { ticker: asked, name: known.display_name, price: known.price, currency: "USD" }
         : { ticker: "MSFT", name: "Microsoft Corporation", price: 417.88, currency: "USD" },
       "estimate-costs": { updated: 0, failed: 0 },
+      "price-history": { results: {} },
       // Real closing prices on 3 March 2025
       "price-on-date": {
         date: "2025-03-03",

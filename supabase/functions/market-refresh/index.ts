@@ -116,5 +116,15 @@ Deno.serve(async (req) => {
   report.stocks = { due: due.length, updated: Object.keys(quotes).length, marketOpen };
 
   await savePrices(admin, rows);
+
+  // Today's prices also go into the daily history (the day's last refresh becomes its close)
+  if (rows.length > 0) {
+    const day = now.toISOString().slice(0, 10);
+    const { error } = await admin.from("historical_prices").upsert(
+      rows.map((r) => ({ symbol: r.symbol, price_date: day, price: r.price, currency: r.currency, source: `${r.source} (live)` })),
+      { onConflict: "symbol,price_date" },
+    );
+    report.history = error ? `failed: ${error.message}` : `saved ${rows.length} closes for ${day}`;
+  }
   return json(report);
 });

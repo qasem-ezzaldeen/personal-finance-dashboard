@@ -174,3 +174,15 @@ describe("palettes and hero colors", () => {
     });
   });
 });
+
+describe("change KPI settings", () => {
+  it("are restored, and values that aren't known are ignored", async () => {
+    await as(ALICE, () => db.query("update public.profiles set kpi_metric = 'income', kpi_period = 'ytd' where user_id = $1", [ALICE]));
+    const backup = await exportVault(ALICE);
+    await restore(BOB, backup);
+    const kpi = () => one(db, "select kpi_metric, kpi_period from public.profiles where user_id = $1", [BOB]);
+    expect(await kpi()).toEqual({ kpi_metric: "income", kpi_period: "ytd" });
+    await restore(BOB, { ...backup, profile: { ...(backup.profile as object), kpi_metric: "luck", kpi_period: "5y" } });
+    expect(await kpi()).toEqual({ kpi_metric: "income", kpi_period: "ytd" });
+  });
+});

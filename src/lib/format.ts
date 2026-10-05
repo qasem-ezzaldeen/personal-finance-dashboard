@@ -1,5 +1,6 @@
 // Number, money and date formatting. Everything goes through Intl so it respects the user's locale.
 
+import { GOLD_UNIT } from "./types";
 import type { UnitTotal } from "./valuation";
 
 let activeLocale = "en-US";
@@ -59,6 +60,12 @@ export function formatNumber(value: number | null | undefined, maxDecimals = 2, 
   }).format(value);
 }
 
+/** A short number for chart axes: 1.2K, 736K, 1.5M. */
+export function formatCompactNumber(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return nf("compact", { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}
+
 export function formatPercent(value: number | null | undefined, opts: { signed?: boolean; decimals?: number } = {}): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   const decimals = opts.decimals ?? 1;
@@ -79,6 +86,26 @@ export function formatQuantity(kind: "gold" | "stock" | "other", quantity: numbe
   if (kind === "gold") return formatGrams(quantity);
   if (kind === "stock") return `${formatNumber(quantity, 4)} ${quantity === 1 ? "share" : "shares"}`;
   return `${formatNumber(quantity, 4)} ${quantity === 1 ? "unit" : "units"}`;
+}
+
+/** An amount in a currency, or in grams of 24k gold when the unit is GOLD_UNIT ("+1.25 g"). */
+export function formatAmount(
+  amount: number | null | undefined,
+  unit: string,
+  opts: { compact?: boolean; signed?: boolean; decimals?: number } = {},
+): string {
+  if (unit !== GOLD_UNIT) return formatMoney(amount, unit, opts);
+  if (amount === null || amount === undefined || !Number.isFinite(amount)) return "— g";
+  const decimals = opts.decimals ?? (opts.compact ? 1 : 2);
+  // No sign on an amount that rounds to zero
+  const rounded = Number(amount.toFixed(decimals));
+  const sign = opts.signed && rounded > 0 ? "+" : "";
+  return `${sign}${formatNumber(rounded === 0 ? 0 : amount, decimals)} g`;
+}
+
+/** A measuring unit's name: the currency code, or "Gold" for grams of 24k gold. */
+export function unitName(unit: string): string {
+  return unit === GOLD_UNIT ? "Gold" : unit;
 }
 
 /** A group's unit total: "24k 45.5 g" for gold, the amount in its own currency otherwise. */

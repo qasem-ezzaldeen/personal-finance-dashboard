@@ -600,3 +600,97 @@ test("hovering the wealth chart shows a group's grams", async ({ page }) => {
   await expect(tooltip).toContainText("Gold · 24k 14 g · 21k 40 g");
   await expect(tooltip).toContainText(/EGP\s?[\d,]+ · [\d.]+%/);
 });
+
+test("the change card shows this month's net worth change and opens Insights", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockBackend(page);
+  await page.goto("");
+  const card = page.getByRole("link", { name: /Net worth change, this month\. Open Insights/ });
+  await expect(card).toBeVisible();
+  await expect(page.getByText("This month", { exact: true }).first()).toBeVisible();
+  // The breakdown under the amount
+  await expect(page.locator("main").getByText(/^Income [+−-]/).first()).toBeVisible();
+  await card.click();
+  await expect(page).toHaveURL(/\/insights\?period=month$/);
+  await expect(page.getByRole("heading", { name: "Insights" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "What changed" })).toContainText("Today");
+  await expect(page.getByRole("heading", { name: "Monthly income" })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await snap(page, "insights");
+  expect(errors).toEqual([]);
+});
+
+test("the change card's menu saves what it shows and its period", async ({ page }) => {
+  const writes: Array<{ method: string; path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("");
+  await page.getByRole("button", { name: "Choose what this card shows" }).click();
+  await page.getByRole("menuitemradio", { name: /^Income/ }).click();
+  await expect.poll(() => writes.find((w) => w.path === "profiles")?.body).toEqual({ kpi_metric: "income" });
+  await page.getByRole("button", { name: "Choose what this card shows" }).click();
+  await page.getByRole("menuitemradio", { name: "This year" }).click();
+  await expect.poll(() => writes.filter((w) => w.path === "profiles").at(-1)?.body).toEqual({ kpi_period: "ytd" });
+});
+
+test("the change card can show income", async ({ page }) => {
+  await mockBackend(page, { profile: { kpi_metric: "income", kpi_period: "30d" } });
+  await page.goto("");
+  const card = page.getByRole("link", { name: /Income, last 30 days\. Open Insights/ });
+  await expect(card).toBeVisible();
+  // $250 + $500 logged in the last 30 days
+  await expect(page.locator("main").getByText("$750.00").first()).toBeVisible();
+});
+
+test("Insights can switch periods and show net worth by group", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("insights?period=month");
+  await page.getByRole("tab", { name: "YTD" }).click();
+  await expect(page).toHaveURL(/period=ytd/);
+  await expect(page.getByText(/^This year: /)).toBeVisible();
+  await page.getByRole("tab", { name: "By group" }).click();
+  await expect(page.getByRole("list", { name: "Groups" })).toContainText("Gold");
+  await expectNoHorizontalScroll(page);
+  await snap(page, "insights-ytd");
+});
+
+test("Insights can measure everything in another currency or in grams of gold", async ({ page }) => {
+  await mockBackend(page);
+  await page.goto("insights?period=3m");
+  const measure = page.getByRole("tablist", { name: "Measure in" });
+  await measure.getByRole("tab", { name: "USD" }).click();
+  await expect(page).toHaveURL(/in=USD/);
+  await expect(page.getByText("In USD", { exact: true })).toBeVisible();
+  await measure.getByRole("tab", { name: "Gold" }).click();
+  await expect(page.getByText("In grams of 24k gold")).toBeVisible();
+  await expect(page.getByText("Gold's own price").first()).toBeVisible();
+  await expect(page.getByRole("list", { name: "What changed" })).toContainText(/ g$/m);
+  await expectNoHorizontalScroll(page);
+});
+
+test("Insights shows the prices of what you own, how each asset did and a goal forecast", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockBackend(page);
+  await page.goto("insights?period=1y");
+  // Every price the vault needs has history here
+  await expect(page.getByText(/No past prices were found/)).toHaveCount(0);
+  const picker = page.getByRole("group", { name: "Price to show" });
+  await expect(picker.getByRole("button", { name: "Gold 24k" })).toHaveAttribute("aria-pressed", "true");
+  await picker.getByRole("button", { name: "SPUS" }).click();
+  // 12 shares for $610
+  await expect(page.getByText(/You paid \$50\.83 on average/)).toBeVisible();
+  await expect(page.getByRole("list", { name: /SPUS purchases and sales/ })).toContainText("Sold 2 shares of SPUS ETF");
+  // AUD is only a display currency here: there's no AUD to show the price of
+  await expect(picker.getByRole("button", { name: "AUD/EGP" })).toHaveCount(0);
+  await picker.getByRole("button", { name: "USD/EGP" }).click();
+  await expect(page.getByText(/You paid/)).toHaveCount(0);
+
+  const table = page.getByRole("table");
+  await expect(table.getByRole("rowheader", { name: /Gold ingots/ })).toBeVisible();
+  await expect(table.getByText("Best")).toBeVisible();
+  await expect(table.getByRole("rowheader", { name: /QNB/ })).toHaveCount(0);
+
+  await expect(page.getByRole("heading", { name: "Goal forecast" })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await snap(page, "insights-1y");
+  expect(errors).toEqual([]);
+});

@@ -10,6 +10,7 @@ import { VaultProvider } from "@/features/vault/VaultProvider";
 // Secondary pages load on demand to keep the first download small
 const AssetsPage = lazy(() => import("@/features/assets/AssetsPage").then((m) => ({ default: m.AssetsPage })));
 const ActivityPage = lazy(() => import("@/features/activity/ActivityPage").then((m) => ({ default: m.ActivityPage })));
+const InsightsPage = lazy(() => import("@/features/insights/InsightsPage").then((m) => ({ default: m.InsightsPage })));
 const GoalsPage = lazy(() => import("@/features/goals/GoalsPage").then((m) => ({ default: m.GoalsPage })));
 const ProfilePage = lazy(() => import("@/features/profile/ProfilePage").then((m) => ({ default: m.ProfilePage })));
 const SettingsPage = lazy(() => import("@/features/settings/SettingsPage").then((m) => ({ default: m.SettingsPage })));
@@ -87,6 +88,14 @@ export function App() {
             element={
               <Suspense fallback={<PageFallback />}>
                 <AssetsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="insights"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <InsightsPage />
               </Suspense>
             }
           />
