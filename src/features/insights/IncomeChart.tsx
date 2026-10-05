@@ -1,16 +1,27 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Segmented } from "@/components/ui/misc";
 import { useVault } from "@/features/vault/VaultProvider";
 import { themeColor } from "@/lib/cn";
-import { formatCompactNumber, formatDate, formatMoney } from "@/lib/format";
-import { averageMonthlyIncome, type MonthIncome } from "@/lib/history";
+import { addDays, formatCompactNumber, formatDate, formatMoney } from "@/lib/format";
+import { addMonths, averageMonthlyIncome, incomeMonthStart, type MonthIncome } from "@/lib/history";
 import { useMotionScale } from "@/lib/motion";
 import { usePalette, useResolvedTheme } from "@/lib/theme";
 
 const monthName = (month: string, opts: Intl.DateTimeFormatOptions) => formatDate(`${month}-01`, opts);
+const SHORT = { month: "short", day: "numeric" } as const;
 
-/** Income per month for the last 12 months, with the average of recent full months. */
+/** The days an income month covers: "Sep 24 – Oct 23". */
+function monthRange(month: string, offset: number): string {
+  const next = addMonths(`${month}-01`, 1).slice(0, 7);
+  return `${formatDate(incomeMonthStart(month, offset), SHORT)} – ${formatDate(addDays(incomeMonthStart(next, offset), -1), SHORT)}`;
+}
+
+/**
+ * Income per month for the last 12 months, with the average of recent full months. Months are income
+ * months: they can start a few days before the 1st (Settings › Insights).
+ */
 export function IncomeChart({ months }: { months: MonthIncome[] }) {
   const { vault } = useVault();
   const motion = useMotionScale();
@@ -18,6 +29,7 @@ export function IncomeChart({ months }: { months: MonthIncome[] }) {
   usePalette();
   const base = vault.profile.base_currency;
   const incomeCurrency = vault.profile.income_currency;
+  const offset = vault.profile.income_month_offset ?? 0;
   const [currency, setCurrency] = useState(incomeCurrency);
   const pick = (m: MonthIncome) => (currency === base ? m.base : m.income);
 
@@ -38,7 +50,9 @@ export function IncomeChart({ months }: { months: MonthIncome[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
           <div>
-            <dt className="text-ink-soft">This month so far</dt>
+            <dt className="text-ink-soft">
+              {offset > 0 ? `Income month since ${formatDate(incomeMonthStart(thisMonth.month, offset), SHORT)}` : "This month so far"}
+            </dt>
             <dd className="font-semibold text-ink tabular">{formatMoney(thisMonth.amount, currency)}</dd>
           </div>
           {lastMonth ? (
@@ -81,6 +95,7 @@ export function IncomeChart({ months }: { months: MonthIncome[] }) {
                 return (
                   <div className="rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-lifted">
                     <p className="font-medium text-ink">{monthName(m.month, { month: "long", year: "numeric" })}</p>
+                    {offset > 0 ? <p className="text-xs text-ink-soft">{monthRange(m.month, offset)}</p> : null}
                     <p className="text-ink tabular">{formatMoney(m.amount, currency)}</p>
                     <p className="text-ink-soft">
                       {m.entries} {m.entries === 1 ? "entry" : "entries"}
@@ -101,6 +116,12 @@ export function IncomeChart({ months }: { months: MonthIncome[] }) {
       </div>
       <p className="text-xs text-ink-soft">
         {recent.months > 1 ? `The dashed line is the average of the last ${recent.months} full months. ` : ""}The lighter bar is this month so far.
+      </p>
+      <p className="text-xs text-ink-soft">
+        {offset > 0 ? `Months start ${offset} ${offset === 1 ? "day" : "days"} before the 1st. ` : "Months follow the calendar. "}
+        <Link to="/settings?tab=insights" className="font-medium text-brand-ink hover:underline">
+          Change when months start
+        </Link>
       </p>
     </div>
   );

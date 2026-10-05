@@ -36,7 +36,7 @@ export const FIXTURES: Record<string, unknown[]> = {
   profiles: [{
     user_id: USER_ID, display_name: "qasem", timezone: "Africa/Cairo",
     avatar_color: "lilac", vault_name: "Qasem's Vault", base_currency: "EGP", display_currencies: ["USD", "AUD"],
-    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", palette_accents: {}, kpi_metric: "net_worth", kpi_period: "month", imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
+    income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", palette_accents: {}, kpi_metric: "net_worth", kpi_period: "month", income_month_offset: 7, imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
   }],
   pricing_settings: [{
     user_id: USER_ID, gold_mode: "live", manual_gold_24k_price: null, manual_gold_currency: "EGP", gold_premium_pct: 0,

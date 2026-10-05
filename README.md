@@ -72,7 +72,7 @@ The app has six pages:
 | **Insights** | How your net worth changed over a period and why, and your income month by month |
 | **Activity** | Every income, transfer, purchase, sale and balance change, with a way to undo them |
 | **Goals** | Your savings goals and milestones |
-| **Settings** | How your vault works and looks: vault, appearance, accounts, automations, market & pricing, Zakat and data |
+| **Settings** | How your vault works and looks: vault, appearance, accounts, automations, market & pricing, Zakat, Insights and data |
 
 - **On a computer**, the pages are in the sidebar on the left (Settings is in your avatar menu). On wide screens the sidebar also shows their names.
 - **On a phone**, the pages are in the bar at the bottom (Settings is in your avatar menu). The **➕** button above it opens a menu to **log income**, **log an hourly project**, **make a transfer** or **add an asset**.
@@ -107,7 +107,7 @@ Insights shows how your net worth changed and why. Pick a period at the top: **M
   - **Other changes:** everything else, e.g. balance edits, assets you added without paying from a cash account, and money spent or moved out.
 - **Prices of what you own:** the price of each karat of gold you hold (per gram), each stock, and each currency you hold money in, over the period. Dots mark your purchases (green) and sales (red), and a dashed line shows what you paid on average. The latest purchases and sales are listed under the chart.
 - **How each asset did:** every gold, stock and other asset, with its value now and how much it gained or lost over the period, in money and %. On wider screens it's split into its own price and the exchange rate. The best and worst performers are marked.
-- **Monthly income:** income per month for the last 12 months, in your income currency or base currency, with this month so far, last month and the average of recent full months.
+- **Monthly income:** income per month for the last 12 months, in your income currency or base currency, with this month so far, last month and the average of recent full months. Months are **income months**: by default they start 7 days before the 1st, so pay you log in the last week of a month counts toward the next one (hover a bar to see the days it covers). **Change when months start** opens the setting.
 - **Goal forecast:** roughly when you'd reach each goal if you kept adding your average monthly income (the last full months, up to 6) and spent none of it. Reserved goals fill one after another, as they do on the Goals page.
 
 How it's worked out:
@@ -453,6 +453,10 @@ Open it from your avatar menu.
 - **Email address:** enter a new email and select **Change email**. The change takes effect once you confirm it from the link sent to the new address.
 - **Change password:** enter the new password twice.
 - **Sessions:** **Sign out** of this device, or **Sign out of all devices** (every phone, tablet and computer).
+
+### Settings › Insights
+
+**Income months start** sets how many days before the 1st an income month begins (0 to 27; 7 unless you change it). If you're paid for a month in its last days, this makes that pay count toward the month it's for. The setting shows which days your current income month covers. Use 0 to follow the calendar. It changes the monthly income chart, its averages and the goal forecast on the Insights page; the other periods (This month, This year, …) always follow the calendar.
 
 ### Settings › Appearance
 

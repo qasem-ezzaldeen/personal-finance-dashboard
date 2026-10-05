@@ -214,6 +214,7 @@ export type ProfileUpdate = Partial<
     | "palette_accents"
     | "kpi_metric"
     | "kpi_period"
+    | "income_month_offset"
   >
 >;
 

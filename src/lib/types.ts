@@ -33,6 +33,8 @@ export interface Profile {
   palette_accents: Partial<Record<ColorPalette, string>>;
   kpi_metric: KpiMetric;
   kpi_period: PeriodKey;
+  /** Income months start this many days before the 1st (0–27), so pay logged in a month's last days counts toward the next */
+  income_month_offset: number;
   imported_at: string | null;
   created_at: string;
   updated_at: string;

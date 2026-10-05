@@ -1,11 +1,12 @@
 import * as RT from "@radix-ui/react-tabs";
-import { Bot, Coins, Database, Landmark, Moon, Sparkles, Vault } from "lucide-react";
+import { Bot, ChartLine, Coins, Database, Landmark, Moon, Sparkles, Vault } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/cn";
 import { AccountsTab } from "./AccountsTab";
 import { AppearanceTab } from "./AppearanceTab";
 import { AutomationsTab } from "./AutomationsTab";
 import { DataTab } from "./DataTab";
+import { InsightsTab } from "./InsightsTab";
 import { MarketTab } from "./MarketTab";
 import { VaultTab } from "./VaultTab";
 import { ZakatTab } from "./ZakatTab";
@@ -17,6 +18,7 @@ const TABS = [
   { id: "automations", label: "Automations", icon: Bot, render: () => <AutomationsTab /> },
   { id: "market", label: "Market & pricing", icon: Coins, render: () => <MarketTab /> },
   { id: "zakat", label: "Zakat", icon: Moon, render: () => <ZakatTab /> },
+  { id: "insights", label: "Insights", icon: ChartLine, render: () => <InsightsTab /> },
   { id: "data", label: "Data", icon: Database, render: () => <DataTab /> },
 ] as const;
 

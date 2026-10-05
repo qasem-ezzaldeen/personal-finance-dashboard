@@ -653,7 +653,23 @@ export function incomeBetween(vault: VaultData, ledger: Ledger, book: PriceBook,
   return total;
 }
 
-/** Income per calendar month for the last `months` months (this one included), oldest first. */
+/**
+ * The income month a day counts toward (YYYY-MM). Income months start `offset` days before the 1st:
+ * with 7, income logged from 24 September counts toward October.
+ */
+export function incomeMonthOf(day: string, offset: number): string {
+  return addDays(day, offset).slice(0, 7);
+}
+
+/** The first day of an income month (YYYY-MM-DD). */
+export function incomeMonthStart(month: string, offset: number): string {
+  return addDays(`${month}-01`, -offset);
+}
+
+/**
+ * Income per income month for the last `months` months (the current one included), oldest first.
+ * Months start the profile's income_month_offset days before the 1st.
+ */
 export function monthlyIncome(
   vault: VaultData,
   ledger: Ledger,
@@ -661,15 +677,17 @@ export function monthlyIncome(
   today: string,
   months = 12,
 ): MonthIncome[] {
+  const offset = vault.profile.income_month_offset ?? 0;
+  const current = incomeMonthOf(today, offset);
   const list: MonthIncome[] = [];
   for (let i = months - 1; i >= 0; i--) {
-    list.push({ month: addMonths(`${today.slice(0, 7)}-01`, -i).slice(0, 7), base: 0, income: 0, entries: 0 });
+    list.push({ month: addMonths(`${current}-01`, -i).slice(0, 7), base: 0, income: 0, entries: 0 });
   }
   const byMonth = new Map(list.map((m) => [m.month, m]));
   const days = entryDates(vault, ledger);
   for (const tx of ledger.transactions) {
     if (!isIncome(tx)) continue;
-    const month = byMonth.get(days.get(tx.id)!.slice(0, 7));
+    const month = byMonth.get(incomeMonthOf(days.get(tx.id)!, offset));
     if (month) addIncome(month, tx, vault, book);
   }
   return list;

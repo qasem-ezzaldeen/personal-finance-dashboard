@@ -39,3 +39,13 @@ describe("price history backfills", () => {
     await expect(asUser(db, USER, () => db.query("select * from public.price_history_backfills"))).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("income months", () => {
+  it("start 7 days before the 1st by default, and 0 to 27 days are allowed", async () => {
+    expect(await one(db, "select income_month_offset from public.profiles where user_id = $1", [USER])).toEqual({ income_month_offset: 7 });
+    await update("income_month_offset = 0");
+    await update("income_month_offset = 27");
+    await expect(update("income_month_offset = 28")).rejects.toThrow(/income_month_offset/);
+    await expect(update("income_month_offset = -1")).rejects.toThrow(/income_month_offset/);
+  });
+});

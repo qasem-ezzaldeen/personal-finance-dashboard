@@ -52,6 +52,7 @@ export const PROFILE: Profile = {
   palette_accents: {},
   kpi_metric: "net_worth",
   kpi_period: "month",
+  income_month_offset: 0,
   imported_at: null,
   created_at: NOW,
   updated_at: NOW,

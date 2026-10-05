@@ -8,6 +8,8 @@ import {
   forecastGoals,
   historySymbols,
   incomeBetween,
+  incomeMonthOf,
+  incomeMonthStart,
   instrumentsFor,
   measureHistory,
   measureUnits,
@@ -222,6 +224,39 @@ describe("monthly income", () => {
     expect(months[2].entries).toBe(2);
     // This month so far (from the end of August)
     expect(incomeBetween(vault(), ledger, buildPriceBook(MARKET), "2026-08-31", "2026-09-30")).toEqual({ base: 100 * 50 + 50 * 48, income: 150, entries: 2 });
+  });
+});
+
+describe("income months", () => {
+  it("start the offset's number of days before the 1st", () => {
+    expect(incomeMonthOf("2026-09-23", 7)).toBe("2026-09");
+    expect(incomeMonthOf("2026-09-24", 7)).toBe("2026-10");
+    expect(incomeMonthOf("2026-10-24", 7)).toBe("2026-10");
+    expect(incomeMonthOf("2026-10-25", 7)).toBe("2026-11");
+    expect(incomeMonthStart("2026-10", 7)).toBe("2026-09-24");
+    // 0 is the calendar
+    expect(incomeMonthOf("2026-09-30", 0)).toBe("2026-09");
+    expect(incomeMonthStart("2026-10", 0)).toBe("2026-10-01");
+    // Across a year and next to February
+    expect(incomeMonthOf("2026-12-28", 7)).toBe("2027-01");
+    expect(incomeMonthStart("2027-03", 27)).toBe("2027-02-02");
+  });
+
+  it("group income, with the current income month last", () => {
+    const ledger: Ledger = {
+      transactions: [
+        tx({ kind: "income", amount: 100, currency: "USD", rate_to_base: 50, base_currency: "EGP", occurred_at: "2026-09-20T10:00:00Z" }),
+        // Logged on the 26th: counts toward October
+        tx({ kind: "income", amount: 40, currency: "USD", rate_to_base: 50, base_currency: "EGP", occurred_at: "2026-09-26T10:00:00Z" }),
+      ],
+      changes: [],
+    };
+    const data = vault({ profile: { ...PROFILE, income_month_offset: 7 } });
+    const months = monthlyIncome(data, ledger, buildPriceBook(MARKET), "2026-09-30", 2);
+    expect(months.map((m) => [m.month, m.income])).toEqual([
+      ["2026-09", 100],
+      ["2026-10", 40],
+    ]);
   });
 });
 

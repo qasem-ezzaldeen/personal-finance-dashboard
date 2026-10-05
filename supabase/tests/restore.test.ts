@@ -186,3 +186,15 @@ describe("change KPI settings", () => {
     expect(await kpi()).toEqual({ kpi_metric: "income", kpi_period: "ytd" });
   });
 });
+
+describe("income months", () => {
+  it("restore when they start, ignoring values out of range", async () => {
+    await as(ALICE, () => db.query("update public.profiles set income_month_offset = 10 where user_id = $1", [ALICE]));
+    const backup = await exportVault(ALICE);
+    await restore(BOB, backup);
+    const offset = () => one(db, "select income_month_offset from public.profiles where user_id = $1", [BOB]);
+    expect(await offset()).toEqual({ income_month_offset: 10 });
+    await restore(BOB, { ...backup, profile: { ...(backup.profile as object), income_month_offset: 99 } });
+    expect(await offset()).toEqual({ income_month_offset: 10 });
+  });
+});

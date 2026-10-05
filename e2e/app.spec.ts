@@ -147,7 +147,7 @@ test("settings tabs", async ({ page }) => {
   const sections = page.getByRole("tablist", { name: "Settings sections" });
   const TABS = [
     ["Vault", "vault"], ["Appearance", "appearance"], ["Accounts", "accounts"], ["Automations", "automations"],
-    ["Market & pricing", "market"], ["Zakat", "zakat"], ["Data", "data"],
+    ["Market & pricing", "market"], ["Zakat", "zakat"], ["Insights", "insights"], ["Data", "data"],
   ];
   for (const [tab, id] of TABS) {
     await sections.getByRole("tab", { name: tab }).click();
@@ -696,4 +696,28 @@ test("Insights shows the prices of what you own, how each asset did and a goal f
   await expectNoHorizontalScroll(page);
   await snap(page, "insights-1y");
   expect(errors).toEqual([]);
+});
+
+test("income months can start before the 1st", async ({ page }) => {
+  const writes: Array<{ method: string; path: string; body: unknown }> = [];
+  await mockBackend(page, { onWrite: (w) => writes.push(w) });
+  await page.goto("settings?tab=insights");
+  const days = page.getByLabel("Income months start");
+  // 7 days by default
+  await expect(days).toHaveValue("7");
+  await expect(page.getByText(/^Income logged from .* counts toward/)).toBeVisible();
+  await days.fill("40");
+  await expect(page.getByText("Enter a whole number of days from 0 to 27")).toBeVisible();
+  await days.fill("10");
+  await page.getByRole("button", { name: "Save Insights settings" }).click();
+  await expect.poll(() => writes.find((w) => w.path === "profiles")?.body).toEqual({ income_month_offset: 10 });
+  await expectNoHorizontalScroll(page);
+  await snap(page, "settings-insights");
+
+  // Insights explains it next to the monthly income, with a way back here
+  await page.goto("insights?period=month");
+  await expect(page.getByText(/Months start 7 days before the 1st/)).toBeVisible();
+  await expect(page.getByText(/^Income month since /)).toBeVisible();
+  await page.getByRole("link", { name: "Change when months start" }).click();
+  await expect(page).toHaveURL(/settings\?tab=insights/);
 });
