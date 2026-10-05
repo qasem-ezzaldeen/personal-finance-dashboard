@@ -164,12 +164,16 @@ test("settings tabs", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("the sidebar opens Settings and the avatar opens the profile", async ({ page }) => {
+test("the account menu opens Settings and the profile", async ({ page }) => {
   await mockBackend(page);
   await page.goto("");
+  // Neither is in the main navigation
   await expect(page.getByRole("link", { name: "Profile" })).toHaveCount(0);
-  await page.getByRole("link", { name: "Settings" }).first().click();
-  await expect(page).toHaveURL(/\/settings/);
+  await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Settings" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Account menu" }).filter({ visible: true }).click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Account menu" }).filter({ visible: true }).click();
   await page.getByRole("menuitem", { name: "Profile" }).click();
   await expect(page).toHaveURL(/\/profile$/);

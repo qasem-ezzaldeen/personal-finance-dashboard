@@ -73,10 +73,10 @@ The app has five pages:
 | **Goals** | Your savings goals and milestones |
 | **Settings** | How your vault works and looks: vault, appearance, accounts, automations, market & pricing, Zakat and data |
 
-- **On a computer**, the pages are in the sidebar on the left. On wide screens the sidebar also shows their names.
-- **On a phone**, the pages are in the bar at the bottom. The **➕** button above it opens a menu to **log income**, **log an hourly project**, **make a transfer** or **add an asset**.
+- **On a computer**, the pages are in the sidebar on the left (Settings is in your avatar menu). On wide screens the sidebar also shows their names.
+- **On a phone**, the pages are in the bar at the bottom (Settings is in your avatar menu). The **➕** button above it opens a menu to **log income**, **log an hourly project**, **make a transfer** or **add an asset**.
 - **The rates bar** across the top of every page shows live exchange rates, gold prices and stock prices (see [Live prices](#12-live-prices)).
-- **Your avatar menu** shows your name and email, and links to your **Profile** (display name, email, password and sessions) and **Sign out**.
+- **Your avatar menu** (top right on a computer, top of the screen on a phone) shows your name and email, and links to your **Profile** (display name, email, password and sessions), **Settings** and **Sign out**.
 
 ### The Dashboard
 
