@@ -3,8 +3,11 @@ import type { Page, Route } from "@playwright/test";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const NOW = Date.now();
+// The fixture vault's time zone. Dates are days in it, the way the app counts them: in UTC, "211 days
+// ago" is a day off in the evening (UTC+3 is already tomorrow), and day counts like the Hawl's break.
+const TIME_ZONE = "Africa/Cairo";
 const iso = (daysAgo: number) => new Date(NOW - daysAgo * 86400000).toISOString();
-const day = (daysAgo: number) => iso(daysAgo).slice(0, 10);
+const day = (daysAgo: number) => new Intl.DateTimeFormat("en-CA", { timeZone: TIME_ZONE }).format(new Date(NOW - daysAgo * 86400000));
 
 const asset = (id: string, kind: string, name: string, extra: Record<string, unknown> = {}) => ({
   id, user_id: USER_ID, kind, name, currency: null, karat: null, ticker: null, manual_unit_price: null, balance: 0,
@@ -34,7 +37,7 @@ function closes(symbol: string, from: number, to: number, days = 420) {
 
 export const FIXTURES: Record<string, unknown[]> = {
   profiles: [{
-    user_id: USER_ID, display_name: "qasem", timezone: "Africa/Cairo",
+    user_id: USER_ID, display_name: "qasem", timezone: TIME_ZONE,
     avatar_color: "lilac", vault_name: "Qasem's Vault", base_currency: "EGP", display_currencies: ["USD", "AUD"],
     income_currency: "USD", number_locale: "en-US", zakat_enabled: true, animation_speed: "normal", theme: "light", color_palette: "pastel", palette_accents: {}, kpi_metric: "net_worth", kpi_period: "month", income_month_offset: 7, imported_at: iso(1), created_at: iso(2), updated_at: iso(1),
   }],
