@@ -9,9 +9,9 @@ import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
 import { deleteSale, reorderAssets, reorderGroups } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { purchasePriceState } from "@/lib/estimates";
-import { formatDate, formatMoney, formatPercent, formatQuantity } from "@/lib/format";
+import { formatDate, formatMoney, formatPercent, formatQuantity, formatUnitTotal } from "@/lib/format";
 import type { Asset, GroupKind, Purchase } from "@/lib/types";
-import { convert, stockPrice, type AssetSummary, type GroupSummary, type SaleSummary } from "@/lib/valuation";
+import { convert, stockPrice, visibleUnitTotals, type AssetSummary, type GroupSummary, type SaleSummary } from "@/lib/valuation";
 import { PurchaseDialog } from "./PurchaseDialog";
 import { SellDialog } from "./TradeDialogs";
 import { useExpanded } from "./useCollapsed";
@@ -25,10 +25,15 @@ const GROUP_TONES: Record<GroupKind, string> = {
   other: "bg-other text-other-ink",
 };
 
+function useSecondaryCurrency(): string | null {
+  const { vault } = useVault();
+  return vault.profile.display_currencies.find((c) => c !== vault.profile.base_currency) ?? null;
+}
+
 function useSecondary() {
   const { vault, book } = useVault();
   const base = vault.profile.base_currency;
-  const secondary = vault.profile.display_currencies.find((c) => c !== base) ?? null;
+  const secondary = useSecondaryCurrency();
   return (amount: number | null) =>
     secondary && amount !== null ? formatMoney(convert(amount, base, secondary, book), secondary) : null;
 }
@@ -283,6 +288,10 @@ function GroupSection({ group, variant }: { group: GroupSummary; variant: Varian
   const { setNodeRef, style, handleProps, isDragging } = useSortableItem(`group:${group.group.kind}`);
   const [expanded, toggle] = useExpanded(`group:${group.group.kind}`, variant === "full");
   const [showHidden, setShowHidden] = useState(false);
+  const secondaryCurrency = useSecondaryCurrency();
+  const units = visibleUnitTotals(group.units, [base]);
+  // The secondary currency is under the total from sm up, so a lone total in it only shows on phones
+  const phoneOnly = units.length > 0 && visibleUnitTotals(units, [base, secondaryCurrency]).length === 0;
 
   const visible = group.assets.filter((a) => showHidden || !a.hidden);
   const hiddenCount = group.assets.length - group.assets.filter((a) => !a.hidden).length;
@@ -302,13 +311,28 @@ function GroupSection({ group, variant }: { group: GroupSummary; variant: Varian
           className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-surface-muted"
         >
           <ChevronRight className={cn("size-4 shrink-0 text-ink-soft transition", expanded && "rotate-90")} aria-hidden="true" />
-          <span className={cn("min-w-0 truncate rounded-lg px-2 py-0.5 text-sm font-semibold", GROUP_TONES[group.group.kind])}>
-            {group.group.name}
+          {/* On narrow screens the unit totals wrap under the group name */}
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            <span className={cn("min-w-0 truncate rounded-lg px-2 py-0.5 text-sm font-semibold", GROUP_TONES[group.group.kind])}>
+              {group.group.name}
+            </span>
+            <span className="hidden shrink-0 text-sm text-ink-soft sm:inline">
+              {group.assets.length} {group.assets.length === 1 ? "item" : "items"}
+            </span>
+            {units.length > 0 ? (
+              <span className={cn("flex flex-wrap gap-1", phoneOnly && "sm:hidden")}>
+                {units.map((u) => (
+                  <span
+                    key={u.unit === "gold" ? `gold:${u.karat}` : `money:${u.currency}`}
+                    className="rounded-md bg-surface-muted px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-ink-soft tabular"
+                  >
+                    {formatUnitTotal(u)}
+                  </span>
+                ))}
+              </span>
+            ) : null}
           </span>
-          <span className="hidden shrink-0 text-sm text-ink-soft sm:inline">
-            {group.assets.length} {group.assets.length === 1 ? "item" : "items"}
-          </span>
-          <span className="ml-auto flex shrink-0 flex-col items-end gap-0.5">
+          <span className="flex shrink-0 flex-col items-end gap-0.5">
             <span className="font-semibold text-ink tabular">{formatMoney(group.value, base)}</span>
             <span className="flex items-center gap-1.5 text-xs text-ink-soft tabular">
               {secondary(group.value) ? <span className="hidden sm:inline">{secondary(group.value)} ·</span> : null}

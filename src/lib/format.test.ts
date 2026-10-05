@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney } from "./format";
+import { formatMoney, formatUnitTotal } from "./format";
 
 describe("formatMoney", () => {
   it("shows two decimals below 100,000", () => {
@@ -15,5 +15,13 @@ describe("formatMoney", () => {
 
   it("leaves compact amounts alone", () => {
     expect(formatMoney(1_250_000, "USD", { compact: true, decimals: 2 })).toBe("$1.25M");
+  });
+});
+
+describe("formatUnitTotal", () => {
+  it("shows gold as grams of its karat and money in its own currency", () => {
+    expect(formatUnitTotal({ unit: "gold", karat: 21, grams: 20 })).toBe("21k 20 g");
+    expect(formatUnitTotal({ unit: "gold", karat: 24, grams: 45.5 })).toBe("24k 45.5 g");
+    expect(formatUnitTotal({ unit: "money", currency: "USD", amount: 342 })).toBe("$342.00");
   });
 });

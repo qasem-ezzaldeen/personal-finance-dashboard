@@ -1,5 +1,7 @@
 // Number, money and date formatting. Everything goes through Intl so it respects the user's locale.
 
+import type { UnitTotal } from "./valuation";
+
 let activeLocale = "en-US";
 
 export function setFormatLocale(locale: string) {
@@ -77,6 +79,11 @@ export function formatQuantity(kind: "gold" | "stock" | "other", quantity: numbe
   if (kind === "gold") return formatGrams(quantity);
   if (kind === "stock") return `${formatNumber(quantity, 4)} ${quantity === 1 ? "share" : "shares"}`;
   return `${formatNumber(quantity, 4)} ${quantity === 1 ? "unit" : "units"}`;
+}
+
+/** A group's unit total: "24k 45.5 g" for gold, the amount in its own currency otherwise. */
+export function formatUnitTotal(total: UnitTotal): string {
+  return total.unit === "gold" ? `${total.karat}k ${formatGrams(total.grams)}` : formatMoney(total.amount, total.currency);
 }
 
 export function formatDate(value: string | Date, opts: Intl.DateTimeFormatOptions = { dateStyle: "medium" }): string {

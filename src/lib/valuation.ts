@@ -288,9 +288,14 @@ export interface AssetSummary {
   hidden: boolean;
 }
 
+/** A group's holdings added up in their own unit: grams of one karat, or money in one currency. */
+export type UnitTotal = { unit: "gold"; karat: 21 | 24; grams: number } | { unit: "money"; currency: string; amount: number };
+
 export interface GroupSummary {
   group: AssetGroup;
   assets: AssetSummary[];
+  /** Gold: grams per karat (24k first). Cash: balance per currency. Stocks: value per price currency. Empty for Other. */
+  units: UnitTotal[];
   value: number;
   share: number;
   growth: Growth | null;
@@ -326,6 +331,42 @@ export interface VaultSummary {
   totalGrowth: Growth | null;
   gold24k: number | null;
   zakat: ZakatStatus;
+}
+
+/**
+ * Adds up holdings that share a unit: grams of the same karat, cash in the same currency, and stocks
+ * priced in the same currency (by value, since shares of different tickers can't be added).
+ * Other assets aren't added up. Holdings without a price are left out, like in the group's value.
+ */
+export function unitTotals(assets: AssetSummary[], ctx: ValuationContext): UnitTotal[] {
+  const grams = new Map<21 | 24, number>();
+  const money = new Map<string, number>();
+  for (const { asset, quantity } of assets) {
+    if (quantity === 0) continue;
+    if (asset.kind === "gold" && asset.karat) {
+      grams.set(asset.karat, (grams.get(asset.karat) ?? 0) + quantity);
+    } else if (asset.kind === "cash" && asset.currency) {
+      money.set(asset.currency, (money.get(asset.currency) ?? 0) + quantity);
+    } else if (asset.kind === "stock" && asset.ticker) {
+      const quote = stockPrice(asset.ticker, ctx);
+      if (quote) money.set(quote.currency, (money.get(quote.currency) ?? 0) + quantity * quote.price);
+    }
+  }
+  const totals: UnitTotal[] = ([24, 21] as const)
+    .filter((karat) => grams.has(karat))
+    .map((karat) => ({ unit: "gold", karat, grams: grams.get(karat)! }));
+  for (const [currency, amount] of money) {
+    if (amount !== 0) totals.push({ unit: "money", currency, amount });
+  }
+  return totals;
+}
+
+/**
+ * The unit totals worth showing next to a value already shown in `shown` currencies (the base, and
+ * the secondary currency where it appears): a single total in one of them only repeats that value.
+ */
+export function visibleUnitTotals(units: UnitTotal[], shown: Array<string | null>): UnitTotal[] {
+  return units.length === 1 && units[0].unit === "money" && shown.includes(units[0].currency) ? [] : units;
 }
 
 export function summarizeVault(vault: VaultData, ctx: ValuationContext, now = new Date()): VaultSummary {
@@ -409,6 +450,7 @@ export function summarizeVault(vault: VaultData, ctx: ValuationContext, now = ne
     return {
       group,
       assets,
+      units: unitTotals(assets, ctx),
       value,
       share: 0,
       growth: combineGrowth(assets.map((a) => a.growth), base, ctx.book),

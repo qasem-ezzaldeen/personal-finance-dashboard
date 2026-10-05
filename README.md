@@ -86,7 +86,7 @@ The app has five pages:
 - **Zakat:** your progress to the Nisab, the day of your Hawl, or "Due now" (only if Zakat tracking is on). Select it to open all Zakat settings.
 - **Quick actions** (on a computer): log income, an hourly project or a transfer between accounts without opening a popup. To record buying gold or stocks, use **Add asset**; to sell, use **Sell** on the Assets page.
 - **Recent activity:** your last 8 entries. **View all** opens the Activity page.
-- **Wealth distribution:** a donut chart and your asset groups. The chart fits its column (up to a fixed size) and sits beside the groups when there's room. **Details** opens the Assets page.
+- **Wealth distribution:** a donut chart and your asset groups. The chart fits its column (up to a fixed size) and sits beside the groups when there's room. Point at a slice to see the group's value, its share of your net worth and its [totals by unit](#14-organizing-archiving-and-hiding-assets) (e.g. grams of gold). **Details** opens the Assets page.
 - **Goals:** your first three goals. **View all** opens the Goals page.
 
 On large screens you can drag the divider between the two columns to make one wider. The app remembers your choice on that device.
@@ -395,6 +395,12 @@ A preview shows the market price and what **your** gram is worth for both karats
 
 - **Reorder** groups and assets by dragging the handle next to them. The order is saved and shows everywhere.
 - **Expand or collapse** a group by selecting its header. The app remembers which groups are open.
+- **Totals by unit:** each group's header also adds up what it holds in its own unit, next to the value in your base currency. They also appear in the Assets side panel and when you point at the chart.
+  - **Gold:** grams held, with 24k and 21k kept separate (e.g. `24k 14 g` `21k 40 g`).
+  - **Cash:** balances per currency (e.g. `$4,700.50` `EGP 45,000.00`).
+  - **Stocks & ETFs:** the value of your holdings in the currency they're priced in (e.g. 4 SPUS worth $240 and 2 SPTE worth $102 show `$342.00`). Stocks priced in different currencies get separate totals. Stocks without a price yet aren't counted.
+  - **Other** isn't added up, since its assets don't share a unit.
+  - A group whose only total is in your base currency, or in the second currency shown under its value, doesn't repeat it there (phones, which don't show that second line, still show it).
 - **Hide when empty:** turn this on for an asset (in its edit popup) to keep it out of the list while its balance is zero. A **Show N empty** link at the bottom of the group shows them again.
 - **Rename or recolor a group:** go to **Settings › Accounts**, select a group, change its name or chart color, and save.
 - **Archive an asset:** in **Settings › Accounts**, select **Archive**. It's no longer counted or shown, but it isn't deleted. **Restore** brings it back. A cash account has to be empty before you can archive it.

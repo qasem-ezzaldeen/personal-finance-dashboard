@@ -4,7 +4,8 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { GrowthPill } from "@/components/ui/misc";
 import { useActions } from "@/features/actions/ActionsProvider";
 import { useVault } from "@/features/vault/VaultProvider";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatPercent, formatUnitTotal } from "@/lib/format";
+import { visibleUnitTotals } from "@/lib/valuation";
 import { AssetGroups } from "./AssetGroups";
 import { LazyWealthDonut } from "./LazyWealthDonut";
 
@@ -34,14 +35,28 @@ export function AssetsPage() {
             <dl className="flex flex-col gap-2 text-sm">
               {summary.groups
                 .filter((g) => g.value > 0)
-                .map((g) => (
-                  <div key={g.group.kind} className="flex items-center justify-between gap-2">
-                    <dt className="text-ink-soft">{g.group.name}</dt>
-                    <dd className="font-medium text-ink tabular">
-                      {formatMoney(g.value, base, { compact: true, decimals: 2 })} · {formatPercent(g.share, { decimals: 2 })}
-                    </dd>
-                  </div>
-                ))}
+                .map((g) => {
+                  const units = visibleUnitTotals(g.units, [base]);
+                  return (
+                    <div key={g.group.kind} className="flex items-start justify-between gap-2">
+                      <dt className="text-ink-soft">
+                        {g.group.name}
+                        {units.length > 0 ? (
+                          <span className="flex flex-wrap gap-x-2 text-xs tabular">
+                            {units.map((u) => (
+                              <span key={u.unit === "gold" ? `gold:${u.karat}` : `money:${u.currency}`} className="whitespace-nowrap">
+                                {formatUnitTotal(u)}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
+                      </dt>
+                      <dd className="shrink-0 font-medium whitespace-nowrap text-ink tabular">
+                        {formatMoney(g.value, base, { compact: true, decimals: 2 })} · {formatPercent(g.share, { decimals: 2 })}
+                      </dd>
+                    </div>
+                  );
+                })}
             </dl>
             {summary.totalGrowth ? (
               <div className="flex items-center justify-between gap-2 border-t border-line pt-3 text-sm">

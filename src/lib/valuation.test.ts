@@ -10,6 +10,7 @@ import {
   makeContext,
   purchaseGrowth,
   summarizeVault,
+  visibleUnitTotals,
 } from "./valuation";
 import { estimateGoldGram, gold24kGramOn } from "@shared/estimates";
 import { GOLD_UNIT, type Goal } from "./types";
@@ -362,5 +363,78 @@ describe("sales", () => {
     expect(a.quantity).toBe(0);
     expect(a.value).toBe(0);
     expect(a.growth).toBeNull();
+  });
+});
+
+describe("unit totals", () => {
+  const ingots = asset({ kind: "gold", karat: 24, name: "Ingots" });
+  const bar = asset({ kind: "gold", karat: 24, name: "Bar" });
+  const ring = asset({ kind: "gold", karat: 21, name: "Ring" });
+  const spus = asset({ kind: "stock", ticker: "SPUS", name: "SPUS" });
+  const aapl = asset({ kind: "stock", ticker: "AAPL", name: "Apple" });
+  const local = asset({ kind: "stock", ticker: "COMI", name: "CIB" });
+  const unpriced = asset({ kind: "stock", ticker: "ZZZZ", name: "Mystery" });
+  const bank = asset({ kind: "cash", currency: "USD", balance: 100, name: "Bank" });
+  const paypal = asset({ kind: "cash", currency: "USD", balance: 50, name: "PayPal" });
+  const wallet = asset({ kind: "cash", currency: "EGP", balance: 1000, name: "Wallet" });
+  const empty = asset({ kind: "cash", currency: "AUD", balance: 0, name: "Empty" });
+  const car = asset({ kind: "other", currency: "EGP", manual_unit_price: 500000, name: "Car" });
+
+  const data = vault({
+    assets: [ingots, bar, ring, spus, aapl, local, unpriced, bank, paypal, wallet, empty, car],
+    purchases: [
+      purchase({ asset_id: ingots.id, quantity: 10 }),
+      purchase({ asset_id: bar.id, quantity: 5.5 }),
+      purchase({ asset_id: ring.id, quantity: 12 }),
+      purchase({ asset_id: spus.id, quantity: 4 }),
+      purchase({ asset_id: aapl.id, quantity: 2 }),
+      purchase({ asset_id: local.id, quantity: 100 }),
+      purchase({ asset_id: unpriced.id, quantity: 1 }),
+      purchase({ asset_id: car.id, quantity: 1 }),
+    ],
+    sales: [sale({ asset_id: ring.id, quantity: 2, proceeds: 8000 })],
+  });
+  // COMI is priced in EGP through an override
+  const withOverride = makeContext(book, PRICING, [{ user_id: "u1", ticker: "COMI", price: 80, currency: "EGP" }]);
+  const summary = summarizeVault(data, withOverride, NOW);
+  const units = (kind: string) => summary.groups.find((g) => g.group.kind === kind)!.units;
+
+  it("adds up grams of gold per karat, 24k first, after sales", () => {
+    expect(units("gold")).toEqual([
+      { unit: "gold", karat: 24, grams: 15.5 },
+      { unit: "gold", karat: 21, grams: 10 },
+    ]);
+  });
+
+  it("adds up stocks by value in the currency they're priced in, skipping unpriced ones", () => {
+    // 4 SPUS x $60 + 2 AAPL x $200 = $640; 100 COMI x 80 EGP = 8,000 EGP
+    expect(units("stock")).toEqual([
+      { unit: "money", currency: "USD", amount: 640 },
+      { unit: "money", currency: "EGP", amount: 8000 },
+    ]);
+  });
+
+  it("adds up cash per currency, leaving out empty accounts", () => {
+    expect(units("cash")).toEqual([
+      { unit: "money", currency: "USD", amount: 150 },
+      { unit: "money", currency: "EGP", amount: 1000 },
+    ]);
+  });
+
+  it("doesn't add up other assets", () => {
+    expect(units("other")).toEqual([]);
+  });
+
+  it("hides a single total in a currency the group's value is already shown in", () => {
+    const egpOnly = [{ unit: "money" as const, currency: "EGP", amount: 8000 }];
+    const usdOnly = [{ unit: "money" as const, currency: "USD", amount: 640 }];
+    expect(visibleUnitTotals(egpOnly, ["EGP"])).toEqual([]);
+    expect(visibleUnitTotals(egpOnly, ["USD"])).toEqual(egpOnly);
+    // USD as the secondary currency shown under the total
+    expect(visibleUnitTotals(usdOnly, ["EGP", "USD"])).toEqual([]);
+    expect(visibleUnitTotals(usdOnly, ["EGP", null])).toEqual(usdOnly);
+    // Several currencies: none of them is the whole value
+    expect(visibleUnitTotals(units("cash"), ["EGP", "USD"])).toHaveLength(2);
+    expect(visibleUnitTotals([{ unit: "gold", karat: 24, grams: 1 }], ["EGP"])).toHaveLength(1);
   });
 });

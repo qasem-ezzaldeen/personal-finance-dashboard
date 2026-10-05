@@ -552,3 +552,47 @@ test("money of 100,000 or more has no decimals", async ({ page }) => {
   await expect(netWorth).toBeVisible();
   await expect(netWorth).not.toContainText(".");
 });
+
+test("groups add up holdings in their own unit: grams per karat, money per currency", async ({ page }) => {
+  await mockBackend(page);
+  for (const path of ["", "assets"]) {
+    await page.goto(path);
+    const group = (kind: string) => page.locator(`button[aria-controls="group-panel-${kind}"]`);
+    // 24k: 2 + 10 + 2 g; 21k: 40 g
+    await expect(group("gold")).toContainText("24k 14 g");
+    await expect(group("gold")).toContainText("21k 40 g");
+    // 10 SPUS x $59.09 + 3 AAPL x $224.23, all in USD: it repeats the USD line under the total,
+    // which phones don't show, so only phones get the subtotal
+    const stocksInUsd = group("stock").getByText("$1,263.59", { exact: true });
+    if (test.info().project.name === "phone") await expect(stocksInUsd).toBeVisible();
+    else await expect(stocksInUsd).toBeHidden();
+    // USD accounts and the EGP account are added up separately
+    await expect(group("cash")).toContainText("$4,700.50");
+    await expect(group("cash")).toContainText(/EGP\s?45,000\.00/);
+    await expectNoHorizontalScroll(page);
+  }
+  await snap(page, "unit-totals");
+});
+
+test("hovering the wealth chart shows a group's grams", async ({ page }) => {
+  test.skip(test.info().project.name !== "desktop", "Hovering needs a mouse");
+  await mockBackend(page);
+  await page.goto("assets");
+  await expect(page.locator('.recharts-sector[name="Gold"]')).toBeVisible();
+  await page.waitForTimeout(1000); // let the chart finish drawing
+  // A point just inside the slice's outer edge, nudged toward the middle of the chart
+  const point = await page.evaluate(() => {
+    const path = document.querySelector<SVGPathElement>('.recharts-sector[name="Gold"]')!;
+    const svg = path.closest("svg")!.getBoundingClientRect();
+    const local = path.getPointAtLength(path.getTotalLength() * 0.2);
+    const onEdge = new DOMPoint(local.x, local.y).matrixTransform(path.getScreenCTM()!);
+    const cx = svg.left + svg.width / 2;
+    const cy = svg.top + svg.height / 2;
+    const d = Math.hypot(onEdge.x - cx, onEdge.y - cy);
+    return { x: onEdge.x + ((cx - onEdge.x) / d) * 6, y: onEdge.y + ((cy - onEdge.y) / d) * 6 };
+  });
+  await page.mouse.move(point.x, point.y);
+  const tooltip = page.locator(".recharts-tooltip-wrapper");
+  await expect(tooltip).toContainText("Gold · 24k 14 g · 21k 40 g");
+  await expect(tooltip).toContainText(/EGP\s?[\d,]+ · [\d.]+%/);
+});

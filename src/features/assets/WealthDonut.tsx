@@ -3,7 +3,8 @@ import { useVault } from "@/features/vault/VaultProvider";
 import { cn, resolvedColor, themeColor } from "@/lib/cn";
 import { useMotionScale } from "@/lib/motion";
 import { usePalette, useResolvedTheme } from "@/lib/theme";
-import { formatMoney, formatPercent } from "@/lib/format";
+import { formatMoney, formatPercent, formatUnitTotal } from "@/lib/format";
+import { visibleUnitTotals } from "@/lib/valuation";
 import { expandItem } from "./useCollapsed";
 
 interface Slice {
@@ -11,6 +12,8 @@ interface Slice {
   name: string;
   value: number;
   color: string;
+  /** Grams per karat or amounts per currency, e.g. "24k 20 g · 21k 5 g" */
+  units?: string;
 }
 
 /**
@@ -27,7 +30,13 @@ export function WealthDonut({ className }: { className?: string }) {
 
   const slices: Slice[] = summary.groups
     .filter((g) => g.value > 0)
-    .map((g) => ({ key: g.group.kind, name: g.group.name, value: g.value, color: resolvedColor(g.group.color) }));
+    .map((g) => ({
+      key: g.group.kind,
+      name: g.group.name,
+      value: g.value,
+      color: resolvedColor(g.group.color),
+      units: visibleUnitTotals(g.units, [base]).map(formatUnitTotal).join(" · ") || undefined,
+    }));
   if (summary.pending && (summary.pending.value ?? 0) > 0) {
     slices.push({ key: "pending", name: "Upcoming Income", value: summary.pending.value!, color: resolvedColor("slate") });
   }
@@ -66,7 +75,10 @@ export function WealthDonut({ className }: { className?: string }) {
                 if (!item) return null;
                 return (
                   <div className="rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-lifted">
-                    <p className="font-medium text-ink">{item.name}</p>
+                    <p className="font-medium text-ink">
+                      {item.name}
+                      {item.units ? <span className="font-normal text-ink-soft tabular"> · {item.units}</span> : null}
+                    </p>
                     <p className="text-ink-soft tabular">
                       {formatMoney(item.value, base)} · {formatPercent(item.value / total, { decimals: 2 })}
                     </p>
