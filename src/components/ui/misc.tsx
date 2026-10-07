@@ -16,12 +16,15 @@ export function Segmented<T extends string>({
   items,
   label,
   className,
+  dense = false,
 }: {
   value: T;
   onValueChange: (value: T) => void;
   items: Array<{ value: T; label: ReactNode }>;
   label: string;
   className?: string;
+  /** Narrower options on small screens, for many short labels */
+  dense?: boolean;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
@@ -62,7 +65,8 @@ export function Segmented<T extends string>({
             key={item.value}
             value={item.value}
             className={cn(
-              "relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium text-ink-soft transition",
+              "relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm font-medium text-ink-soft transition",
+              dense ? "px-2 sm:px-3" : "px-3",
               "hover:text-ink data-[state=active]:text-ink",
               !indicator && "data-[state=active]:bg-surface data-[state=active]:shadow-soft",
             )}

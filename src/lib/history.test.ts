@@ -78,6 +78,10 @@ describe("periods", () => {
     expect(periodBaseline("month", "2026-10-01", "2020-01-01")).toBe("2026-09-30");
   });
 
+  it("measures today from yesterday's close", () => {
+    expect(periodBaseline("1d", "2026-10-01", "2020-01-01")).toBe("2026-09-30");
+  });
+
   it("goes back whole days, months or to 1 January", () => {
     expect(periodBaseline("7d", "2026-09-30", "2020-01-01")).toBe("2026-09-23");
     expect(periodBaseline("3m", "2026-05-31", "2020-01-01")).toBe("2026-02-28");

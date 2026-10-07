@@ -32,6 +32,11 @@ describe("change KPI settings", () => {
     await expect(update("kpi_metric = 'luck'")).rejects.toThrow(/kpi_metric/);
     await expect(update("kpi_period = '5y'")).rejects.toThrow(/kpi_period/);
   });
+
+  it("can show today's change", async () => {
+    await update("kpi_period = '1d'");
+    expect(await one(db, "select kpi_period from public.profiles where user_id = $1", [USER])).toEqual({ kpi_period: "1d" });
+  });
 });
 
 describe("price history backfills", () => {

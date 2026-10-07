@@ -168,7 +168,9 @@ export function InsightsPage() {
             {updating
               ? `Loading ${periodLabel(periodKey).toLowerCase()}…`
               : period
-                ? `${periodLabel(periodKey)}: ${formatDate(addDays(period.baseline, 1))} to today`
+                ? addDays(period.baseline, 1) >= period.end
+                  ? `${periodLabel(periodKey)}: ${formatDate(period.end)}, since yesterday's close`
+                  : `${periodLabel(periodKey)}: ${formatDate(addDays(period.baseline, 1))} to today`
                 : "How your net worth changed, and why."}
           </p>
         </div>
@@ -179,6 +181,7 @@ export function InsightsPage() {
             onValueChange={(p) => set("period", p)}
             items={PERIODS.map((p) => ({ value: p.key, label: <span title={p.label}>{p.short}</span> }))}
             className="w-full max-w-xl"
+            dense
           />
           {/* The base currency and USD; nothing to pick when the base currency is USD */}
           {measureUnits(vault).length > 1 ? (

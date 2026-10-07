@@ -653,6 +653,23 @@ test("Insights can switch periods and show net worth by group", async ({ page })
   await snap(page, "insights-ytd");
 });
 
+test("Insights and the change card can show today's change", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockBackend(page);
+  await page.goto("insights?period=month");
+  await page.getByRole("tab", { name: "1D" }).click();
+  await expect(page).toHaveURL(/period=1d/);
+  await expect(page.getByText(/^Today: .*since yesterday's close$/)).toBeVisible();
+  await expect(page.getByRole("list", { name: "What changed" })).toContainText("Today");
+  await expectNoHorizontalScroll(page);
+  await snap(page, "insights-1d");
+
+  await mockBackend(page, { profile: { kpi_period: "1d" } });
+  await page.goto("");
+  await expect(page.getByRole("link", { name: /Net worth change, today\. Open Insights/ })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("Insights can be measured in the base currency or USD", async ({ page }) => {
   await mockBackend(page);
   await page.goto("insights?period=3m");

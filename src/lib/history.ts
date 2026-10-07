@@ -33,6 +33,7 @@ export interface Ledger {
 // ---------------------------------------------------------------------------
 
 export const PERIODS: Array<{ key: PeriodKey; label: string; short: string }> = [
+  { key: "1d", label: "Today", short: "1D" },
   { key: "month", label: "This month", short: "Month" },
   { key: "7d", label: "Last 7 days", short: "1W" },
   { key: "30d", label: "Last 30 days", short: "1M" },
@@ -67,6 +68,9 @@ export function periodBaseline(key: PeriodKey, today: string, firstDay: string):
   const earliest = addDays(firstDay, -1);
   let baseline: string;
   switch (key) {
+    case "1d":
+      baseline = addDays(today, -1);
+      break;
     case "month":
       baseline = addDays(`${today.slice(0, 7)}-01`, -1);
       break;

@@ -13,7 +13,7 @@ export type AnimationSpeed = "system" | "off" | "slow" | "normal" | "fast";
 export type KpiMetric = "net_worth" | "investments" | "income" | "since_purchase";
 
 /** A period ending today: since the 1st of the month, the last 7/30 days, 3 months, since 1 January, 12 months, or everything */
-export type PeriodKey = "month" | "7d" | "30d" | "3m" | "ytd" | "1y" | "all";
+export type PeriodKey = "1d" | "month" | "7d" | "30d" | "3m" | "ytd" | "1y" | "all";
 
 export interface Profile {
   user_id: string;
