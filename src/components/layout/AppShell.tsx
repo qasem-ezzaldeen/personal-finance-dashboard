@@ -23,6 +23,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { RatesStrip } from "@/features/market/RatesStrip";
 import { useVault } from "@/features/vault/VaultProvider";
 import { cn, colorValue } from "@/lib/cn";
+import { CurrencyPicker, CurrencySubMenu } from "./CurrencyPicker";
 import { Logo } from "./Logo";
 
 const NAV = [
@@ -80,6 +81,7 @@ function UserMenu() {
           >
             <UserRound className="size-4" aria-hidden="true" /> Profile
           </DM.Item>
+          <CurrencySubMenu />
           <DM.Item
             onSelect={() => navigate("/settings")}
             className="flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-sm text-ink outline-none data-[highlighted]:bg-surface-muted"
@@ -129,6 +131,9 @@ function Sidebar() {
           </li>
         ))}
       </ul>
+      <div className="mt-auto pt-3 border-t border-line">
+        <CurrencyPicker variant="sidebar" />
+      </div>
     </nav>
   );
 }
@@ -227,11 +232,13 @@ export function AppShell() {
           <div className="flex items-center gap-2 px-4 pt-3 md:hidden">
             <Logo className="size-8" />
             <span className="min-w-0 flex-1 truncate font-semibold text-ink">{vault.profile.vault_name}</span>
+            <CurrencyPicker variant="header" />
             <UserMenu />
           </div>
           <div className="flex items-center gap-3 px-4 py-2.5 md:px-6">
             <RatesStrip />
-            <div className="hidden md:block">
+            <div className="hidden md:flex items-center gap-2">
+              <CurrencyPicker variant="header" />
               <UserMenu />
             </div>
           </div>

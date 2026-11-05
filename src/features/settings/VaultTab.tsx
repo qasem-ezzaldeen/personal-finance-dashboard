@@ -27,7 +27,6 @@ export function VaultTab() {
   const deviceZone = useMemo(() => guessTimeZone(), []);
 
   const [vaultName, setVaultName] = useState(p.vault_name);
-  const [base, setBase] = useState(p.base_currency);
   const [display, setDisplay] = useState<string[]>(p.display_currencies);
   const [income, setIncome] = useState(p.income_currency);
   const [locale, setLocale] = useState(p.number_locale);
@@ -46,8 +45,8 @@ export function VaultTab() {
       () =>
         updateProfile(userId, {
           vault_name: vaultName.trim(),
-          base_currency: base,
-          display_currencies: display.filter((c) => c !== base),
+          base_currency: p.base_currency,
+          display_currencies: display.filter((c) => c !== p.base_currency),
           income_currency: income,
           number_locale: locale,
           timezone,
@@ -66,39 +65,26 @@ export function VaultTab() {
             {(f) => <Input {...f} value={vaultName} onChange={(e) => setVaultName(e.target.value)} maxLength={60} />}
           </Field>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Base currency" hint="Totals, net worth and Zakat are shown in this currency">
-              {(f) => (
-                <Select {...f} value={base} onChange={(e) => setBase(e.target.value)}>
-                  {options.map((o) => (
-                    <option key={o.code} value={o.code}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-            <Field
-              label="Income currency"
-              hint={pendingBalance > 0 ? `Move or clear your Upcoming Income (${formatMoney(pendingBalance, p.income_currency)}) to change this` : "Income you log is recorded in this currency"}
-            >
-              {(f) => (
-                <Select {...f} value={income} onChange={(e) => setIncome(e.target.value)} disabled={pendingBalance > 0}>
-                  {options.map((o) => (
-                    <option key={o.code} value={o.code}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-          </div>
+          <Field
+            label="Income currency"
+            hint={pendingBalance > 0 ? `Move or clear your Upcoming Income (${formatMoney(pendingBalance, p.income_currency)}) to change this` : "Income you log is recorded in this currency"}
+          >
+            {(f) => (
+              <Select {...f} value={income} onChange={(e) => setIncome(e.target.value)} disabled={pendingBalance > 0}>
+                {options.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
 
           <fieldset>
             <legend className="text-sm font-medium text-ink">Also show totals in</legend>
             <p className="mb-2 text-sm text-ink-soft">Pick up to 6. The first one appears next to your totals.</p>
             <div className="flex flex-wrap gap-2">
-              {options.slice(0, 40).filter((o) => o.code !== base).map((o) => {
+              {options.slice(0, 40).filter((o) => o.code !== p.base_currency).map((o) => {
                 const on = display.includes(o.code);
                 return (
                   <button
