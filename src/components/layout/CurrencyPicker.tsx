@@ -7,11 +7,10 @@ import { cn } from "@/lib/cn";
 import { currencyName, currencyOptions } from "@/lib/currencies";
 
 interface CurrencyPickerProps {
-  variant?: "header" | "sidebar";
   className?: string;
 }
 
-export function CurrencyPicker({ variant = "header", className }: CurrencyPickerProps) {
+export function CurrencyPicker({ className }: CurrencyPickerProps) {
   const { vault, userId, book } = useVault();
   const run = useVaultAction();
   const [search, setSearch] = useState("");
@@ -41,58 +40,25 @@ export function CurrencyPicker({ variant = "header", className }: CurrencyPicker
   return (
     <DM.Root onOpenChange={(open) => !open && setSearch("")}>
       <DM.Trigger asChild>
-        {variant === "header" ? (
-          <button
-            type="button"
-            className={cn(
-              "flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-2.5 py-1.5 text-xs font-semibold text-ink shadow-xs transition hover:border-line-strong hover:bg-surface-muted active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand",
-              className,
-            )}
-            aria-label={`Change dashboard currency. Currently ${currentBase}`}
-            title={`Dashboard currency: ${currentBase} (${currencyName(currentBase)})`}
-          >
-            <Coins className="size-3.5 text-brand-ink shrink-0" aria-hidden="true" />
-            <span className="font-bold">{currentBase}</span>
-            <ChevronDown className="size-3 text-ink-soft opacity-70 shrink-0" aria-hidden="true" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={cn(
-              "group flex w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface/60 p-2 text-left transition hover:border-line-strong hover:bg-surface-muted focus:outline-none focus:ring-2 focus:ring-brand xl:px-3",
-              className,
-            )}
-            aria-label={`Change dashboard currency. Currently ${currentBase}`}
-            title={`Dashboard currency: ${currentBase} (${currencyName(currentBase)})`}
-          >
-            {/* Expanded sidebar view (xl) */}
-            <div className="hidden min-w-0 items-center gap-2.5 xl:flex">
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-surface text-brand-ink shadow-xs">
-                <Coins className="size-4" aria-hidden="true" />
-              </span>
-              <div className="min-w-0">
-                <span className="block truncate text-xs font-bold text-ink">
-                  {currentBase} · {currencyName(currentBase)}
-                </span>
-                <span className="block text-[11px] text-ink-soft">Dashboard Currency</span>
-              </div>
-            </div>
-
-            {/* Collapsed sidebar view (md) */}
-            <div className="flex flex-col items-center justify-center w-full py-0.5 xl:hidden">
-              <Coins className="size-4 text-brand-ink" aria-hidden="true" />
-              <span className="text-[10px] font-bold text-ink mt-0.5">{currentBase}</span>
-            </div>
-
-            <ChevronDown className="hidden size-4 shrink-0 text-ink-soft group-hover:text-ink xl:block" aria-hidden="true" />
-          </button>
-        )}
+        <button
+          type="button"
+          className={cn(
+            "flex items-center gap-1.5 rounded-full border border-line bg-surface/80 px-2.5 py-1.5 text-xs font-semibold text-ink shadow-xs transition hover:border-line-strong hover:bg-surface-muted active:scale-95 focus:outline-none focus:ring-2 focus:ring-brand",
+            className,
+          )}
+          aria-label={`Change dashboard currency. Currently ${currentBase}`}
+          title={`Dashboard currency: ${currentBase} (${currencyName(currentBase)})`}
+        >
+          <Coins className="size-3.5 text-brand-ink shrink-0" aria-hidden="true" />
+          <span className="font-bold">{currentBase}</span>
+          <ChevronDown className="size-3 text-ink-soft opacity-70 shrink-0" aria-hidden="true" />
+        </button>
       </DM.Trigger>
 
       <DM.Portal>
         <DM.Content
-          align={variant === "header" ? "end" : "start"}
-          side={variant === "sidebar" ? "right" : "bottom"}
+          align="end"
+          side="bottom"
           sideOffset={8}
           className="z-50 w-72 rounded-2xl border border-line bg-surface p-2 shadow-lifted animate-pop-in text-ink"
         >
@@ -142,62 +108,5 @@ export function CurrencyPicker({ variant = "header", className }: CurrencyPicker
         </DM.Content>
       </DM.Portal>
     </DM.Root>
-  );
-}
-
-/** Sub-menu for embedding currency picker inside UserMenu */
-export function CurrencySubMenu() {
-  const { vault, userId, book } = useVault();
-  const run = useVaultAction();
-  const currentBase = vault.profile.base_currency;
-  const options = useMemo(() => currencyOptions(book.usdRates.keys()), [book.usdRates]);
-
-  const handleSelect = async (code: string) => {
-    if (code === currentBase) return;
-    await run(
-      () =>
-        updateProfile(userId, {
-          base_currency: code,
-          display_currencies: vault.profile.display_currencies.filter((c) => c !== code),
-        }),
-      `Dashboard currency changed to ${code}`,
-    );
-  };
-
-  return (
-    <DM.Sub>
-      <DM.SubTrigger className="flex cursor-pointer items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm text-ink outline-none data-[highlighted]:bg-surface-muted">
-        <div className="flex items-center gap-2">
-          <Coins className="size-4" aria-hidden="true" />
-          <span>Currency</span>
-        </div>
-        <span className="text-xs font-semibold text-ink-soft">{currentBase} ›</span>
-      </DM.SubTrigger>
-      <DM.Portal>
-        <DM.SubContent className="z-50 max-h-72 w-64 overflow-y-auto rounded-2xl border border-line bg-surface p-1.5 shadow-lifted animate-pop-in">
-          <div className="px-3 py-1.5 text-xs font-semibold text-ink-soft">Select Dashboard Currency</div>
-          <DM.Separator className="my-1 h-px bg-line" />
-          {options.map((o) => {
-            const isSelected = o.code === currentBase;
-            return (
-              <DM.Item
-                key={o.code}
-                onSelect={() => handleSelect(o.code)}
-                className={cn(
-                  "flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 text-xs outline-none data-[highlighted]:bg-surface-muted",
-                  isSelected ? "bg-brand/15 font-semibold text-brand-ink" : "text-ink",
-                )}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-8 font-bold shrink-0">{o.code}</span>
-                  <span className="truncate text-ink-soft">{currencyName(o.code)}</span>
-                </div>
-                {isSelected && <Check className="size-4 shrink-0 text-brand-ink" aria-hidden="true" />}
-              </DM.Item>
-            );
-          })}
-        </DM.SubContent>
-      </DM.Portal>
-    </DM.Sub>
   );
 }
