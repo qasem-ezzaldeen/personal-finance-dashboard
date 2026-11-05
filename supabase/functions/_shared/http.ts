@@ -16,7 +16,10 @@ export async function fetchJson(url: string, init: RequestInit = {}, timeoutMs =
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(url, { ...init, signal: controller.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status} from ${new URL(url).host}`);
+    if (!res.ok) {
+      await res.body?.cancel();
+      throw new Error(`HTTP ${res.status} from ${new URL(url).host}`);
+    }
     return await res.json();
   } finally {
     clearTimeout(timer);

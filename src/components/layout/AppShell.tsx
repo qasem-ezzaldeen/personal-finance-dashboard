@@ -17,6 +17,7 @@ import {
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Dialog } from "@/components/ui/Dialog";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { useActions } from "@/features/actions/ActionsProvider";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { RatesStrip } from "@/features/market/RatesStrip";
@@ -238,7 +239,9 @@ export function AppShell() {
         <main id="main" className="mx-auto w-full max-w-[1600px] flex-1 px-4 pt-4 pb-28 md:px-6 md:pt-6 md:pb-10">
           {/* Each page slides in softly when you navigate */}
           <div key={location.pathname} className="animate-page-in">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </div>
         </main>
       </div>

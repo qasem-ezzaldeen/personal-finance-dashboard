@@ -198,7 +198,7 @@ const newPasswordSchema = z
   .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "Passwords don't match" });
 
 export function ResetPasswordPage() {
-  const { status, finishRecovery } = useAuth();
+  const { status, recovering, finishRecovery } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const form = useForm({ resolver: zodResolver(newPasswordSchema), defaultValues: { password: "", confirm: "" } });
@@ -211,7 +211,7 @@ export function ResetPasswordPage() {
     navigate("/", { replace: true });
   });
 
-  if (status === "signedOut") {
+  if (status === "signedOut" || (status === "signedIn" && !recovering)) {
     return (
       <AuthLayout title="This link has expired" subtitle="Reset links work once and only for a short time.">
         <Link to="/forgot-password" className="font-medium text-brand-ink underline-offset-4 hover:underline">

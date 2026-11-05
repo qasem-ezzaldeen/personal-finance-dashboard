@@ -43,7 +43,7 @@ export function buildPriceBook(rows: MarketPrice[]): PriceBook {
 
   for (const row of rows) {
     const price = Number(row.price);
-    if (!(price > 0)) continue;
+    if (!Number.isFinite(price) || price <= 0) continue;
     const normalized = { ...row, price, previous_price: row.previous_price === null ? null : Number(row.previous_price) };
     if (row.kind === "fx" && row.symbol.startsWith("FX:")) {
       const code = row.symbol.slice(3);
@@ -405,18 +405,23 @@ export function summarizeVault(vault: VaultData, ctx: ValuationContext, now = ne
       value: unit === null ? null : Number(purchase.quantity) * unit,
     }));
 
-    // Average cost: what one unit cost, over every purchase with a known price
-    let knownCost = 0;
-    let knownQuantity = 0;
-    for (const p of purchases) {
-      const cost = p.cost_total !== null && p.cost_currency ? convert(Number(p.cost_total), p.cost_currency, base, ctx.book) : null;
-      if (cost === null) continue;
-      knownCost += cost;
-      knownQuantity += Number(p.quantity);
-    }
-    const averageCost = knownQuantity > 0 ? knownCost / knownQuantity : null;
+    // Cost basis for sales: average cost over eligible purchases acquired on or before the sale date
+
+    const chronologicalPurchases = [...purchases].sort((a, b) =>
+      a.acquired_on.localeCompare(b.acquired_on) || a.created_at.localeCompare(b.created_at)
+    );
     const saleSummaries = sales.map((sale): SaleSummary => {
-      const cost = averageCost === null ? null : convert(averageCost * Number(sale.quantity), base, sale.proceeds_currency, ctx.book);
+      const eligiblePurchases = chronologicalPurchases.filter((p) => p.acquired_on <= sale.sold_on);
+      let eligibleCost = 0;
+      let eligibleQty = 0;
+      for (const p of eligiblePurchases) {
+        const cost = p.cost_total !== null && p.cost_currency ? convert(Number(p.cost_total), p.cost_currency, base, ctx.book) : null;
+        if (cost === null) continue;
+        eligibleCost += cost;
+        eligibleQty += Number(p.quantity);
+      }
+      const avgCostAtSale = eligibleQty > 0 ? eligibleCost / eligibleQty : null;
+      const cost = avgCostAtSale === null ? null : convert(avgCostAtSale * Number(sale.quantity), base, sale.proceeds_currency, ctx.book);
       const gain = cost === null ? null : Number(sale.proceeds) - cost;
       return { sale, cost, gain, pct: cost !== null && cost > 0 && gain !== null ? gain / cost : null };
     });
@@ -492,7 +497,7 @@ export function summarizeVault(vault: VaultData, ctx: ValuationContext, now = ne
       daysRemaining: hawlStart ? Math.max(0, HAWL_DAYS - daysIntoHawl) : HAWL_DAYS,
       isDue: daysIntoHawl >= HAWL_DAYS,
       startWealth,
-      dueAmount: (startWealth ?? zakatable) * ZAKAT_RATE,
+      dueAmount: Math.max(0, (startWealth ?? zakatable)) * ZAKAT_RATE,
       dueBasis: startWealth === null ? "current" : vault.hawl?.is_first_hawl ? "nisab" : "start",
       lastPayment,
     },
@@ -526,6 +531,16 @@ function fromUnit(amount: number, unit: string, summary: VaultSummary, ctx: Valu
 
 function progressOf(current: number | null, goal: Goal): GoalProgress {
   const target = Number(goal.target_amount);
+  if (!(target > 0)) {
+    return {
+      current,
+      target: Math.max(0, target),
+      unit: goal.target_unit,
+      progress: null,
+      remaining: 0,
+      reached: true,
+    };
+  }
   // Tiny rounding differences from converting back and forth shouldn't keep a goal from being reached
   const reached = current !== null && current >= target * (1 - 1e-9);
   return {

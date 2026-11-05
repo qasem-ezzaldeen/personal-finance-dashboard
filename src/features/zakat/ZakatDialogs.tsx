@@ -59,8 +59,8 @@ function HawlEditorContent({ open, onOpenChange }: DialogProps) {
     staleTime: Number.POSITIVE_INFINITY,
     retry: 1,
   });
-  const gramOnStart = nisabOnStart.data
-    ? gold24kGramOn(nisabOnStart.data.xau.price, base === "USD" ? 1 : nisabOnStart.data.fx[base].price, vault.pricing.gold_premium_pct)
+  const gramOnStart = nisabOnStart.data?.xau?.price && (base === "USD" || (nisabOnStart.data.fx?.[base]?.price ?? 0) > 0)
+    ? gold24kGramOn(nisabOnStart.data.xau.price, base === "USD" ? 1 : (nisabOnStart.data.fx?.[base]?.price ?? 0), vault.pricing.gold_premium_pct)
     : null;
   const nisabValue = gramOnStart !== null ? Math.round(gramOnStart * NISAB_GRAMS * 100) / 100 : null;
 

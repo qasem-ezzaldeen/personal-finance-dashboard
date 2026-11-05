@@ -135,13 +135,20 @@ export async function previewRevert(userId: string, tx: Transaction): Promise<Re
   ) ?? [];
   if (later.length === 0) return { count: 0, effects: [], holdings: [] };
 
-  const changes = unwrap(
-    await supabase
-      .from("transaction_changes")
-      .select("*")
-      .in("transaction_id", later.map((t) => t.id))
-      .returns<TransactionChange[]>(),
-  ) ?? [];
+  const laterIds = later.map((t) => t.id);
+  const BATCH_SIZE = 50;
+  const changes: TransactionChange[] = [];
+  for (let i = 0; i < laterIds.length; i += BATCH_SIZE) {
+    const batch = laterIds.slice(i, i + BATCH_SIZE);
+    const batchChanges = unwrap(
+      await supabase
+        .from("transaction_changes")
+        .select("*")
+        .in("transaction_id", batch)
+        .returns<TransactionChange[]>(),
+    ) ?? [];
+    changes.push(...batchChanges);
+  }
   const byAsset = new Map<string, { assetName: string; delta: number }>();
   for (const c of changes) {
     const key = c.asset_id ?? c.asset_name;

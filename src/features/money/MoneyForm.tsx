@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { AmountInput, Field, Input, Select, parseAmount } from "@/components/ui/Field";
 import { Segmented } from "@/components/ui/misc";
@@ -41,6 +41,7 @@ export function MoneyForm({
 }) {
   const { vault, book } = useVault();
   const run = useVaultAction();
+  const submittingRef = useRef(false);
   const base = vault.profile.base_currency;
 
   const accounts = useMemo(
@@ -94,6 +95,7 @@ export function MoneyForm({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving || submittingRef.current) return;
     setError(null);
     if (amount === null || amount <= 0) {
       setError(tab === "hourly" ? "Enter the time worked and your hourly rate." : "Enter an amount greater than zero.");
@@ -106,19 +108,24 @@ export function MoneyForm({
       }
     }
 
+    submittingRef.current = true;
     setSaving(true);
-    const hourlyNote = tab === "hourly" ? `Hourly: ${hours} h ${minutes} min × ${formatMoney(round2(rate ?? 0), incomeCurrency)}/h` : "";
-    const ok =
-      tab === "transfer"
-        ? await run(() => transferFunds(from!.id, to!.id, amount, description), `Moved ${formatMoney(amount, from!.currency!)} to ${to!.name}`)
-        : await run(
-            () => logIncome(amount, [hourlyNote, description.trim()].filter(Boolean).join(" · ")),
-            `Added ${formatMoney(amount, incomeCurrency)} to Upcoming Income`,
-          );
-    setSaving(false);
-    if (ok) {
-      reset();
-      onDone?.();
+    try {
+      const hourlyNote = tab === "hourly" ? `Hourly: ${hours} h ${minutes} min × ${formatMoney(round2(rate ?? 0), incomeCurrency)}/h` : "";
+      const ok =
+        tab === "transfer"
+          ? await run(() => transferFunds(from!.id, to!.id, amount, description), `Moved ${formatMoney(amount, from!.currency!)} to ${to!.name}`)
+          : await run(
+              () => logIncome(amount, [hourlyNote, description.trim()].filter(Boolean).join(" · ")),
+              `Added ${formatMoney(amount, incomeCurrency)} to Upcoming Income`,
+            );
+      if (ok) {
+        reset();
+        onDone?.();
+      }
+    } finally {
+      setSaving(false);
+      submittingRef.current = false;
     }
   };
 

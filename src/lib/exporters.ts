@@ -1,7 +1,8 @@
 import type { Transaction, VaultData } from "./types";
 
 export function downloadFile(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
+  const payload = type.includes("csv") && !content.startsWith("\uFEFF") ? `\uFEFF${content}` : content;
+  const blob = new Blob([payload], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -16,7 +17,7 @@ export function downloadFile(filename: string, content: string, type: string) {
 export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return "";
   let text = String(value);
-  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  if (typeof value === "string" && /^\s*[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 

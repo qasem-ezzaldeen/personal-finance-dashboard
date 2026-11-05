@@ -31,6 +31,10 @@ export function NetWorthChart({ points, unit }: { points: ChartPoint[]; unit: st
     ...(points.some((p) => p.groups.pending > 0) ? [{ key: "pending" as const, name: "Upcoming Income", color: resolvedColor("slate") }] : []),
   ];
   const data = points.map((p) => ({ ...p, ...p.groups }));
+  if (points.length === 0) {
+    return <p className="py-12 text-center text-sm text-ink-soft">No data recorded for this period.</p>;
+  }
+
   const values = points.map((p) => p.netWorth);
   const min = Math.min(...values);
   const max = Math.max(...values);

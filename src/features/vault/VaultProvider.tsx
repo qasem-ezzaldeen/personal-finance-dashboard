@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { bootstrapVault, estimatePurchaseCosts, fetchMarketPrices, fetchVault, runScheduledTasks } from "@/lib/api";
+import { bootstrapVault, estimatePurchaseCosts, fetchMarketPrices, fetchVault, requestMarketRefresh, runScheduledTasks } from "@/lib/api";
 import { purchasesToEstimate } from "@/lib/estimates";
 import { applyMotion } from "@/lib/motion";
 import { applyAccents, applyPalette, applyTheme } from "@/lib/theme";
@@ -97,6 +97,38 @@ function useAutoEstimates(userId: string, vault: VaultData | undefined) {
   }, [signature, queryClient, userId]);
 }
 
+/** Automatically refreshes market prices in the background on load and periodically while open. */
+function useAutoMarketRefresh(enabled: boolean) {
+  const queryClient = useQueryClient();
+  const lastRefreshAttempt = useRef<number>(0);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const maybeRefresh = async () => {
+      const currentTime = Date.now();
+      // Enforce client-side throttle of 10 minutes between automated refreshes
+      if (currentTime - lastRefreshAttempt.current < 10 * 60_000) return;
+      lastRefreshAttempt.current = currentTime;
+
+      try {
+        await requestMarketRefresh();
+        await queryClient.invalidateQueries({ queryKey: queryKeys.prices });
+      } catch (err) {
+        console.debug("Background market refresh check:", err);
+      }
+    };
+
+    const initialTimer = window.setTimeout(maybeRefresh, 2000);
+    const interval = window.setInterval(maybeRefresh, 15 * 60_000);
+
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+    };
+  }, [enabled, queryClient]);
+}
+
 function useMinuteClock(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -143,6 +175,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   });
 
   useRealtimeSync(userId, setup.isSuccess);
+  useAutoMarketRefresh(setup.isSuccess);
 
   const vault = vaultQuery.data;
   useAutoEstimates(userId, vault);
@@ -166,7 +199,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     if (accents) applyAccents(JSON.parse(accents));
   }, [accents]);
   // Idempotent; must run before anything below formats numbers
-  if (vault) setFormatLocale(vault.profile.number_locale);
+  useEffect(() => {
+    if (vault?.profile.number_locale) setFormatLocale(vault.profile.number_locale);
+  }, [vault?.profile.number_locale]);
 
   const value = useMemo<VaultContextValue | null>(() => {
     if (!vault || !pricesQuery.data) return null;
