@@ -146,12 +146,13 @@ function PasswordCard() {
 
 function SessionsCard() {
   const { signOut } = useAuth();
+  const run = useVaultAction();
   const [confirmEverywhere, setConfirmEverywhere] = useState(false);
   return (
     <Card>
       <CardHeader title="Sessions" />
       <CardBody className="flex flex-wrap gap-2">
-        <Button onClick={() => signOut()}>
+        <Button onClick={() => run(() => signOut())}>
           <LogOut className="size-4" aria-hidden="true" /> Sign out
         </Button>
         <Button variant="danger" onClick={() => setConfirmEverywhere(true)}>
@@ -163,7 +164,7 @@ function SessionsCard() {
         onOpenChange={setConfirmEverywhere}
         title="Sign out everywhere?"
         confirmLabel="Sign out of all devices"
-        onConfirm={() => signOut({ everywhere: true })}
+        onConfirm={() => run(() => signOut({ everywhere: true }))}
       >
         <p>You'll be signed out on this and every other phone, tablet and computer.</p>
       </ConfirmDialog>

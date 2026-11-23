@@ -45,8 +45,9 @@ function HawlEditorContent({ open, onOpenChange }: DialogProps) {
 
   const days = Math.max(0, Math.floor(parseAmount(daysRaw) ?? 0));
   const setDays = (d: number) => {
-    setDaysRaw(String(d));
-    if (d >= 1) setStart(addDays(today, -(d - 1)));
+    const clamped = Math.min(36500, Math.max(0, d));
+    setDaysRaw(String(clamped));
+    if (clamped >= 1) setStart(addDays(today, -(clamped - 1)));
   };
 
   const [firstHawl, setFirstHawl] = useState(hawl?.is_first_hawl ?? false);
@@ -71,7 +72,8 @@ function HawlEditorContent({ open, onOpenChange }: DialogProps) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (days < 1) return;
+    if (saving || days < 1) return;
+    if (start > today) return setError("The start date can't be in the future");
     if (firstHawl && nisabValue === null) return setError("We need the gold price on the start date first. Try again in a moment.");
     if (!firstHawl && wealthRaw.trim() && (typedWealth === null || typedWealth < 0)) {
       return setError("Enter your wealth as a number, or leave it empty");
@@ -255,7 +257,7 @@ function HawlEditorContent({ open, onOpenChange }: DialogProps) {
             </>
           )}
 
-          {wealthInBase !== null ? (
+          {wealthInBase !== null && wealthInBase >= 0 ? (
             <span className="text-sm text-ink-soft tabular">
               Zakat when due: <strong className="text-ink">{formatMoney(wealthInBase * ZAKAT_RATE, base)}</strong>
             </span>
@@ -303,7 +305,7 @@ function MarkZakatPaidContent({ open, onOpenChange }: DialogProps) {
   const run = useVaultAction();
   const basis = useZakatBasisText();
   const base = vault.profile.base_currency;
-  const [amountRaw, setAmountRaw] = useState(summary.zakat.dueAmount ? summary.zakat.dueAmount.toFixed(2) : "");
+  const [amountRaw, setAmountRaw] = useState(summary.zakat.dueAmount !== null ? summary.zakat.dueAmount.toFixed(2) : "");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -317,7 +319,7 @@ function MarkZakatPaidContent({ open, onOpenChange }: DialogProps) {
       description="This records the payment and starts a new Hawl, with today's wealth, if you're still above the Nisab."
       onSubmit={async (e) => {
         e.preventDefault();
-        if (amount === null || amount < 0) return;
+        if (saving || amount === null || amount < 0) return;
         setSaving(true);
         const ok = await run(() => markZakatPaid(amount, base, note.trim()), "Zakat payment recorded. May it be accepted.");
         setSaving(false);

@@ -125,14 +125,22 @@ export interface RevertPreview {
 
 /** What reverting to `tx` would undo: entries after it and their net effect per account and holding. */
 export async function previewRevert(userId: string, tx: Transaction): Promise<RevertPreview> {
-  const later = unwrap(
-    await supabase
-      .from("transactions")
-      .select("id, seq, kind, details, from_asset_name, to_asset_name")
-      .eq("user_id", userId)
-      .gt("seq", tx.seq)
-      .returns<Array<Pick<Transaction, "id" | "seq" | "kind" | "details" | "from_asset_name" | "to_asset_name">>>(),
-  ) ?? [];
+  type TxPreviewRow = Pick<Transaction, "id" | "seq" | "kind" | "details" | "from_asset_id" | "from_asset_name" | "to_asset_id" | "to_asset_name">;
+  const later: TxPreviewRow[] = [];
+  for (let from = 0; ; from += 1000) {
+    const page = unwrap(
+      await supabase
+        .from("transactions")
+        .select("id, seq, kind, details, from_asset_id, from_asset_name, to_asset_id, to_asset_name")
+        .eq("user_id", userId)
+        .gt("seq", tx.seq)
+        .order("seq", { ascending: true })
+        .range(from, from + 999)
+        .returns<TxPreviewRow[]>(),
+    ) ?? [];
+    later.push(...page);
+    if (page.length < 1000) break;
+  }
   if (later.length === 0) return { count: 0, effects: [], holdings: [] };
 
   const laterIds = later.map((t) => t.id);
@@ -163,12 +171,15 @@ export async function previewRevert(userId: string, tx: Transaction): Promise<Re
   for (const t of later) {
     const quantity = Number(t.details?.quantity ?? 0);
     if (!quantity) continue;
-    const name = t.kind === "buy" || t.kind === "sale_removed" ? t.to_asset_name : t.from_asset_name;
-    const undo = t.kind === "buy" || t.kind === "sale_removed" ? -quantity : t.kind === "sell" || t.kind === "refund" ? quantity : 0;
+    const isAdd = t.kind === "buy" || t.kind === "sale_removed" || (t.kind === "dividend" && t.details?.reinvested);
+    const id = isAdd ? t.to_asset_id : t.from_asset_id;
+    const name = isAdd ? t.to_asset_name : t.from_asset_name;
+    const undo = isAdd ? -quantity : t.kind === "sell" || t.kind === "refund" ? quantity : 0;
     if (!name || !undo) continue;
-    const current = held.get(name) ?? { assetName: name, kind: t.details?.asset_kind ?? "other", delta: 0 };
+    const key = id ?? name;
+    const current = held.get(key) ?? { assetName: name, kind: t.details?.asset_kind ?? "other", delta: 0 };
     current.delta += undo;
-    held.set(name, current);
+    held.set(key, current);
   }
 
   return {
@@ -257,6 +268,7 @@ export interface NewAsset {
   color: string;
   note?: string;
   hide_when_empty?: boolean;
+  auto_reinvest_dividends?: boolean;
   sort_order?: number;
 }
 
@@ -265,7 +277,7 @@ export async function createAsset(userId: string, asset: NewAsset): Promise<Asse
 }
 
 export type AssetUpdate = Partial<
-  Pick<Asset, "name" | "currency" | "karat" | "ticker" | "manual_unit_price" | "color" | "note" | "sort_order" | "hide_when_empty" | "archived_at">
+  Pick<Asset, "name" | "currency" | "karat" | "ticker" | "manual_unit_price" | "color" | "note" | "sort_order" | "hide_when_empty" | "auto_reinvest_dividends" | "archived_at">
 >;
 
 export async function updateAsset(assetId: string, patch: AssetUpdate) {

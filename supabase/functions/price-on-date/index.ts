@@ -1,6 +1,6 @@
 // Gold spot price and exchange rates on a given day, e.g. to value the Nisab when a Hawl started.
 import { adminClient, identifyCaller } from "../_shared/auth.ts";
-import { historicalPrice } from "../_shared/history.ts";
+import { historicalPrice, isValidIsoDate } from "../_shared/history.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
 
 type Point = { price: number; date: string; source: string };
@@ -15,12 +15,14 @@ Deno.serve(async (req) => {
 
   let body: { date?: unknown; currencies?: unknown };
   try {
-    body = await req.json();
+    const raw = await req.json();
+    if (!raw || typeof raw !== "object") throw new Error("not an object");
+    body = raw as { date?: unknown; currencies?: unknown };
   } catch {
     return json({ error: 'Send a JSON body like {"date": "2025-03-03", "currencies": ["EGP"]}' }, 400);
   }
   const date = typeof body.date === "string" ? body.date : "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < "1990-01-01") return json({ error: "Enter a valid date" }, 400);
+  if (!isValidIsoDate(date) || date < "1990-01-01") return json({ error: "Enter a valid date" }, 400);
   const currencies = (Array.isArray(body.currencies) ? body.currencies : [])
     .filter((c): c is string => typeof c === "string" && /^[A-Z]{3}$/.test(c) && c !== "USD")
     .slice(0, 5);

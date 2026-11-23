@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { fetchJson } from "./http.ts";
 import { consumeBudget } from "./prices.ts";
+import { normalizeQuoteCurrency } from "./providers.ts";
 
 export interface HistoricalPrice {
   price: number;
@@ -19,6 +20,12 @@ function yahooSymbol(symbol: string): string {
   if (symbol === "METAL:XAU") return "GC=F";
   if (symbol.startsWith("FX:")) return `${symbol.slice(3)}=X`;
   return symbol.replace(/^STOCK:/, "");
+}
+
+export function isValidIsoDate(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const d = new Date(`${date}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === date;
 }
 
 function shiftDate(date: string, days: number): string {
@@ -55,14 +62,17 @@ async function yahooRange(symbol: string, start: number, end: number): Promise<R
   const result = data.chart?.result?.[0];
   const closes = result?.indicators?.quote?.[0]?.close ?? [];
   const offset = result?.meta?.gmtoffset ?? 0;
-  const currency = symbol.startsWith("FX:") ? "USD" : /^[A-Z]{3}$/.test(result?.meta?.currency ?? "") ? result!.meta!.currency! : "USD";
+  const rawCurrency = symbol.startsWith("FX:") ? "USD" : result?.meta?.currency;
+  const normalizedSample = normalizeQuoteCurrency(1, rawCurrency);
+  const currency = normalizedSample.currency;
+  const divisor = normalizedSample.price === 1 ? 1 : Math.round(1 / normalizedSample.price);
   // One row per day: today's live bar can repeat the last close's date
   const byDate = new Map<string, Row>();
   (result?.timestamp ?? []).forEach((ts, i) => {
     const close = closes[i];
     if (typeof close !== "number" || !(close > 0)) return;
     const price_date = new Date((ts + offset) * 1000).toISOString().slice(0, 10);
-    byDate.set(price_date, { symbol, price_date, price: close, currency, source: "yahoo" });
+    byDate.set(price_date, { symbol, price_date, price: close / divisor, currency, source: "yahoo" });
   });
   return [...byDate.values()];
 }
@@ -83,17 +93,23 @@ async function fromTwelveData(symbol: string, date: string, key: string): Promis
 async function twelveDataRange(symbol: string, startDate: string, endDate: string, key: string): Promise<Row[]> {
   const ticker = symbol.replace(/^STOCK:/, "");
   const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(ticker)}&interval=1day&start_date=${startDate}&end_date=${endDate}&outputsize=5000&apikey=${encodeURIComponent(key)}`;
-  const data = (await fetchJson(url)) as { values?: Array<{ datetime: string; close: string }>; meta?: { currency?: string } };
+  const data = (await fetchJson(url)) as { status?: string; message?: string; values?: Array<{ datetime: string; close: string }>; meta?: { currency?: string } };
+  if (data.status === "error") {
+    throw new Error(data.message ?? "Twelve Data time_series error");
+  }
+  const currency = /^[A-Z]{3}$/.test(data.meta?.currency ?? "") ? data.meta!.currency! : "USD";
   return (data.values ?? []).flatMap((v) => {
     const close = Number(v.close);
-    return close > 0 ? [{ symbol, price_date: v.datetime.slice(0, 10), price: close, currency: data.meta?.currency ?? "USD", source: "twelvedata" }] : [];
+    return close > 0 ? [{ symbol, price_date: v.datetime.slice(0, 10), price: close, currency, source: "twelvedata" }] : [];
   });
 }
 
 /** Closing price for `symbol` on `date` (or the last trading day before it). Null when no source has it. */
 export async function historicalPrice(admin: SupabaseClient, symbol: string, date: string): Promise<HistoricalPrice | null> {
   const cached = await fromCache(admin, symbol, date);
-  if (cached && cached.date >= shiftDate(date, -4)) return cached;
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const maxCacheGap = dow === 0 ? -2 : dow === 6 ? -1 : 0;
+  if (cached && cached.date >= shiftDate(date, maxCacheGap)) return cached;
 
   let rows: Row[] = [];
   try {
@@ -105,14 +121,27 @@ export async function historicalPrice(admin: SupabaseClient, symbol: string, dat
   const hasDay = () => rows.some((r) => r.price_date <= date && r.price_date >= shiftDate(date, -7));
   if (!hasDay() && symbol === "METAL:XAU") {
     const key = Deno.env.get("GOLDAPI_IO_KEY");
-    if (key && (await consumeBudget(admin, "goldapi.io", 1, 3))) rows = await fromGoldApiIo(date, key).catch(() => []);
+    if (key && (await consumeBudget(admin, "goldapi.io", 1, 3))) {
+      rows = await fromGoldApiIo(date, key).catch((err) => {
+        console.warn(`[history] GoldAPI.io failed for ${date}:`, err instanceof Error ? err.message : err);
+        return [];
+      });
+    }
   }
   if (!hasDay() && symbol.startsWith("STOCK:")) {
     const key = Deno.env.get("TWELVE_DATA_API_KEY");
-    if (key && (await consumeBudget(admin, "twelvedata", 1, 780))) rows = await fromTwelveData(symbol, date, key).catch(() => []);
+    if (key && (await consumeBudget(admin, "twelvedata", 1, 780))) {
+      rows = await fromTwelveData(symbol, date, key).catch((err) => {
+        console.warn(`[history] TwelveData failed for ${symbol} on ${date}:`, err instanceof Error ? err.message : err);
+        return [];
+      });
+    }
   }
 
-  if (rows.length) await admin.from("historical_prices").upsert(rows, { onConflict: "symbol,price_date" });
+  if (rows.length) {
+    const { error } = await admin.from("historical_prices").upsert(rows, { onConflict: "symbol,price_date" });
+    if (error) console.warn(`[history] upsert failed for ${symbol}:`, error.message);
+  }
   const best = rows.filter((r) => r.price_date <= date).sort((a, b) => b.price_date.localeCompare(a.price_date))[0];
   if (!best || best.price_date < shiftDate(date, -7)) return cached;
   return { price: best.price, currency: best.currency, date: best.price_date, source: best.source };
@@ -147,16 +176,23 @@ function triedRecently(last: Backfill | null, from: string): boolean {
 
 /** True when the cache already has closes from `from` to (nearly) today without big gaps. */
 async function rangeIsCached(admin: SupabaseClient, symbol: string, from: string, today: string): Promise<boolean> {
-  const [first, last, count] = await Promise.all([
-    admin.from("historical_prices").select("price_date").eq("symbol", symbol).gte("price_date", shiftDate(from, -7)).order("price_date").limit(1),
-    admin.from("historical_prices").select("price_date").eq("symbol", symbol).order("price_date", { ascending: false }).limit(1),
-    admin.from("historical_prices").select("*", { count: "exact", head: true }).eq("symbol", symbol).gte("price_date", from),
-  ]);
-  const earliest = (first.data as Array<{ price_date: string }> | null)?.[0]?.price_date;
-  const latest = (last.data as Array<{ price_date: string }> | null)?.[0]?.price_date;
-  if (!earliest || !latest || earliest > shiftDate(from, 4) || latest < shiftDate(today, -4)) return false;
-  // Markets close on weekends and holidays: expect most weekdays to have a close
-  return (count.count ?? 0) >= weekdaysBetween(from, today) * 0.8 - 3;
+  const { data, error } = await admin
+    .from("historical_prices")
+    .select("price_date")
+    .eq("symbol", symbol)
+    .gte("price_date", shiftDate(from, -7))
+    .order("price_date");
+  if (error || !data || data.length === 0) return false;
+  const dates = (data as Array<{ price_date: string }>).map((r) => r.price_date);
+  const earliest = dates[0];
+  const latest = dates[dates.length - 1];
+  if (earliest > shiftDate(from, 4) || latest < shiftDate(today, -4)) return false;
+  for (let i = 1; i < dates.length; i++) {
+    const gapDays = (Date.parse(`${dates[i]}T00:00:00Z`) - Date.parse(`${dates[i - 1]}T00:00:00Z`)) / (DAY * 1000);
+    if (gapDays > 10) return false;
+  }
+  const inRangeCount = dates.filter((d) => d >= from).length;
+  return inRangeCount >= weekdaysBetween(from, today) * 0.8 - 3;
 }
 
 /** Makes sure the cache has every daily close of `symbol` from `from` to today (Yahoo, then Twelve Data for stocks). */

@@ -26,7 +26,15 @@ export function RevertDialog({ tx, onClose }: { tx: Transaction | null; onClose:
       open={Boolean(tx)}
       onOpenChange={(open) => !open && onClose()}
       title="Revert to this point?"
-      confirmLabel={preview.data?.count ? `Revert ${preview.data.count} ${preview.data.count === 1 ? "entry" : "entries"}` : "Nothing to revert"}
+      confirmLabel={
+        preview.isLoading
+          ? "Checking…"
+          : preview.isError
+            ? "Unavailable"
+            : preview.data?.count
+              ? `Revert ${preview.data.count} ${preview.data.count === 1 ? "entry" : "entries"}`
+              : "Nothing to revert"
+      }
       tone="danger"
       onConfirm={async () => {
         if (!preview.data?.count) return;
@@ -39,6 +47,8 @@ export function RevertDialog({ tx, onClose }: { tx: Transaction | null; onClose:
       </p>
       {preview.isLoading ? (
         <Skeleton className="h-16" />
+      ) : preview.isError ? (
+        <p className="text-loss-ink">Couldn't load what this would undo. Close and try again.</p>
       ) : preview.data && preview.data.count > 0 ? (
         preview.data.effects.length + preview.data.holdings.length > 0 ? (
           <div className="rounded-xl bg-surface-muted p-3">

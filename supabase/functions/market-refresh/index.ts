@@ -8,6 +8,7 @@ import {
   fetchGoldFromGoldApiCom,
   fetchGoldFromGoldApiIo,
   fetchTwelveDataPrices,
+  fetchYahooDividends,
   fetchYahooQuote,
   isUsMarketOpen,
   type Quote,
@@ -76,10 +77,12 @@ Deno.serve(async (req) => {
   }
 
   // Stocks: everything anyone holds or follows, plus SPUS for empty vaults
-  const [{ data: held }, { data: followed }] = await Promise.all([
+  const [{ data: held, error: heldErr }, { data: followed, error: folErr }] = await Promise.all([
     admin.from("assets").select("ticker").eq("kind", "stock").is("archived_at", null),
     admin.from("followed_tickers").select("ticker"),
   ]);
+  if (heldErr) throw heldErr;
+  if (folErr) throw folErr;
   const tickers = new Set<string>(["SPUS"]);
   for (const r of [...(held ?? []), ...(followed ?? [])]) if (r.ticker) tickers.add(r.ticker);
 
@@ -110,6 +113,39 @@ Deno.serve(async (req) => {
       }
     }),
   );
+  const missingDivs = [...tickers]
+    .filter((t) => {
+      if (quotes[t]?.dividends) return false;
+      const existing = prices.get(`STOCK:${t}`);
+      return !existing?.dividend_frequency || (quotes[t] != null && (byUser || ageInMinutes(existing, now) >= 24 * 60));
+    })
+    .slice(0, YAHOO_PER_RUN);
+  if (missingDivs.length > 0) {
+    await Promise.all(
+      missingDivs.map(async (t) => {
+        try {
+          const divs = await fetchYahooDividends(t);
+          if (!divs) return;
+          if (quotes[t]) {
+            quotes[t].dividends = divs;
+          } else {
+            const existing = prices.get(`STOCK:${t}`);
+            if (existing) {
+              quotes[t] = {
+                price: Number(existing.price),
+                currency: existing.currency,
+                name: existing.display_name ?? undefined,
+                source: existing.source,
+                dividends: divs,
+              };
+            }
+          }
+        } catch {
+          // dividend lookup is best-effort
+        }
+      }),
+    );
+  }
   for (const [ticker, quote] of Object.entries(quotes)) {
     rows.push(nextRow(prices.get(`STOCK:${ticker}`), `STOCK:${ticker}`, "stock", quote, now));
   }
@@ -117,14 +153,21 @@ Deno.serve(async (req) => {
 
   await savePrices(admin, rows);
 
-  // Today's prices also go into the daily history (the day's last refresh becomes its close)
+  // Today's prices also go into the daily history (use NY trading date for stocks so after-hours UTC doesn't land on Saturday)
   if (rows.length > 0) {
-    const day = now.toISOString().slice(0, 10);
+    const utcDay = now.toISOString().slice(0, 10);
+    const nyDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(now);
     const { error } = await admin.from("historical_prices").upsert(
-      rows.map((r) => ({ symbol: r.symbol, price_date: day, price: r.price, currency: r.currency, source: `${r.source} (live)` })),
+      rows.map((r) => ({
+        symbol: r.symbol,
+        price_date: r.kind === "stock" ? nyDay : utcDay,
+        price: r.price,
+        currency: r.currency ?? "USD",
+        source: `${r.source} (live)`,
+      })),
       { onConflict: "symbol,price_date" },
     );
-    report.history = error ? `failed: ${error.message}` : `saved ${rows.length} closes for ${day}`;
+    report.history = error ? `failed: ${error.message}` : `saved ${rows.length} closes for ${utcDay}`;
   }
   return json(report);
 });

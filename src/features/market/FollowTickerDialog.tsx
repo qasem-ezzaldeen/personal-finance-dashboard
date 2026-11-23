@@ -36,7 +36,7 @@ function FollowTickerContent({ open, onOpenChange }: Props) {
       description="Its live price appears in the rates bar at the top."
       onSubmit={async (e) => {
         e.preventDefault();
-        if (!ticker || alreadyFollowed || held) return;
+        if (saving || !ticker || alreadyFollowed || held) return;
         setSaving(true);
         const ok = await run(() => followTicker(userId, ticker, vault.followed.length), `Following ${ticker}`);
         setSaving(false);

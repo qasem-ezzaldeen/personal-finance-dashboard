@@ -57,7 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
       setSession(next);
       setStatus(next ? "signedIn" : "signedOut");
-      if (event === "SIGNED_OUT") queryClient.clear();
+      if (event === "SIGNED_OUT") {
+        setRecovering(false);
+        queryClient.clear();
+      }
     });
 
     return () => {
@@ -68,7 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(
     async (options: { everywhere?: boolean } = {}) => {
-      await supabase.auth.signOut({ scope: options.everywhere ? "global" : "local" });
+      const { error } = await supabase.auth.signOut({ scope: options.everywhere ? "global" : "local" });
+      if (error) throw error;
       // Wipe everything loaded for this account so nothing carries over to the next one
       queryClient.clear();
       setRecovering(false);

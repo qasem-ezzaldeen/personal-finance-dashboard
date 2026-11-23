@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowLeftRight, Bot, History, ShoppingBag, SlidersHorizontal, Tag, Undo2 } from "lucide-react";
+import { ArrowDownLeft, ArrowLeftRight, Bot, Coins, History, ShoppingBag, SlidersHorizontal, Tag, Undo2 } from "lucide-react";
 import { Badge } from "@/components/ui/misc";
 import { useVault } from "@/features/vault/VaultProvider";
 import { cn } from "@/lib/cn";
@@ -15,6 +15,7 @@ const ICONS = {
   sell: { icon: Tag, tone: "bg-stocks text-stocks-ink" },
   refund: { icon: Undo2, tone: "bg-neutral text-neutral-ink" },
   sale_removed: { icon: Undo2, tone: "bg-neutral text-neutral-ink" },
+  dividend: { icon: Coins, tone: "bg-gain text-gain-ink" },
 } as const;
 
 /** "10 g" / "3 shares" for buy and sell entries */
@@ -40,17 +41,35 @@ export function describeTransaction(tx: Transaction): { title: string; subtitle:
       };
     case "buy": {
       const q = tradedQuantity(tx);
+      const feeNote = tx.details?.fee ? `fee ${formatMoney(Number(tx.details.fee), tx.details.fee_currency ?? tx.currency)}` : null;
       return {
         title: `Bought ${[q, tx.to_asset_name].filter(Boolean).join(" of ")}`,
-        subtitle: [tx.from_asset_name ? `from ${tx.from_asset_name}` : null, tx.description || null].filter(Boolean).join(" · ") || null,
+        subtitle: [tx.from_asset_name ? `from ${tx.from_asset_name}` : null, feeNote, tx.description || null].filter(Boolean).join(" · ") || null,
         sign: -1,
       };
     }
     case "sell": {
       const q = tradedQuantity(tx);
+      const feeNote = tx.details?.fee ? `fee ${formatMoney(Number(tx.details.fee), tx.details.fee_currency ?? tx.currency)}` : null;
       return {
         title: `Sold ${[q, tx.from_asset_name].filter(Boolean).join(" of ")}`,
-        subtitle: [tx.to_asset_name ? `to ${tx.to_asset_name}` : null, tx.description || null].filter(Boolean).join(" · ") || null,
+        subtitle: [tx.to_asset_name ? `to ${tx.to_asset_name}` : null, feeNote, tx.description || null].filter(Boolean).join(" · ") || null,
+        sign: 1,
+      };
+    }
+    case "dividend": {
+      const q = tradedQuantity(tx);
+      const feeNote = tx.details?.fee ? `fee ${formatMoney(Number(tx.details.fee), tx.details.fee_currency ?? tx.currency)}` : null;
+      if (tx.details?.reinvested) {
+        return {
+          title: `Dividend reinvested${q ? ` (+${q})` : ""}${tx.to_asset_name ? ` · ${tx.to_asset_name}` : ""}`,
+          subtitle: [feeNote, tx.details?.dividend_date ? String(tx.details.dividend_date) : null].filter(Boolean).join(" · ") || null,
+          sign: 1,
+        };
+      }
+      return {
+        title: `Dividend${tx.from_asset_name ? ` · ${tx.from_asset_name}` : ""}`,
+        subtitle: tx.to_asset_name ? `to ${tx.to_asset_name}` : null,
         sign: 1,
       };
     }

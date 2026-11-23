@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
-import type { Quote } from "./providers.ts";
+import type { DividendFrequency, Quote } from "./providers.ts";
 
 export type PriceRow = {
   symbol: string;
@@ -11,6 +11,10 @@ export type PriceRow = {
   source: string;
   fetched_at: string;
   changed_at: string;
+  dividend_amount?: number | null;
+  dividend_annual?: number | null;
+  dividend_frequency?: DividendFrequency | null;
+  last_dividend_date?: string | null;
 };
 
 export async function loadPrices(admin: SupabaseClient): Promise<Map<string, PriceRow>> {
@@ -37,11 +41,15 @@ export function nextRow(
     kind,
     price: quote.price,
     previous_price: existing ? (changed ? Number(existing.price) : existing.previous_price) : null,
-    currency: quote.currency,
+    currency: quote.currency ?? existing?.currency ?? "USD",
     display_name: quote.name ?? existing?.display_name ?? null,
     source: quote.source,
     fetched_at: now.toISOString(),
     changed_at: changed ? now.toISOString() : existing!.changed_at,
+    dividend_amount: quote.dividends ? quote.dividends.amount : (existing?.dividend_amount ?? null),
+    dividend_annual: quote.dividends ? quote.dividends.annual : (existing?.dividend_annual ?? null),
+    dividend_frequency: quote.dividends ? quote.dividends.frequency : (existing?.dividend_frequency ?? null),
+    last_dividend_date: quote.dividends ? quote.dividends.lastDate : (existing?.last_dividend_date ?? null),
   };
 }
 

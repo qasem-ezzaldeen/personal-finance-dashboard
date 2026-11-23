@@ -114,7 +114,7 @@ export function parseAmount(raw: string): number | null {
   let normalized = trimmed;
   if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(trimmed)) normalized = trimmed.replace(/,/g, "");
   else if (/^\d+,\d+$/.test(trimmed)) normalized = trimmed.replace(",", ".");
-  if (!/^-?\d*\.?\d+$/.test(normalized)) return null;
+  if (!/^-?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(normalized)) return null;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : null;
 }

@@ -140,6 +140,8 @@ function RecentActivity() {
             <Skeleton className="h-14" />
             <Skeleton className="h-14" />
           </div>
+        ) : recent.isError ? (
+          <p className="px-3 py-4 text-sm text-loss-ink">Couldn't load recent activity.</p>
         ) : recent.data && recent.data.length > 0 ? (
           <ul>
             {recent.data.map((tx) => (

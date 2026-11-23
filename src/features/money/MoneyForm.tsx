@@ -65,8 +65,8 @@ export function MoneyForm({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const from = accounts.find((a) => a.id === fromId);
-  const to = accounts.find((a) => a.id === toId);
+  const from = accounts.find((a) => a.id === fromId) ?? accounts[0];
+  const to = accounts.find((a) => a.id === toId && a.id !== from?.id) ?? accounts.find((a) => a.id !== from?.id);
 
   // Amount being logged or moved
   const hours = parseAmount(hoursRaw) ?? 0;
@@ -81,7 +81,8 @@ export function MoneyForm({
 
   const pendingBalance = Number(pending?.balance ?? 0);
   const currency = tab === "transfer" ? (from?.currency ?? incomeCurrency) : incomeCurrency;
-  const converted = tab === "transfer" && amount !== null && from?.currency && to?.currency ? convert(amount, from.currency, to.currency, book) : null;
+  const rawConverted = tab === "transfer" && amount !== null && from?.currency && to?.currency ? convert(amount, from.currency, to.currency, book) : null;
+  const converted = rawConverted !== null ? round2(rawConverted) : null;
 
   const labelFor = (a: Asset) => `${a.name} · ${formatMoney(Number(a.balance), a.currency!)}`;
 
@@ -199,7 +200,7 @@ export function MoneyForm({
                   {(p) => (
                     <Select
                       {...p}
-                      value={fromId}
+                      value={from?.id ?? ""}
                       onChange={(e) => {
                         setFromId(e.target.value);
                         if (e.target.value === toId) setToId(accounts.find((a) => a.id !== e.target.value)?.id ?? "");
@@ -215,9 +216,9 @@ export function MoneyForm({
                 </Field>
                 <Field label="To">
                   {(p) => (
-                    <Select {...p} value={toId} onChange={(e) => setToId(e.target.value)}>
+                    <Select {...p} value={to?.id ?? ""} onChange={(e) => setToId(e.target.value)}>
                       {accounts
-                        .filter((a) => a.id !== fromId)
+                        .filter((a) => a.id !== from?.id)
                         .map((a) => (
                           <option key={a.id} value={a.id}>
                             {labelFor(a)}
@@ -264,7 +265,7 @@ export function MoneyForm({
         {tab === "transfer" && from && to ? (
           <>
             <BeforeAfter label={from.name} before={Number(from.balance)} after={Number(from.balance) - (amount ?? 0)} currency={from.currency!} />
-            <BeforeAfter label={to.name} before={Number(to.balance)} after={Number(to.balance) + (converted ?? 0)} currency={to.currency!} />
+            {amount !== null && converted === null ? <div className="flex items-center justify-between gap-3 text-sm"><span className="text-ink-soft">{to.name}</span><span className="text-ink-soft">Exchange rate unavailable</span></div> : <BeforeAfter label={to.name} before={Number(to.balance)} after={Number(to.balance) + (converted ?? 0)} currency={to.currency!} />}
           </>
         ) : (
           <BeforeAfter label="Upcoming Income" before={pendingBalance} after={pendingBalance + (amount ?? 0)} currency={incomeCurrency} />

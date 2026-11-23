@@ -8,7 +8,7 @@ import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
 import { sellAsset } from "@/lib/api";
 import { formatMoney, formatQuantity } from "@/lib/format";
 import type { Asset } from "@/lib/types";
-import { convert, unitValue, type AssetSummary } from "@/lib/valuation";
+import { calcStockFee, convert, unitValue, type AssetSummary } from "@/lib/valuation";
 import { useCashAccounts } from "./useCashAccounts";
 
 interface Props {
@@ -71,18 +71,22 @@ function SellDialogContent({ open, onOpenChange, summary }: Props) {
   const unit = unitValue(asset, ctx, currency);
   const marketPrice = quantity !== null && quantity > 0 && unit !== null ? Math.round(quantity * unit * 100) / 100 : null;
   const balance = Number(account?.balance ?? 0);
+  const fee = kind === "stock" && amount !== null && amount > 0 ? calcStockFee(amount, currency, vault.pricing, book) : 0;
+  const netAmount = amount !== null ? Math.max(0, Math.round((amount - fee) * 100) / 100) : null;
 
   // Average cost of what's held (in the base currency), to show the gain on this sale
   const averageCost = summary.growth && held > 0 ? summary.growth.cost / held : null;
   const costOfSold = averageCost !== null && quantity ? convert(averageCost * quantity, summary.growth!.currency, currency, book) : null;
-  const gain = costOfSold !== null && amount !== null ? amount - costOfSold : null;
+  const gain = costOfSold !== null && netAmount !== null ? netAmount - costOfSold : null;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const next: Record<string, string> = {};
     if (quantity === null || quantity <= 0) next.quantity = "Enter an amount greater than zero";
     else if (quantity > held + 1e-9) next.quantity = `You have ${formatQuantity(kind, held)}`;
     if (amount === null || amount <= 0) next.amount = "Enter what you received";
+    else if (kind === "stock" && amount <= fee) next.amount = `Sale amount must be greater than the ${formatMoney(fee, currency)} fee`;
     if (!account) next.account = "Choose the account the money goes to";
     if (date > vaultSummary.today) next.date = "The date can't be in the future";
     setErrors(next);
@@ -91,7 +95,7 @@ function SellDialogContent({ open, onOpenChange, summary }: Props) {
     setSaving(true);
     const ok = await run(
       () => sellAsset({ assetId: asset.id, cashId: account!.id, quantity: quantity!, amount: amount!, date, note: note.trim() }),
-      `Sold ${formatQuantity(kind, quantity!)} of ${asset.name} for ${formatMoney(amount!, currency)}`,
+      `Sold ${formatQuantity(kind, quantity!)} of ${asset.name} for ${formatMoney(netAmount ?? amount!, currency)}`,
     );
     setSaving(false);
     if (ok) onOpenChange(false);
@@ -178,7 +182,13 @@ function SellDialogContent({ open, onOpenChange, summary }: Props) {
 
           <div className="flex flex-col gap-2 rounded-2xl bg-surface-muted p-4" aria-live="polite">
             <HoldingBeforeAfter asset={asset} before={held} after={Math.max(0, held - (quantity ?? 0))} />
-            {account ? <BeforeAfter label={account.name} before={balance} after={balance + (amount ?? 0)} currency={account.currency!} /> : null}
+            {kind === "stock" && amount !== null && amount > 0 ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-ink-soft">Investing fee</span>
+                <span className="font-medium text-ink tabular">−{formatMoney(fee, currency)}</span>
+              </div>
+            ) : null}
+            {account ? <BeforeAfter label={account.name} before={balance} after={balance + (netAmount ?? 0)} currency={account.currency!} /> : null}
             {gain !== null ? (
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-ink-soft">Gain vs. what you paid</span>

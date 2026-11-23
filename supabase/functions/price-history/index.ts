@@ -3,7 +3,7 @@
 // stocks they hold or follow and currencies the app knows, since fallbacks share a daily API budget.
 // The app then reads the closes from public.historical_prices directly.
 import { adminClient, identifyCaller } from "../_shared/auth.ts";
-import { backfillHistory, type BackfillResult } from "../_shared/history.ts";
+import { backfillHistory, isValidIsoDate, type BackfillResult } from "../_shared/history.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
 
 const MAX_SYMBOLS = 25;
@@ -19,13 +19,15 @@ Deno.serve(async (req) => {
 
   let body: { symbols?: unknown; from?: unknown };
   try {
-    body = await req.json();
+    const raw = await req.json();
+    if (!raw || typeof raw !== "object") throw new Error("not an object");
+    body = raw as { symbols?: unknown; from?: unknown };
   } catch {
     return json({ error: 'Send a JSON body like {"symbols": ["METAL:XAU", "FX:EGP"], "from": "2025-01-01"}' }, 400);
   }
   const today = new Date().toISOString().slice(0, 10);
   const from = typeof body.from === "string" ? body.from : "";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || from < "1990-01-01" || from > today) return json({ error: "Enter a valid start date" }, 400);
+  if (!isValidIsoDate(from) || from < "1990-01-01" || from > today) return json({ error: "Enter a valid start date" }, 400);
   const symbols = [...new Set((Array.isArray(body.symbols) ? body.symbols : []).filter((s): s is string => typeof s === "string" && SYMBOL.test(s)))];
   if (symbols.length === 0) return json({ error: "Name at least one symbol" }, 400);
   if (symbols.length > MAX_SYMBOLS) return json({ error: `Ask for at most ${MAX_SYMBOLS} symbols at a time` }, 400);
@@ -35,6 +37,9 @@ Deno.serve(async (req) => {
     admin.from("followed_tickers").select("ticker").eq("user_id", caller.userId),
     admin.from("market_prices").select("symbol").eq("kind", "fx"),
   ]);
+  if (assets.error || followed.error || currencies.error) {
+    return json({ error: "Failed to load allowed symbols" }, 500);
+  }
   const allowed = new Set<string>(["METAL:XAU"]);
   for (const r of [...(assets.data ?? []), ...(followed.data ?? [])]) if (r.ticker) allowed.add(`STOCK:${r.ticker}`);
   for (const r of currencies.data ?? []) allowed.add(r.symbol as string);

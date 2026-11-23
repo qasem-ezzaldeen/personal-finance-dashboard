@@ -9,7 +9,7 @@ import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
 import { removePriceOverride, setPriceOverride, unfollowTicker, updatePricing } from "@/lib/api";
 import { currencyOptions } from "@/lib/currencies";
 import { formatAge, formatMoney } from "@/lib/format";
-import { GOLD_21K_RATIO, goldGramValue, gold24kPerGram, makeContext } from "@/lib/valuation";
+import { GOLD_21K_RATIO, calcStockFee, goldGramValue, gold24kPerGram, makeContext } from "@/lib/valuation";
 
 const round2 = (n: number) => (Math.round(n * 100) / 100).toString();
 
@@ -47,9 +47,10 @@ export function MarketTab() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const next: Record<string, string> = {};
     const p = parseAmount(premium);
-    if (p === null || p < 0 || p > 100) next.premium = "Use a percentage between 0 and 100";
+    if (mode === "live" && (p === null || p < 0 || p > 100)) next.premium = "Use a percentage between 0 and 100";
     if (mode === "manual" && !(parseAmount(manual24)! > 0)) next.manual = "Enter the 24k price per gram";
     if (parseAmount(adj21) === null) next.adj21 = "Enter a number (it can be negative)";
     if (parseAmount(adj24) === null) next.adj24 = "Enter a number (it can be negative)";
@@ -62,7 +63,7 @@ export function MarketTab() {
           gold_mode: mode,
           manual_gold_24k_price: mode === "manual" ? parseAmount(manual24) : pr.manual_gold_24k_price,
           manual_gold_currency: manualCurrency,
-          gold_premium_pct: p!,
+          gold_premium_pct: mode === "live" ? p! : pr.gold_premium_pct,
           gold_21k_adjustment: parseAmount(adj21)!,
           gold_24k_adjustment: parseAmount(adj24)!,
           gold_adjustment_currency: adjCurrency,
@@ -194,6 +195,8 @@ export function MarketTab() {
         </CardBody>
       </Card>
 
+      <InvestingFeesCard />
+
       <Card>
         <CardHeader
           title="Followed stocks"
@@ -283,5 +286,70 @@ export function MarketTab() {
         </CardBody>
       </Card>
     </div>
+  );
+}
+
+function InvestingFeesCard() {
+  const { vault, userId, book } = useVault();
+  const run = useVaultAction();
+  const pr = vault.pricing;
+
+  const [feePct, setFeePct] = useState(String(Number(pr.stock_fee_pct ?? 0.2)));
+  const [feeMin, setFeeMin] = useState(String(Number(pr.stock_fee_min_usd ?? 0.02)));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+
+  const pctNum = parseAmount(feePct);
+  const minNum = parseAmount(feeMin);
+  const sampleFee = calcStockFee(100, "USD", { stock_fee_pct: pctNum ?? 0, stock_fee_min_usd: minNum ?? 0 }, book);
+
+  const saveFees = async (e: FormEvent) => {
+    e.preventDefault();
+    if (saving) return;
+    const next: Record<string, string> = {};
+    if (pctNum === null || pctNum < 0 || pctNum > 100) next.pct = "Use a percentage between 0 and 100";
+    if (minNum === null || minNum < 0 || minNum > 10000) next.min = "Enter 0 or a positive USD amount";
+    setErrors(next);
+    if (Object.keys(next).length) return;
+
+    setSaving(true);
+    await run(
+      () =>
+        updatePricing(userId, {
+          stock_fee_pct: pctNum!,
+          stock_fee_min_usd: minNum!,
+        }),
+      "Investing fees saved",
+    );
+    setSaving(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        title="Investing fees"
+        subtitle="Subtracted automatically when you buy, sell, or reinvest stock dividends"
+      />
+      <CardBody>
+        <form onSubmit={saveFees} className="flex flex-col gap-4" noValidate>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Fee percentage" error={errors.pct} hint="Default is 0.2%">
+              {(f) => <AmountInput {...f} value={feePct} onChange={(e) => setFeePct(e.target.value)} suffix="%" />}
+            </Field>
+            <Field label="Minimum fee (USD)" error={errors.min} hint="Default is $0.02">
+              {(f) => <AmountInput {...f} value={feeMin} onChange={(e) => setFeeMin(e.target.value)} suffix="USD" />}
+            </Field>
+          </div>
+          <p className="rounded-xl bg-surface-muted px-3.5 py-2.5 text-sm text-ink-soft">
+            Example: on a <strong className="text-ink">$100.00</strong> stock buy,{" "}
+            <strong className="text-ink tabular">{formatMoney(sampleFee, "USD")}</strong> fee is subtracted →{" "}
+            <strong className="text-ink tabular">{formatMoney(Math.max(0, 100 - sampleFee), "USD")}</strong> invested in stock.
+          </p>
+          <Button type="submit" variant="primary" loading={saving} className="self-start">
+            Save investing fees
+          </Button>
+        </form>
+      </CardBody>
+    </Card>
   );
 }

@@ -91,13 +91,23 @@ describe("deleting a purchase", () => {
     expect(await balance(bank)).toBe(100000);
   });
 
-  it("refunds every cash purchase when the asset is deleted", async () => {
+  it("refunds every cash purchase when an unsold asset is deleted", async () => {
     await buy(4, 20000);
     await buy(6, 30000);
-    await sell(2, 12000);
     await q("delete from public.assets where id = $1", [gold]);
-    // 100,000 − 50,000 bought + 12,000 sold + 50,000 refunded
-    expect(await balance(bank)).toBe(112000);
+    expect(await balance(bank)).toBe(100000);
+  });
+
+  it("blocks deleting a partially sold asset and does not double-refund a fully sold asset", async () => {
+    await buy(10, 50000);
+    await sell(2, 12000);
+    await expect(q("delete from public.assets where id = $1", [gold])).rejects.toThrow(/sold/);
+    expect(await balance(bank)).toBe(62000);
+
+    // Sell the remaining 8g; deleting the empty $0 asset removes it without refunding the original 50,000
+    await sell(8, 40000);
+    await q("delete from public.assets where id = $1", [gold]);
+    expect(await balance(bank)).toBe(102000);
   });
 
   it("can't remove a purchase that was already sold", async () => {
@@ -189,5 +199,65 @@ describe("reverting", () => {
     await revertTo(sold);
     expect(await balance(bank)).toBe(74000);
     expect(await holding(gold)).toBe(6);
+  });
+});
+
+describe("stock fees and dividends", () => {
+  it("subtracts 0.2% (min $0.02) fee when buying and selling a stock", async () => {
+    const usd = await insertAsset(USER, "insert into public.assets (user_id, kind, name, currency, color) values ($1, 'cash', 'nsave', 'USD', 'sky') returning id");
+    await q("select public.set_cash_balance($1, 200, '')", [usd]);
+    const stock = await insertAsset(USER, "insert into public.assets (user_id, kind, name, ticker, color) values ($1, 'stock', 'SPUS ETF', 'SPUS', 'lavender') returning id");
+
+    // Buy $100 worth of SPUS: $100 leaves nsave, $0.20 fee subtracted -> $99.80 cost_total
+    await q("select public.buy_asset($1, $2, 1.66333333, 100, null, '')", [stock, usd]);
+    expect(await balance(usd)).toBe(100);
+    const p1 = await one<{ cost_total: string; paid_amount: string }>(
+      db,
+      "select cost_total::text, paid_amount::text from public.asset_purchases where asset_id = $1",
+      [stock],
+    );
+    expect(Number(p1.cost_total)).toBeCloseTo(99.8);
+    expect(Number(p1.paid_amount)).toBeCloseTo(100);
+
+    // Small buy of $5 hits the $0.02 minimum fee -> $4.98 cost_total
+    await q("select public.buy_asset($1, $2, 0.083, 5, null, '')", [stock, usd]);
+    expect(await balance(usd)).toBe(95);
+
+    // Sell $100 gross of SPUS: $0.20 fee subtracted -> +$99.80 deposited to nsave
+    await q("select public.sell_asset($1, $2, 1, 100, null, '')", [stock, usd]);
+    expect(await balance(usd)).toBeCloseTo(194.8);
+  });
+
+  it("pays cash dividends back to source account when auto-reinvest is off, and reinvests minus fee when on", async () => {
+    const usd = await insertAsset(USER, "insert into public.assets (user_id, kind, name, currency, color) values ($1, 'cash', 'nsave', 'USD', 'sky') returning id");
+    await q("select public.set_cash_balance($1, 1000, '')", [usd]);
+    const stock = await insertAsset(USER, "insert into public.assets (user_id, kind, name, ticker, color, auto_reinvest_dividends) values ($1, 'stock', 'SPUS ETF', 'SPUS', 'lavender', false) returning id");
+
+    // Buy 10 shares from nsave
+    await q("select public.buy_asset($1, $2, 10, 600, '2026-09-01', '')", [stock, usd]);
+    // 1000 - 600 = 400
+    expect(await balance(usd)).toBe(400);
+
+    // Set dividend of $0.50/sh on 2026-09-15 (gross = 10 * 0.50 = $5.00)
+    await db.query(
+      "update public.market_prices set price = 60, dividend_amount = 0.50, dividend_annual = 6.00, dividend_frequency = 'monthly', last_dividend_date = '2026-09-15' where symbol = 'STOCK:SPUS'",
+    );
+    await q("select public.run_scheduled_tasks_for_me()");
+    // Paid back to nsave without fee
+    expect(await balance(usd)).toBeCloseTo(405);
+    expect(await holding(stock)).toBe(10);
+
+    // Re-running on the same dividend date does nothing
+    await q("select public.run_scheduled_tasks_for_me()");
+    expect(await balance(usd)).toBeCloseTo(405);
+
+    // Enable auto-reinvest and emit a new $1.00/sh dividend on 2026-09-30 (gross = $10.00, fee = $0.02, net = $9.98 @ $60/sh = 0.16633333 shares)
+    await q("update public.assets set auto_reinvest_dividends = true where id = $1", [stock]);
+    await db.query(
+      "update public.market_prices set dividend_amount = 1.00, last_dividend_date = '2026-09-30' where symbol = 'STOCK:SPUS'",
+    );
+    await q("select public.run_scheduled_tasks_for_me()");
+    expect(await balance(usd)).toBeCloseTo(405); // cash untouched
+    expect(await holding(stock)).toBeCloseTo(10 + 9.98 / 60, 6);
   });
 });

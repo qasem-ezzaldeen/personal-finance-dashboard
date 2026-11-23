@@ -119,7 +119,15 @@ function RuleDialogContent({ open, onOpenChange, rule }: RuleDialogProps) {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="From" error={errors.accounts}>
               {(f) => (
-                <Select {...f} value={fromId} onChange={(e) => setFromId(e.target.value)}>
+                <Select
+                  {...f}
+                  value={fromId}
+                  onChange={(e) => {
+                    const nextFrom = e.target.value;
+                    setFromId(nextFrom);
+                    if (nextFrom === toId) setToId(accounts.find((a) => a.id !== nextFrom)?.id ?? "");
+                  }}
+                >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name} ({a.currency})

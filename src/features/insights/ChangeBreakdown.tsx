@@ -62,7 +62,7 @@ export function ChangeBreakdown({ period, unit }: { period: PeriodSummary; unit:
         {spans.map(({ row, from, to }) => {
           const isTotal = from === null;
           const left = isTotal ? 0 : at(Math.min(from, to));
-          const width = isTotal ? at(to) : Math.max(at(Math.max(from, to)) - left, 0.6);
+          const width = isTotal ? (to === 0 ? 0 : at(to)) : Math.max(at(Math.max(from, to)) - left, 0.6);
           const amount = isTotal ? to : row.delta!;
           return (
             <li key={row.key} className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)_auto] items-center gap-x-3 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)_auto]">

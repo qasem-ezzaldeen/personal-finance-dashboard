@@ -585,8 +585,9 @@ export function summarizePeriod(history: VaultHistory, baseline: string): Period
   const investments = parts.gold + parts.stock + parts.other;
   const investedAtStart = first.groups.gold + first.groups.stock + first.groups.other;
   const investedAtEnd = last.groups.gold + last.groups.stock + last.groups.other;
-  // Holdings bought during the period count from what they were worth when they came in
-  const invested = investedAtEnd > 0 ? investedAtEnd - investments : investedAtStart;
+  // Holdings bought during the period count from what they were worth when they came in;
+  // Math.max avoids shrinking the denominator when holdings are partially sold.
+  const invested = Math.max(investedAtStart, investedAtEnd - investments);
   const change = last.netWorth - first.netWorth;
   return {
     baseline: first.date,
@@ -749,8 +750,9 @@ export function assetPerformance(history: VaultHistory, baseline: string, vault:
     const t = totals.get(asset.id) ?? { price: 0, currency: 0 };
     const gain = t.price + t.currency;
     if (startValue === 0 && endValue === 0 && gain === 0) continue;
-    // Bought during the period: measured against what it was worth when it came in
-    const held = endValue > 0 ? endValue - gain : startValue;
+    // Bought during the period: measured against what it was worth when it came in;
+    // Math.max avoids shrinking the denominator when holdings are partially sold.
+    const held = Math.max(startValue, endValue - gain);
     result.push({ asset, startValue, endValue, ...t, gain, pct: held > 0 ? gain / held : null });
   }
   return result.sort((a, b) => b.gain - a.gain);

@@ -118,8 +118,7 @@ export function PriceChart({ instruments, points, baseline }: { instruments: Ins
                   <div className="rounded-xl border border-line bg-surface px-3 py-2 text-sm shadow-lifted">
                     <p className="font-medium text-ink">{formatDate(d.date)}</p>
                     <p className="text-ink tabular">
-                      {formatMoney(d.price, instrument.currency)}
-                      {per(instrument)}
+                      {d.price !== null ? `${formatMoney(d.price, instrument.currency)}${per(instrument)}` : "—"}
                     </p>
                     {here.map((m, i) => (
                       <p key={i} className={cn("tabular", m.kind === "buy" ? "text-gain-ink" : "text-loss-ink")}>

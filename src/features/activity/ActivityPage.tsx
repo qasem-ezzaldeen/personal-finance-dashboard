@@ -56,6 +56,7 @@ export function ActivityPage() {
               <option value="automation">Automations</option>
               <option value="buy">Purchases</option>
               <option value="sell">Sales</option>
+              <option value="dividend">Dividends</option>
               <option value="adjustment">Balance changes</option>
               <option value="imported">Imported history</option>
             </Select>

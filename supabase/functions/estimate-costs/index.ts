@@ -37,11 +37,12 @@ Deno.serve(async (req) => {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: profile.timezone }).format(new Date());
   const latest = new Map((market ?? []).map((m) => [m.symbol as string, { price: Number(m.price), currency: m.currency as string }]));
 
-  // Today's (or a future) date uses the live price; past dates use that day's close
+  // Today's (or a future) date uses the live price, falling back to historicalPrice if not yet in market_prices
   const priceOn = async (symbol: string, date: string) => {
     if (date >= today) {
       const live = latest.get(symbol);
-      return live ? { price: live.price, currency: live.currency } : null;
+      if (live) return { price: live.price, currency: live.currency };
+      return historicalPrice(admin, symbol, today);
     }
     return historicalPrice(admin, symbol, date);
   };
@@ -85,9 +86,9 @@ Deno.serve(async (req) => {
     const patch = cost !== null && currency
       ? { cost_total: Math.round(cost * 100) / 100, cost_currency: currency, cost_is_estimated: true, cost_estimate_attempted_at: new Date().toISOString() }
       : { cost_estimate_attempted_at: new Date().toISOString() };
-    await admin.from("asset_purchases").update(patch).eq("id", p.id).eq("user_id", userId);
-    if (cost !== null) updated++;
-    else failed++;
+    const { error: updateErr } = await admin.from("asset_purchases").update(patch).eq("id", p.id).eq("user_id", userId);
+    if (!updateErr && cost !== null) updated++;
+    else if (updateErr || cost === null) failed++;
   }
 
   return json({ updated, failed });

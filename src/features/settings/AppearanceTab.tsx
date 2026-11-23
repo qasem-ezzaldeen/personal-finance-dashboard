@@ -1,5 +1,5 @@
 import { Check, Monitor, Moon, Play, RotateCcw, Sun } from "lucide-react";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Collapse } from "@/components/ui/Collapse";
@@ -201,6 +201,7 @@ function HeroColor({ label }: { label: string }) {
   useResolvedTheme(); // the palette's own color is read from the page, which depends on the theme
   const hero = accents[palette];
   const saveTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(saveTimer.current), []);
 
   const choose = (color: string | null) => {
     const next = { ...accents };

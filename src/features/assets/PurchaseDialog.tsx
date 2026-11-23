@@ -51,6 +51,7 @@ function PurchaseDialogContent({ open, onOpenChange, asset, purchase }: Props) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const quantity = parseAmount(quantityRaw);
     const paid = paidRaw.trim() ? parseAmount(paidRaw) : null;
     const next: Record<string, string> = {};

@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 import { currencyOptions } from "@/lib/currencies";
 import { formatMoney, formatQuantity, todayIn } from "@/lib/format";
 import type { Asset, GroupKind } from "@/lib/types";
-import { convert, goldGramValue, unitValue } from "@/lib/valuation";
+import { calcStockFee, convert, goldGramValue, unitValue } from "@/lib/valuation";
 import { HoldingBeforeAfter } from "./TradeDialogs";
 import { useCashAccounts } from "./useCashAccounts";
 
@@ -71,6 +71,7 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
   const [color, setColor] = useState(asset?.color ?? KINDS.find((x) => x.kind === startKind)!.color);
   const [note, setNote] = useState(asset?.note ?? "");
   const [hideWhenEmpty, setHideWhenEmpty] = useState(asset?.hide_when_empty ?? false);
+  const [autoReinvest, setAutoReinvest] = useState(asset?.auto_reinvest_dividends ?? false);
   // Buying more of something you have adds to it: "auto" picks the match (same ticker, or gold of that karat)
   const [targetChoice, setTargetChoice] = useState<string>("auto");
   const cash = useCashAccounts();
@@ -78,11 +79,14 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // Deleting a gold/stock/other asset gives back what its cash-paid purchases took, per account
+  const hasSales = useMemo(() => Boolean(asset && (vault.sales ?? []).some((s) => s.asset_id === asset.id)), [vault.sales, asset]);
+  const currentHeld = asset ? (summary.groups.flatMap((g) => g.assets).find((a) => a.asset.id === asset.id)?.quantity ?? 0) : 0;
+  // Deleting an unsold gold/stock/other asset gives back what its cash-paid purchases took; sold-out assets don't refund
   const refunds = useMemo(() => {
+    if (!asset || hasSales) return [];
     const totals = new Map<string, { account: string; currency: string; amount: number }>();
     for (const p of vault.purchases) {
-      if (!asset || p.asset_id !== asset.id || !p.paid_from_asset_id || p.paid_amount === null || !p.paid_currency) continue;
+      if (p.asset_id !== asset.id || !p.paid_from_asset_id || p.paid_amount === null || !p.paid_currency) continue;
       const account = vault.assets.find((a) => a.id === p.paid_from_asset_id);
       if (!account) continue;
       const key = `${account.id}|${p.paid_currency}`;
@@ -91,7 +95,7 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
       totals.set(key, t);
     }
     return [...totals.values()];
-  }, [vault.purchases, vault.assets, asset]);
+  }, [vault.purchases, vault.assets, asset, hasSales]);
 
   const tickerChanged = kind === "stock" && normalizeTicker(tickerRaw) !== (asset?.ticker ?? "");
   const lookup = useTickerLookup(open && tickerChanged ? tickerRaw : "");
@@ -140,9 +144,18 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
   const unitNow = unitIn(payCurrency);
   const marketPrice = quantityNow !== null && quantityNow > 0 && unitNow !== null ? Math.round(quantityNow * unitNow * 100) / 100 : null;
   const paidNow = paidRaw.trim() ? parseAmount(paidRaw) : null;
+  const stockCashMode = !editing && kind === "stock" && account !== null;
+  const stockFee = stockCashMode && paidNow !== null && paidNow > 0 ? calcStockFee(paidNow, payCurrency, vault.pricing, book) : 0;
+  const stockNet = stockCashMode && paidNow !== null ? Math.max(0, Math.round((paidNow - stockFee) * 100) / 100) : 0;
+  const computedShares =
+    stockCashMode && stockNet > 0 && unitNow !== null && unitNow > 0
+      ? Math.round((stockNet / unitNow) * 1e8) / 1e8
+      : null;
+  const effectiveQuantityNow = stockCashMode ? computedShares : quantityNow;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const nextErrors: Record<string, string> = {};
     if (!target && !name.trim()) nextErrors.name = "Give this asset a name";
 
@@ -161,16 +174,24 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
       if (!ticker && !nextErrors.ticker) nextErrors.ticker = "Enter a ticker";
     }
 
-    const quantity = quantityRaw.trim() ? parseAmount(quantityRaw) : null;
+    const quantity = stockCashMode ? computedShares : (quantityRaw.trim() ? parseAmount(quantityRaw) : null);
     const paid = paidRaw.trim() ? parseAmount(paidRaw) : null;
     if (!editing && kind !== "cash") {
-      if (quantityRaw.trim() && (quantity === null || quantity <= 0)) nextErrors.quantity = "Enter an amount greater than zero";
-      else if (quantity === null && (paid !== null || account || target)) nextErrors.quantity = "Enter how much you bought";
-      if (account) {
-        if (paid === null || paid <= 0) nextErrors.paid = `Enter what you paid from ${account.name}`;
+      if (stockCashMode) {
+        if (paid === null || paid <= 0) nextErrors.paid = `Enter how much you spent from ${account.name}`;
+        else if (paid <= stockFee) nextErrors.paid = `Amount must be greater than the ${formatMoney(stockFee, payCurrency)} fee`;
         else if (paid > accountBalance + 1e-9) nextErrors.paid = `There's only ${formatMoney(accountBalance, account.currency!)} in ${account.name}`;
-      } else if (paidRaw.trim() && (paid === null || paid < 0)) {
-        nextErrors.paid = "Enter what you paid, or leave it empty";
+        if ((unitNow === null || unitNow <= 0) && !nextErrors.ticker) nextErrors.paid = "Waiting for the stock's price to calculate shares";
+        else if (!nextErrors.paid && (quantity === null || quantity <= 0)) nextErrors.paid = "Amount is too small to buy shares";
+      } else {
+        if (quantityRaw.trim() && (quantity === null || quantity <= 0)) nextErrors.quantity = "Enter an amount greater than zero";
+        else if (quantity === null && (paid !== null || account || target)) nextErrors.quantity = "Enter how much you bought";
+        if (account) {
+          if (paid === null || paid <= 0) nextErrors.paid = `Enter what you paid from ${account.name}`;
+          else if (paid > accountBalance + 1e-9) nextErrors.paid = `There's only ${formatMoney(accountBalance, account.currency!)} in ${account.name}`;
+        } else if (paidRaw.trim() && (paid === null || paid < 0)) {
+          nextErrors.paid = "Enter what you paid, or leave it empty";
+        }
       }
       if (acquiredOn > today) nextErrors.date = "The date can't be in the future";
     }
@@ -188,6 +209,7 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
       color,
       note: note.trim(),
       hide_when_empty: hideWhenEmpty,
+      auto_reinvest_dividends: kind === "stock" ? autoReinvest : false,
     };
 
     // The purchase: paid from a cash account (the money leaves it), or just recorded
@@ -225,7 +247,14 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
         ...fields,
         sort_order: summary.groups.find((g) => g.group.kind === kind)?.assets.length ?? 0,
       });
-      if (kind === "cash" && balance) await setCashBalance(created.id, balance, "Opening balance");
+      if (kind === "cash" && balance) {
+        try {
+          await setCashBalance(created.id, balance, "Opening balance");
+        } catch (err) {
+          await deleteAsset(created.id).catch(() => undefined);
+          throw err;
+        }
+      }
       if (kind !== "cash" && quantity) {
         try {
           await recordPurchase(created.id);
@@ -438,51 +467,76 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
                     </Select>
                   )}
                 </Field>
-                <Field label={quantityLabel} error={errors.quantity}>
-                  {(p) => <AmountInput {...p} value={quantityRaw} onChange={(e) => setQuantityRaw(e.target.value)} placeholder="0" />}
-                </Field>
-                <Field label="Date bought" error={errors.date}>
-                  {(p) => <Input {...p} type="date" value={acquiredOn} max={today} onChange={(e) => setAcquiredOn(e.target.value)} />}
-                </Field>
-                <Field
-                  label={account ? `Total paid (${account.currency})` : "Total price paid"}
-                  error={errors.paid}
-                  className={account ? "sm:col-span-2" : undefined}
-                  labelAside={
-                    marketPrice !== null ? (
-                      <button
-                        type="button"
-                        onClick={() => setPaidRaw(marketPrice.toFixed(2))}
-                        className="text-sm font-medium text-brand-ink underline-offset-4 hover:underline"
-                      >
-                        Use market price
-                      </button>
-                    ) : null
-                  }
-                  hint={marketPrice !== null ? `At today's price: ≈ ${formatMoney(marketPrice, payCurrency)}` : undefined}
-                >
-                  {(p) => (
-                    <AmountInput
-                      {...p}
-                      value={paidRaw}
-                      onChange={(e) => setPaidRaw(e.target.value)}
-                      placeholder={account ? "0.00" : "Optional"}
-                      suffix={account ? account.currency! : undefined}
-                    />
-                  )}
-                </Field>
-                {account ? null : (
-                  <Field label="Paid in">
-                    {(p) => (
-                      <Select {...p} value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
-                        {currencies.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </Select>
+                {stockCashMode ? (
+                  <>
+                    <Field
+                      label={`Total cash spent (${account.currency})`}
+                      error={errors.paid}
+                      hint={unitNow !== null ? `1 share ≈ ${formatMoney(unitNow, payCurrency)} (investing fee subtracted automatically)` : undefined}
+                    >
+                      {(p) => (
+                        <AmountInput
+                          {...p}
+                          value={paidRaw}
+                          onChange={(e) => setPaidRaw(e.target.value)}
+                          placeholder="100.00"
+                          suffix={account.currency!}
+                        />
+                      )}
+                    </Field>
+                    <Field label="Date bought" error={errors.date}>
+                      {(p) => <Input {...p} type="date" value={acquiredOn} max={today} onChange={(e) => setAcquiredOn(e.target.value)} />}
+                    </Field>
+                  </>
+                ) : (
+                  <>
+                    <Field label={quantityLabel} error={errors.quantity}>
+                      {(p) => <AmountInput {...p} value={quantityRaw} onChange={(e) => setQuantityRaw(e.target.value)} placeholder="0" />}
+                    </Field>
+                    <Field label="Date bought" error={errors.date}>
+                      {(p) => <Input {...p} type="date" value={acquiredOn} max={today} onChange={(e) => setAcquiredOn(e.target.value)} />}
+                    </Field>
+                    <Field
+                      label={account ? `Total paid (${account.currency})` : "Total price paid"}
+                      error={errors.paid}
+                      className={account ? "sm:col-span-2" : undefined}
+                      labelAside={
+                        marketPrice !== null ? (
+                          <button
+                            type="button"
+                            onClick={() => setPaidRaw(marketPrice.toFixed(2))}
+                            className="text-sm font-medium text-brand-ink underline-offset-4 hover:underline"
+                          >
+                            Use market price
+                          </button>
+                        ) : null
+                      }
+                      hint={marketPrice !== null ? `At today's price: ≈ ${formatMoney(marketPrice, payCurrency)}` : undefined}
+                    >
+                      {(p) => (
+                        <AmountInput
+                          {...p}
+                          value={paidRaw}
+                          onChange={(e) => setPaidRaw(e.target.value)}
+                          placeholder={account ? "0.00" : "Optional"}
+                          suffix={account ? account.currency! : undefined}
+                        />
+                      )}
+                    </Field>
+                    {account ? null : (
+                      <Field label="Paid in">
+                        {(p) => (
+                          <Select {...p} value={paidCurrency} onChange={(e) => setPaidCurrency(e.target.value)}>
+                            {currencies.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.label}
+                              </option>
+                            ))}
+                          </Select>
+                        )}
+                      </Field>
                     )}
-                  </Field>
+                  </>
                 )}
               </div>
               {account || target ? (
@@ -490,8 +544,18 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
                   <HoldingBeforeAfter
                     asset={target ?? ({ kind, name: name.trim() || "New asset" } as Asset)}
                     before={target ? (held.get(target.id) ?? 0) : 0}
-                    after={(target ? (held.get(target.id) ?? 0) : 0) + (quantityNow ?? 0)}
+                    after={(target ? (held.get(target.id) ?? 0) : 0) + (effectiveQuantityNow ?? 0)}
                   />
+                  {stockCashMode && paidNow !== null && paidNow > 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-soft">
+                      <span>
+                        Investing fee: <strong className="text-ink tabular">−{formatMoney(stockFee, payCurrency)}</strong>
+                      </span>
+                      <span>
+                        Net in stock: <strong className="text-ink tabular">{formatMoney(stockNet, payCurrency)}</strong>
+                      </span>
+                    </div>
+                  ) : null}
                   {account ? (
                     <BeforeAfter label={account.name} before={accountBalance} after={accountBalance - (paidNow ?? 0)} currency={account.currency!} />
                   ) : null}
@@ -514,6 +578,15 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
                 label="Hide when empty"
                 description="Keep it out of the list while its balance is zero."
               />
+
+              {kind === "stock" ? (
+                <Switch
+                  checked={autoReinvest}
+                  onCheckedChange={setAutoReinvest}
+                  label="Auto-reinvest dividends"
+                  description="Buy more shares automatically (investing fee applies). When off, dividends pay back to the source cash account."
+                />
+              ) : null}
             </>
           ) : null}
         </div>
@@ -531,6 +604,13 @@ function AssetDialogContent({ open, onOpenChange, asset, initialKind }: Props) {
           }}
         >
           <p>This removes the asset and all its purchases and sales. History entries stay, but can no longer restore this asset.</p>
+          {hasSales && currentHeld > 1e-9 ? (
+            <p className="font-medium text-loss-ink">
+              Some of this asset has already been sold. Sell the rest or remove the sales first, or archive it instead.
+            </p>
+          ) : hasSales ? (
+            <p>This asset is empty (already sold). Deleting it removes it from your list without changing your cash balance.</p>
+          ) : null}
           {refunds.length > 0 ? (
             <p>
               What you paid from your cash accounts goes back:{" "}

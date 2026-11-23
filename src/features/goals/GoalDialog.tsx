@@ -48,6 +48,7 @@ function GoalDialogContent({ open, onOpenChange, goal }: Props) {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     const target = parseAmount(targetRaw);
     const next: Record<string, string> = {};
     if (!name.trim()) next.name = "Give your goal a name";

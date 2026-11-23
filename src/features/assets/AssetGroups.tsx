@@ -3,15 +3,15 @@ import { useState, type ReactNode } from "react";
 import { Collapse } from "@/components/ui/Collapse";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { DragHandle, SortableList, useLocalOrder, useSortableItem } from "@/components/ui/Sortable";
-import { Badge, ColorDot, GrowthPill } from "@/components/ui/misc";
+import { Badge, ColorDot, GrowthPill, Switch } from "@/components/ui/misc";
 import { useActions } from "@/features/actions/ActionsProvider";
 import { useVault, useVaultAction } from "@/features/vault/VaultProvider";
-import { deleteSale, reorderAssets, reorderGroups } from "@/lib/api";
+import { deleteSale, reorderAssets, reorderGroups, updateAsset } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { purchasePriceState } from "@/lib/estimates";
 import { formatDate, formatMoney, formatPercent, formatQuantity, formatUnitTotal } from "@/lib/format";
 import type { Asset, GroupKind, Purchase } from "@/lib/types";
-import { convert, stockPrice, visibleUnitTotals, type AssetSummary, type GroupSummary, type SaleSummary } from "@/lib/valuation";
+import { convert, dividendFrequencyLabel, stockPrice, visibleUnitTotals, type AssetSummary, type GroupSummary, type SaleSummary } from "@/lib/valuation";
 import { PurchaseDialog } from "./PurchaseDialog";
 import { SellDialog } from "./TradeDialogs";
 import { useExpanded } from "./useCollapsed";
@@ -166,6 +166,82 @@ function SaleRow({ asset, sale }: { asset: Asset; sale: SaleSummary }) {
   );
 }
 
+function StockDividendInfo({ summary, variant }: { summary: AssetSummary; variant: Variant }) {
+  const { vault, book } = useVault();
+  const run = useVaultAction();
+  const { asset, quantity } = summary;
+  if (asset.kind !== "stock" || !asset.ticker) return null;
+
+  const market = book.stocks.get(asset.ticker);
+  const freq = market?.dividend_frequency ?? null;
+  const perShare = market?.dividend_amount ?? null;
+  const annualPerShare = market?.dividend_annual ?? null;
+  const cur = market?.currency ?? "USD";
+  const freqLabel = dividendFrequencyLabel(freq);
+
+  const nonArchivedCash = new Map(vault.assets.filter((a) => a.kind === "cash" && !a.archived_at).map((a) => [a.id, a]));
+  const sourcePurchase = [...summary.purchases]
+    .map((p) => p.purchase)
+    .filter((p) => p.paid_from_asset_id && nonArchivedCash.has(p.paid_from_asset_id))
+    .sort((a, b) => (b.acquired_on === a.acquired_on ? b.created_at.localeCompare(a.created_at) : b.acquired_on.localeCompare(a.acquired_on)))[0];
+  const sourceAccount = sourcePurchase?.paid_from_asset_id ? (nonArchivedCash.get(sourcePurchase.paid_from_asset_id) ?? null) : null;
+  const payoutTarget = sourceAccount?.name ?? "Upcoming Income";
+
+  if (variant === "compact") {
+    if (!freq || freq === "none") return null;
+    const estAnnual = annualPerShare && quantity > 0 ? annualPerShare * quantity : null;
+    return (
+      <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft tabular">
+        <span>
+          Div:{" "}
+          {estAnnual !== null
+            ? `${formatMoney(estAnnual, cur)}/yr`
+            : perShare
+              ? `${formatMoney(perShare, cur)}/sh`
+              : "—"}
+          {freqLabel ? ` · ${freqLabel}` : ""}
+        </span>
+        {asset.auto_reinvest_dividends ? <Badge tone="brand">DRIP</Badge> : null}
+      </span>
+    );
+  }
+
+  return (
+    <div className="mb-2 flex flex-col gap-2 rounded-xl bg-surface-muted/70 px-3 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-medium text-ink">Dividends</span>
+        {freq === "none" ? (
+          <span className="text-ink-soft">No dividend</span>
+        ) : freq ? (
+          <span className="text-ink-soft tabular">
+            {perShare ? `${formatMoney(perShare, cur)}/sh` : ""}
+            {annualPerShare ? ` · ${formatMoney(annualPerShare, cur)}/yr per sh` : ""}
+            {quantity > 0 && annualPerShare ? ` (${formatMoney(annualPerShare * quantity, cur)}/yr est.)` : ""}
+            {freqLabel ? ` · ${freqLabel}` : ""}
+          </span>
+        ) : (
+          <span className="text-ink-soft">Refresh prices to load dividend info</span>
+        )}
+      </div>
+      <Switch
+        checked={Boolean(asset.auto_reinvest_dividends)}
+        onCheckedChange={(on) =>
+          run(
+            () => updateAsset(asset.id, { auto_reinvest_dividends: on }),
+            on ? `Auto-reinvest on for ${asset.name}` : `Dividends for ${asset.name} will pay to ${payoutTarget}`,
+          )
+        }
+        label="Auto-reinvest dividends"
+        description={
+          asset.auto_reinvest_dividends
+            ? "Automatically buys more shares (investing fee applies)."
+            : `Pays cash back to ${payoutTarget}.`
+        }
+      />
+    </div>
+  );
+}
+
 function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Variant }) {
   const { vault, ctx } = useVault();
   const { openAsset } = useActions();
@@ -198,6 +274,9 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium text-ink">{summary.asset.name}</span>
             {detail ? <span className="block truncate text-sm text-ink-soft tabular">{detail}</span> : null}
+            {summary.asset.kind === "stock" && variant === "full" ? (
+              <StockDividendInfo summary={summary} variant="compact" />
+            ) : null}
           </span>
           <span className="flex shrink-0 flex-col items-end gap-0.5">
             <span className="font-semibold text-ink tabular">{summary.value === null ? "Price unavailable" : formatMoney(summary.value, base)}</span>
@@ -236,6 +315,7 @@ function AssetRow({ summary, variant }: { summary: AssetSummary; variant: Varian
       {variant === "full" && hasPurchases ? (
         <Collapse open={expanded}>
           <div className="mb-2 ml-9 border-l-2 border-line pl-2">
+            {summary.asset.kind === "stock" ? <StockDividendInfo summary={summary} variant="full" /> : null}
             <ul className="flex flex-col">
               {history.map(({ purchase: p, sale }) =>
                 p ? (
@@ -352,9 +432,12 @@ function GroupSection({ group, variant }: { group: GroupSummary; variant: Varian
         <div className="px-1.5 pb-2">
           <SortableList
             ids={order}
-            onReorder={(ids) => {
+            onReorder={async (ids) => {
+              const prev = order;
               setOrder(ids);
-              run(() => reorderAssets(ids));
+              const hiddenIds = group.assets.filter((a) => !ids.includes(a.asset.id)).map((a) => a.asset.id);
+              const ok = await run(() => reorderAssets([...ids, ...hiddenIds]));
+              if (!ok) setOrder(prev);
             }}
           >
             <ul className="flex flex-col gap-0.5">

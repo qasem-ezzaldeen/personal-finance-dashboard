@@ -2,7 +2,7 @@
 import { adminClient, identifyCaller } from "../_shared/auth.ts";
 import { corsHeaders, json } from "../_shared/http.ts";
 import { ageInMinutes, consumeBudget, loadPrices, nextRow, savePrices } from "../_shared/prices.ts";
-import { fetchTwelveDataQuote, fetchYahooQuote, type Quote } from "../_shared/providers.ts";
+import { fetchTwelveDataQuote, fetchYahooDividends, fetchYahooQuote, type Quote } from "../_shared/providers.ts";
 import { isValidTickerFormat, normalizeTicker } from "../_shared/tickers.ts";
 
 Deno.serve(async (req) => {
@@ -15,7 +15,9 @@ Deno.serve(async (req) => {
 
   let body: { ticker?: unknown };
   try {
-    body = await req.json();
+    const raw = await req.json();
+    if (!raw || typeof raw !== "object") throw new Error("not an object");
+    body = raw as { ticker?: unknown };
   } catch {
     return json({ error: "Send a JSON body like {\"ticker\": \"AAPL\"}" }, 400);
   }
@@ -27,7 +29,7 @@ Deno.serve(async (req) => {
   const now = new Date();
   const prices = await loadPrices(admin);
   const existing = prices.get(`STOCK:${ticker}`);
-  if (existing && ageInMinutes(existing, now) < 24 * 60) {
+  if (existing && ageInMinutes(existing, now) < 24 * 60 && existing.dividend_frequency != null) {
     return json({ ticker, name: existing.display_name, price: Number(existing.price), currency: existing.currency });
   }
 
@@ -49,6 +51,14 @@ Deno.serve(async (req) => {
   }
   if (!quote) {
     return json({ error: `We couldn't find "${ticker}". Check the symbol and try again.` }, 404);
+  }
+  if (!quote.dividends) {
+    try {
+      const divs = await fetchYahooDividends(ticker);
+      if (divs) quote.dividends = divs;
+    } catch {
+      // dividend info is optional
+    }
   }
 
   await savePrices(admin, [nextRow(existing, `STOCK:${ticker}`, "stock", quote, now)]);

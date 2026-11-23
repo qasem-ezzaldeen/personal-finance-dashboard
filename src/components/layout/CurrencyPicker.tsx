@@ -74,6 +74,9 @@ export function CurrencyPicker({ className }: CurrencyPickerProps) {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") e.stopPropagation();
+              }}
               placeholder="Search currency..."
               className="w-full rounded-xl border border-line bg-surface-muted/50 py-1.5 pr-2.5 pl-8 text-xs text-ink placeholder:text-ink-soft focus:border-focus focus:bg-surface focus:outline-none focus:ring-2 focus:ring-brand"
               autoFocus

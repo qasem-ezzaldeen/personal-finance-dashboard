@@ -49,6 +49,8 @@ export interface PricingSettings {
   gold_21k_adjustment: number;
   gold_24k_adjustment: number;
   gold_adjustment_currency: string;
+  stock_fee_pct?: number;
+  stock_fee_min_usd?: number;
 }
 
 export interface AssetGroup {
@@ -73,6 +75,8 @@ export interface Asset {
   note: string;
   sort_order: number;
   hide_when_empty: boolean;
+  auto_reinvest_dividends?: boolean;
+  last_dividend_processed_date?: string | null;
   archived_at: string | null;
   created_at: string;
 }
@@ -123,12 +127,20 @@ export type TransactionKind =
   | "buy"
   | "sell"
   | "refund"
-  | "sale_removed";
+  | "sale_removed"
+  | "dividend";
 
-/** What a buy/sell/refund entry moved: how much of which kind of asset */
+/** What a buy/sell/refund/dividend entry moved: how much of which kind of asset */
 export interface TransactionDetails {
   quantity?: number;
   asset_kind?: "gold" | "stock" | "other";
+  reinvested?: boolean;
+  fee?: number;
+  fee_currency?: string;
+  gross_amount?: number;
+  net_amount?: number;
+  per_share?: number;
+  dividend_date?: string;
   restore?: unknown;
 }
 
@@ -239,6 +251,8 @@ export interface HistoricalPrice {
   currency: string;
 }
 
+export type DividendFrequency = "monthly" | "quarterly" | "semi_annual" | "annual" | "irregular" | "none";
+
 export interface MarketPrice {
   symbol: string;
   kind: "fx" | "metal" | "stock";
@@ -249,6 +263,10 @@ export interface MarketPrice {
   source: string;
   fetched_at: string;
   changed_at: string;
+  dividend_amount?: number | null;
+  dividend_annual?: number | null;
+  dividend_frequency?: DividendFrequency | null;
+  last_dividend_date?: string | null;
 }
 
 /** Everything the app loads for the signed-in user (except history, which is paginated). */

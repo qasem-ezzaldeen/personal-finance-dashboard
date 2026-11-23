@@ -186,7 +186,18 @@ export function mapPreviousVault(data: PreviousVault, today: string): ImportPayl
     });
 
   const transactions = (data.transactions ?? []).flatMap((t) => {
-    const ts = num(t.timestamp);
+    const rawTs = t.timestamp;
+    let ts: number | null = null;
+    if (typeof rawTs === "number" && Number.isFinite(rawTs)) {
+      ts = rawTs;
+    } else if (typeof rawTs === "string") {
+      if (/^-?\d+(\.\d+)?$/.test(rawTs.trim())) {
+        ts = Number(rawTs);
+      } else {
+        const parsed = Date.parse(rawTs);
+        if (Number.isFinite(parsed)) ts = parsed;
+      }
+    }
     const amount = num(t.amountUsd);
     if (ts === null || amount === null) {
       warnings.push("Skipped a history entry without a date or amount.");

@@ -28,6 +28,7 @@ export function VaultTab() {
 
   const [vaultName, setVaultName] = useState(p.vault_name);
   const [display, setDisplay] = useState<string[]>(p.display_currencies);
+  const activeDisplay = display.filter((c) => c !== p.base_currency);
   const [income, setIncome] = useState(p.income_currency);
   const [locale, setLocale] = useState(p.number_locale);
   const [timezone, setTimezone] = useState(p.timezone);
@@ -35,7 +36,10 @@ export function VaultTab() {
   const pendingBalance = summary.pending?.quantity ?? 0;
 
   const toggle = (code: string) =>
-    setDisplay((list) => (list.includes(code) ? list.filter((c) => c !== code) : list.length >= 6 ? list : [...list, code]));
+    setDisplay((list) => {
+      const clean = list.filter((c) => c !== p.base_currency);
+      return clean.includes(code) ? clean.filter((c) => c !== code) : clean.length >= 6 ? clean : [...clean, code];
+    });
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -46,7 +50,7 @@ export function VaultTab() {
         updateProfile(userId, {
           vault_name: vaultName.trim(),
           base_currency: p.base_currency,
-          display_currencies: display.filter((c) => c !== p.base_currency),
+          display_currencies: activeDisplay,
           income_currency: income,
           number_locale: locale,
           timezone,
@@ -85,7 +89,7 @@ export function VaultTab() {
             <p className="mb-2 text-sm text-ink-soft">Pick up to 6. The first one appears next to your totals.</p>
             <div className="flex flex-wrap gap-2">
               {options.slice(0, 40).filter((o) => o.code !== p.base_currency).map((o) => {
-                const on = display.includes(o.code);
+                const on = activeDisplay.includes(o.code);
                 return (
                   <button
                     key={o.code}

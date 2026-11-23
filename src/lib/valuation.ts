@@ -152,6 +152,50 @@ export function stockPrice(ticker: string, ctx: ValuationContext): StockPrice | 
   };
 }
 
+/** Calculates the stock investing fee (percentage with minimum in USD), matching private.calc_stock_fee. */
+export function calcStockFee(
+  amount: number,
+  currency: string,
+  pricing: Pick<PricingSettings, "stock_fee_pct" | "stock_fee_min_usd">,
+  book: PriceBook,
+): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  const pct = Number(pricing.stock_fee_pct ?? 0.2);
+  const minUsd = Number(pricing.stock_fee_min_usd ?? 0.02);
+  if (pct === 0 && minUsd === 0) return 0;
+
+  const pctFee = Math.round(amount * (pct / 100) * 100) / 100;
+  let minFee = 0;
+  if (minUsd > 0) {
+    if (currency === "USD") {
+      minFee = Math.round(minUsd * 100) / 100;
+    } else {
+      const converted = convert(minUsd, "USD", currency, book);
+      minFee = converted !== null ? Math.round(converted * 100) / 100 : 0;
+    }
+  }
+  return Math.max(pctFee, minFee);
+}
+
+export function dividendFrequencyLabel(freq: MarketPrice["dividend_frequency"]): string {
+  switch (freq) {
+    case "monthly":
+      return "Monthly";
+    case "quarterly":
+      return "Quarterly";
+    case "semi_annual":
+      return "Semi-annual";
+    case "annual":
+      return "Annual";
+    case "irregular":
+      return "Irregular";
+    case "none":
+      return "No dividend";
+    default:
+      return "";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Assets
 // ---------------------------------------------------------------------------
@@ -405,36 +449,84 @@ export function summarizeVault(vault: VaultData, ctx: ValuationContext, now = ne
       value: unit === null ? null : Number(purchase.quantity) * unit,
     }));
 
-    // Cost basis for sales: average cost over eligible purchases acquired on or before the sale date
-
-    const chronologicalPurchases = [...purchases].sort((a, b) =>
-      a.acquired_on.localeCompare(b.acquired_on) || a.created_at.localeCompare(b.created_at)
-    );
-    const saleSummaries = sales.map((sale): SaleSummary => {
-      const eligiblePurchases = chronologicalPurchases.filter((p) => p.acquired_on <= sale.sold_on);
-      let eligibleCost = 0;
-      let eligibleQty = 0;
-      for (const p of eligiblePurchases) {
-        const cost = p.cost_total !== null && p.cost_currency ? convert(Number(p.cost_total), p.cost_currency, base, ctx.book) : null;
-        if (cost === null) continue;
-        eligibleCost += cost;
-        eligibleQty += Number(p.quantity);
-      }
-      const avgCostAtSale = eligibleQty > 0 ? eligibleCost / eligibleQty : null;
-      const cost = avgCostAtSale === null ? null : convert(avgCostAtSale * Number(sale.quantity), base, sale.proceeds_currency, ctx.book);
-      const gain = cost === null ? null : Number(sale.proceeds) - cost;
-      return { sale, cost, gain, pct: cost !== null && cost > 0 && gain !== null ? gain / cost : null };
+    // Running open-lot pool (average cost): sales reduce open lots proportionally so sold-out lots
+    // never distort future sales or remaining growth.
+    type Lot = {
+      originalQty: number;
+      remainingQty: number;
+      growth: Growth | null;
+      baseCost: number | null;
+    };
+    const chronologicalEvents: Array<
+      | { kind: "buy"; date: string; created: string; purchase: Purchase; growth: Growth | null }
+      | { kind: "sell"; date: string; created: string; sale: Sale }
+    > = [
+      ...purchaseSummaries.map((ps) => ({
+        kind: "buy" as const,
+        date: ps.purchase.acquired_on,
+        created: ps.purchase.created_at,
+        purchase: ps.purchase,
+        growth: ps.growth,
+      })),
+      ...sales.map((s) => ({ kind: "sell" as const, date: s.sold_on, created: s.created_at, sale: s })),
+    ].sort((a, b) => {
+      const cmp = a.date.localeCompare(b.date);
+      if (cmp !== 0) return cmp;
+      if (a.kind !== b.kind) return a.kind === "buy" ? -1 : 1;
+      return a.created.localeCompare(b.created);
     });
 
-    // Growth of what's still held: the purchases' growth, for the share that hasn't been sold
-    const bought = purchases.reduce((sum, p) => sum + Number(p.quantity), 0);
-    const share = bought > 0 ? quantity / bought : 1;
+    const lots: Lot[] = [];
+    const saleSummaryById = new Map<string, SaleSummary>();
+    for (const ev of chronologicalEvents) {
+      if (ev.kind === "buy") {
+        const qty = Number(ev.purchase.quantity);
+        const baseCost =
+          ev.purchase.cost_total !== null && ev.purchase.cost_currency
+            ? convert(Number(ev.purchase.cost_total), ev.purchase.cost_currency, base, ctx.book)
+            : null;
+        lots.push({ originalQty: qty, remainingQty: qty, growth: ev.growth, baseCost });
+      } else {
+        const sale = ev.sale;
+        const saleQty = Number(sale.quantity);
+        let openQty = 0;
+        let knownQty = 0;
+        let knownCost = 0;
+        for (const lot of lots) {
+          if (lot.remainingQty <= 1e-12) continue;
+          openQty += lot.remainingQty;
+          if (lot.baseCost !== null && lot.originalQty > 0) {
+            knownQty += lot.remainingQty;
+            knownCost += lot.baseCost * (lot.remainingQty / lot.originalQty);
+          }
+        }
+        const avgCostAtSale = knownQty > 0 ? knownCost / knownQty : null;
+        const cost = avgCostAtSale === null ? null : convert(avgCostAtSale * saleQty, base, sale.proceeds_currency, ctx.book);
+        const gain = cost === null ? null : Number(sale.proceeds) - cost;
+        saleSummaryById.set(sale.id, {
+          sale,
+          cost,
+          gain,
+          pct: cost !== null && cost > 0 && gain !== null ? gain / cost : null,
+        });
+        if (openQty > 1e-12) {
+          const keepRatio = Math.max(0, 1 - saleQty / openQty);
+          for (const lot of lots) lot.remainingQty *= keepRatio;
+        }
+      }
+    }
+
+    const saleSummaries = sales.map((s) => saleSummaryById.get(s.id)!);
+    const remainingGrowths = lots
+      .filter((lot) => lot.remainingQty > 1e-9 && lot.originalQty > 0 && lot.growth !== null)
+      .map((lot) => scaleGrowth(lot.growth, lot.remainingQty / lot.originalQty));
+
     return {
       asset,
       quantity,
       value,
       unitValue: unit,
-      growth: quantity === 0 && sales.length > 0 ? null : scaleGrowth(combineGrowth(purchaseSummaries.map((p) => p.growth), base, ctx.book), share),
+      growth: quantity === 0 && sales.length > 0 ? null : combineGrowth(remainingGrowths, base, ctx.book),
       purchases: purchaseSummaries,
       sales: saleSummaries,
       hidden: asset.hide_when_empty && quantity === 0,
