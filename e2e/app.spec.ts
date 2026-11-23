@@ -335,15 +335,16 @@ test("buy more shares of a stock you have, paid from a cash account, with Add as
   await expect(dialog.getByText(/This adds to\s+SPUS ETF/)).toBeVisible();
   await expect(dialog.getByLabel("Name")).toHaveCount(0);
   await dialog.getByLabel("Paid from").selectOption({ label: "nsave · $1,500.50" });
-  await dialog.getByLabel("Shares").fill("3");
-  await dialog.getByRole("button", { name: "Use market price" }).click();
-  // nsave before → after is shown
+  await dialog.getByLabel(/Total cash spent/).fill("100");
+  // Investing fee, net in stock, and nsave before → after are shown
+  await expect(dialog).toContainText(/Investing fee:.*\$0\.20/);
+  await expect(dialog).toContainText(/Net in stock:.*\$99\.80/);
   await expect(dialog).toContainText(/nsave\s*\$1,500\.50/);
   await snap(page, "add-to-existing");
   await dialog.getByRole("button", { name: "Add to SPUS ETF" }).click();
   await expect
     .poll(() => writes.find((w) => w.path === "rpc/buy_asset")?.body)
-    .toMatchObject({ p_asset: "spus", p_from: "nsave", p_quantity: 3, p_amount: 177.27 });
+    .toMatchObject({ p_asset: "spus", p_from: "nsave", p_amount: 100 });
   expect(writes.find((w) => w.path === "assets")).toBeUndefined();
 });
 
